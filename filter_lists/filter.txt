@@ -5,6 +5,7 @@
 ||googletagservices.com^
 ||ad.google.com^
 ||googleadservices.com^
+||server.cpmstar.com^
 ||ads.youtube.com^
 ||securepubads.g.doubleclick.net^
 ||static.doubleclick.net^
