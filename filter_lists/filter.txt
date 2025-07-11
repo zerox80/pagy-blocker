@@ -13,25 +13,27 @@
 ||googleadsserving.cn^
 ||googletraveladservices.com^
 ||googleadservices.cn^
+||stats.g.doubleclick.net^
+||www.googletagmanager.com^
+||www.google-analytics.com^
 
 # Facebook/Meta Tracking (nur Tracking-Subdomains)
 ||connect.facebook.net^
 ||an.facebook.com^
 ||analytics.facebook.com^
 ||pixel.facebook.com^
-||business.facebook.com^
+||tr.facebook.com^
+||graph.facebook.com^
 
 # Amazon Tracking & Ads
 ||amazon-adsystem.com^
 ||assoc-amazon.com^
-||amazonservices.com^
 ||amazon-dsp.com^
 ||adsystem.amazon.com^
 
 # Microsoft Tracking
 ||ads.msn.com^
 ||adnxs.com^
-||bing.com^
 ||clarity.ms^
 ||bat.bing.com^
 
@@ -100,15 +102,11 @@
 ||mktoresp.com^
 ||marketo.net^
 ||pardot.com^
-||hubspot.com^
 ||hsforms.com^
 ||hscollectedforms.net^
 ||eloqua.com^
 
 # Video Ad Networks
-||brightcove.com^
-||jwpcdn.com^
-||jwplayer.com^
 ||spotx.tv^
 ||tremormedia.com^
 
@@ -118,7 +116,6 @@
 ||chartboost.com^
 ||applovin.com^
 ||ironsource.com^
-||unity3d.com^
 ||unityads.unity3d.com^
 
 # Data Brokers & Tracking
@@ -153,7 +150,6 @@
 # Native Advertising
 ||revcontent.com^
 ||mgid.com^
-||yahoo.com^
 ||plista.com^
 ||gravity.com^
 
@@ -165,7 +161,6 @@
 
 # Customer Support Tracking
 ||zdassets.com^
-||zendesk.com^
 ||widget.intercom.io^
 ||js.intercomcdn.com^
 
@@ -194,8 +189,6 @@
 ||optimost.com^
 
 # Survey & Feedback Tracking
-||surveymonkey.com^
-||qualtrics.com^
 ||usabilla.com^
 
 # Attribution & Measurement
@@ -231,7 +224,6 @@
 
 # A/B Testing Platforms
 ||vwo.com^
-||unbounce.com^
 ||splitforce.com^
 ||maxymiser.net^
 
@@ -254,7 +246,6 @@
 ||bidtheatre.com^
 ||simpli.fi^
 ||smartadserver.com^
-||stripchat.com^
 ||telaria.com^
 ||undertone.com^
 ||verve.com^

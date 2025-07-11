@@ -68,48 +68,59 @@ function validateRule(rule) {
   return true;
 }
 
-// Performance: Rule validation cache
+// Performance: Improved Rule validation cache with proper LRU
+const MAX_CACHE_SIZE = 1000;
 const validationCache = new Map();
+const cacheAccessOrder = new Map();
+
 function cachedValidateRule(rule) {
   const key = rule.condition?.urlFilter;
   if (!key) return false;
   
   if (validationCache.has(key)) {
+    // Update access order for LRU
+    cacheAccessOrder.delete(key);
+    cacheAccessOrder.set(key, Date.now());
     return validationCache.get(key);
   }
   
   const isValid = validateRule(rule);
   validationCache.set(key, isValid);
+  cacheAccessOrder.set(key, Date.now());
   
-  // LRU cleanup
-  if (validationCache.size > 1000) {
-    const firstKey = validationCache.keys().next().value;
-    validationCache.delete(firstKey);
+  // Proper LRU cleanup - remove oldest entries until under limit
+  while (validationCache.size > MAX_CACHE_SIZE) {
+    const oldestKey = cacheAccessOrder.keys().next().value;
+    validationCache.delete(oldestKey);
+    cacheAccessOrder.delete(oldestKey);
   }
   
   return isValid;
+}
+
+// Add cleanup function for extension shutdown
+function clearValidationCache() {
+  validationCache.clear();
+  cacheAccessOrder.clear();
 }
 
 // Make function globally available for importScripts
 async function updateRules(rules) {
 const DNR_MAX_RULES = chrome.declarativeNetRequest.MAX_NUMBER_OF_DYNAMIC_AND_SESSION_RULES || 5000;
 
-// Performance: Parallel filtering mit Web Workers Pattern
+// Performance: Optimized filtering with dynamic chunking
 console.time('Rule Filtering');
 let toAdd;
 if (rules.length > 1000) {
-  // Chunked parallel processing für große Listen
-  const chunkSize = Math.ceil(rules.length / 4);
+  // Dynamic chunk size based on CPU cores (estimated)
+  const optimalChunkSize = Math.max(250, Math.ceil(rules.length / (navigator.hardwareConcurrency || 4)));
   const chunks = [];
-  for (let i = 0; i < rules.length; i += chunkSize) {
-    chunks.push(rules.slice(i, i + chunkSize));
+  for (let i = 0; i < rules.length; i += optimalChunkSize) {
+    chunks.push(rules.slice(i, i + optimalChunkSize));
   }
   
-  const filterPromises = chunks.map(chunk => 
-    Promise.resolve(chunk.filter(cachedValidateRule))
-  );
-  
-  const filteredChunks = await Promise.all(filterPromises);
+  // Direct filtering without unnecessary Promise.resolve
+  const filteredChunks = chunks.map(chunk => chunk.filter(cachedValidateRule));
   toAdd = filteredChunks.flat();
 } else {
   toAdd = rules.filter(cachedValidateRule);

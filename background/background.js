@@ -27,9 +27,10 @@ let shouldUseWasm = false;
 let wasmPreloadPromise = null;
 const PRELOAD_DELAY = 1000; // 1s nach Extension-Start
 
-// === Globale Zustandsvariablen ===
+// === Globale Zustandsvariablen mit verbesserter Concurrency ===
 let wasmInitPromise = null;
 let isInitializing = false; // Lock, um parallele Initialisierungen zu verhindern
+let initializationPromise = null; // Promise für wartende Aufrufer
 
 // === Hilfsfunktionen ===
 
@@ -145,11 +146,20 @@ async function setErrorBadge(text = BADGE_TEXT_INIT_ERROR) {
   }
 }
 
-// Performance: Intelligent filter list caching
+// Performance: Intelligent filter list caching with memory management
 let filterListCache = null;
 let filterListETag = null;
 let lastFilterFetch = 0;
 const FILTER_CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+const MAX_CACHE_SIZE_BYTES = 10 * 1024 * 1024; // 10MB limit
+
+// Add cache cleanup function
+function clearFilterCache() {
+  filterListCache = null;
+  filterListETag = null;
+  lastFilterFetch = 0;
+  console.log(`${LOG_PREFIX} Filter cache cleared.`);
+}
 
 /**
  * High-performance filter list fetching with smart caching
@@ -187,11 +197,8 @@ async function fetchFilterList() {
     
     const text = await resp.text();
     
-    // Performance: Fast line counting without full split
-    let lineCount = 1;
-    for (let i = 0; i < text.length; i++) {
-      if (text.charCodeAt(i) === 10) lineCount++; // '\n'
-    }
+    // Performance: Optimized line counting using regex
+    const lineCount = (text.match(/\n/g) || []).length + 1;
     
     shouldUseWasm = lineCount > WASM_THRESHOLD;
     
@@ -240,18 +247,28 @@ class ObjectPool {
   }
 }
 
-// Memory pools
+// Memory pools with complete object reset
 const rulePool = new ObjectPool(
   () => ({ id: 0, priority: 1, action: { type: 'block' }, condition: {} }),
   (rule) => {
+    // Complete object reset to prevent memory leaks
     rule.id = 0;
-    rule.condition.urlFilter = '';
-    rule.condition.resourceTypes = null;
+    rule.priority = 1;
+    rule.action = { type: 'block' };
+    rule.condition = {};
+    // Clear any dynamic properties that might have been added
+    delete rule.condition.urlFilter;
+    delete rule.condition.resourceTypes;
+    delete rule.condition.initiatorDomains;
+    delete rule.condition.excludedInitiatorDomains;
+    delete rule.condition.requestDomains;
+    delete rule.condition.excludedRequestDomains;
   },
   50
 );
 
-const resourceTypesCache = ["main_frame", "sub_frame", "stylesheet", "script", "image", "font", "object", "xmlhttprequest", "ping", "media", "websocket", "other"];
+// Performance-optimized: Only block tracking-relevant resource types
+const resourceTypesCache = ["script", "image", "xmlhttprequest", "other"];
 
 /**
  * Ultra-fast JS-Parser mit Memory-Optimierungen
@@ -293,8 +310,10 @@ async function parseListWithJS(filterListText) {
           // Get pooled object
           const rule = rulePool.get();
           rule.id = ruleId++;
-          rule.condition.urlFilter = `||${domain}/`;
-          rule.condition.resourceTypes = resourceTypesCache; // Shared reference
+          // Fix: Only block specific tracking subdomains, not entire domains
+          rule.condition.urlFilter = `||${domain}^`;
+          // Fix: Only block script, image, and xmlhttprequest (typical tracking resources)
+          rule.condition.resourceTypes = ["script", "image", "xmlhttprequest", "other"];
           
           rules.push(rule);
           stats.processedRules++;
@@ -306,9 +325,13 @@ async function parseListWithJS(filterListText) {
       }
     }
     
-    // Micro-yield for better responsiveness on large lists
-    if (i > 0 && i % 1000 === 0) {
-      await new Promise(resolve => setTimeout(resolve, 0));
+    // Adaptive yielding based on processing time
+    if (i > 0 && i % 500 === 0) {
+      const now = performance.now();
+      if (now - (performance.mark?.('batchStart')?.startTime || 0) > 16) { // ~60fps threshold
+        await new Promise(resolve => setTimeout(resolve, 0));
+        performance.mark('batchStart');
+      }
     }
   }
   
@@ -327,6 +350,18 @@ async function parseListWithJS(filterListText) {
 function parseListWithWasm(module, filterListText) {
   console.log(`${LOG_PREFIX} Starting WASM parsing...`);
   console.time(`${LOG_PREFIX} WASM Parsing`);
+  
+  // Validate WASM module and function
+  if (!module) {
+    throw new Error('WASM module is null or undefined');
+  }
+  if (typeof module.parseFilterListWasm !== 'function') {
+    throw new Error('WASM module missing parseFilterListWasm function');
+  }
+  if (!filterListText || typeof filterListText !== 'string') {
+    throw new Error('Invalid filter list text provided to WASM parser');
+  }
+  
   let jsonString;
   try {
       jsonString = module.parseFilterListWasm(filterListText);
@@ -368,19 +403,28 @@ function parseListWithWasm(module, filterListText) {
 
 /**
  * Initialisiert die Erweiterung: Lädt WASM, holt Filterliste, parst sie und wendet Regeln an.
- * Verwendet einen Lock, um parallele Ausführungen zu verhindern.
+ * Verwendet Promises für korrekte Concurrency-Behandlung.
  */
 async function initialize() {
   // Prüfen, ob bereits eine Initialisierung läuft
+  if (isInitializing && initializationPromise) {
+    console.log(`${LOG_PREFIX} Initialization already in progress. Waiting for completion.`);
+    return initializationPromise;
+  }
+  
   if (isInitializing) {
-    console.log(`${LOG_PREFIX} Initialization already in progress. Skipping.`);
+    console.log(`${LOG_PREFIX} Initialization in progress but no promise. Skipping.`);
     return;
   }
+  
   isInitializing = true; // Lock setzen
-  console.log(`${LOG_PREFIX} Starting initialization...`);
-  await clearBadge(); // Badge zu Beginn löschen
+  
+  // Erstelle Promise für wartende Aufrufer
+  initializationPromise = (async () => {
+    console.log(`${LOG_PREFIX} Starting initialization...`);
+    await clearBadge(); // Badge zu Beginn löschen
 
-  try {
+    try {
     // 1. Filterliste abrufen (bestimmt Parser-Typ)
     const listText = await fetchFilterList();
 
@@ -447,9 +491,13 @@ async function initialize() {
     // Optional: Fehler im Storage speichern für Debugging?
     // await chrome.storage.local.set({ lastError: error.message });
 
-  } finally {
-    isInitializing = false; // Lock freigeben, egal ob Erfolg oder Fehler
-  }
+    } finally {
+      isInitializing = false; // Lock freigeben, egal ob Erfolg oder Fehler
+      initializationPromise = null; // Promise cleanup
+    }
+  })();
+  
+  return initializationPromise;
 }
 
 // === Event-Listener ===
