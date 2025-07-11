@@ -56,13 +56,29 @@
 }
 */
 
+function isASCII(str) {
+  return /^[\x00-\x7F]*$/.test(str);
+}
+
+function validateRule(rule) {
+  if (rule.condition && rule.condition.urlFilter && !isASCII(rule.condition.urlFilter)) {
+    console.warn(`Skipping rule with id ${rule.id}: urlFilter contains non-ASCII characters: ${rule.condition.urlFilter}`);
+    return false;
+  }
+  return true;
+}
+
 export async function updateRules(rules) {
 const DNR_MAX_RULES = chrome.declarativeNetRequest.MAX_NUMBER_OF_DYNAMIC_AND_SESSION_RULES || 5000;
-let toAdd = rules;
+let toAdd = rules.filter(validateRule);
 
-if (rules.length > DNR_MAX_RULES) {
-  console.warn(`Truncating from ${rules.length} to ${DNR_MAX_RULES} rules`);
-  toAdd = rules.slice(0, DNR_MAX_RULES);
+if (toAdd.length !== rules.length) {
+  console.log(`Filtered out ${rules.length - toAdd.length} rules with non-ASCII characters`);
+}
+
+if (toAdd.length > DNR_MAX_RULES) {
+  console.warn(`Truncating from ${toAdd.length} to ${DNR_MAX_RULES} rules`);
+  toAdd = toAdd.slice(0, DNR_MAX_RULES);
 }
 
 try {
