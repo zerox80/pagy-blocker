@@ -143,5 +143,7 @@ try {
     await chrome.action.setBadgeBackgroundColor({ color: '#FF0000' });
   }
   console.log("Rule update failed, ruleCount not stored/updated.");
+  // Fehler weiterwerfen, damit initialize() ihn abfangen kann
+  throw new Error(`Rule application failed: ${err.message}`);
 }
 }

@@ -48,6 +48,8 @@ function ensureWasmModuleLoaded() {
         console.error(`${LOG_PREFIX} Failed to load or initialize WASM module:`, error);
         if (error.stack) console.error(error.stack);
         // Rücksetzen, damit ein späterer Aufruf neu versucht
+        // Wichtig: Erst nach dem Error-Handling zurücksetzen, um Race Conditions zu vermeiden
+        const failedPromise = wasmInitPromise;
         wasmInitPromise = null;
         // Fehler weiterwerfen, damit er in initialize() gefangen wird
         throw new Error(`WASM Init failed: ${error.message}`);
@@ -55,7 +57,17 @@ function ensureWasmModuleLoaded() {
   } else {
     console.log(`${LOG_PREFIX} Using existing WASM module promise.`);
   }
-  return wasmInitPromise;
+  
+  // Defensive Kopie für Race Condition Protection
+  const currentPromise = wasmInitPromise;
+  
+  // Falls die Promise während der Ausführung fehlschlägt und zurückgesetzt wird,
+  // stellen wir sicher, dass diese spezifische Promise-Instanz zurückgegeben wird
+  return currentPromise.catch(error => {
+    // Wenn diese spezifische Promise fehlschlägt, aber wasmInitPromise bereits
+    // von einem anderen Aufruf zurückgesetzt wurde, werfen wir den Fehler trotzdem weiter
+    throw error;
+  });
 }
 
 /**
@@ -215,8 +227,8 @@ async function initialize() {
         // await setErrorBadge(BADGE_TEXT_EMPTY_LIST); // Oder nur loggen
         // Speichere 0 als Regelanzahl
         await chrome.storage.local.set({ ruleCount: 0, ruleStats: stats });
-        // Cache invalidieren nach Storage-Update
-        storageCache = null;
+        // Cache invalidieren nach Storage-Update (mit Defensive Synchronisation)
+        setTimeout(() => { storageCache = null; }, 10);
     } else {
         console.log(`${LOG_PREFIX} Applying ${rules.length} rules...`);
         // updateRules sollte die Anzahl der erfolgreich angewendeten Regeln zurückgeben oder speichern
@@ -224,8 +236,8 @@ async function initialize() {
         await updateRules(rules); // Fehler hier werden vom äußeren catch gefangen
         // Speichere Statistiken (Anzahl wird von updateRules gesetzt)
         await chrome.storage.local.set({ ruleStats: stats });
-        // Cache invalidieren nach Storage-Update
-        storageCache = null;
+        // Cache invalidieren nach Storage-Update (mit Defensive Synchronisation)
+        setTimeout(() => { storageCache = null; }, 10);
     }
 
     // 5. Erfolg signalisieren (Badge löschen)
@@ -245,7 +257,11 @@ async function initialize() {
     } else if (error.message.includes("updateRules") || error.message.includes("Rule application")) { // Annahme: updateRules wirft Fehler mit Kennung
         badgeText = BADGE_TEXT_RULES_ERROR;
     }
-    await setErrorBadge(badgeText);
+    try {
+      await setErrorBadge(badgeText);
+    } catch (badgeError) {
+      console.error(`${LOG_PREFIX} Failed to set error badge:`, badgeError);
+    }
     // Optional: Fehler im Storage speichern für Debugging?
     // await chrome.storage.local.set({ lastError: error.message });
 
