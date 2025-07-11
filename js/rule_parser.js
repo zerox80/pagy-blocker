@@ -99,25 +99,13 @@ try {
   const BATCH = 200;
   console.log(`Preparing to add ${toAdd.length} new rules.`);
   if (toAdd.length > 0) {
-      // Performance: Parallele Batch-Verarbeitung für kleinere Mengen
-      if (toAdd.length <= 1000) {
-        const batches = [];
-        for (let i = 0; i < toAdd.length; i += BATCH) {
-          batches.push(toAdd.slice(i, i + BATCH));
-        }
-        
-        // Verarbeite Batches parallel (max 3 gleichzeitig)
-        for (let i = 0; i < batches.length; i += 3) {
-          const parallelBatches = batches.slice(i, i + 3);
-          await Promise.all(parallelBatches.map(batch => 
-            chrome.declarativeNetRequest.updateDynamicRules({ addRules: batch, removeRuleIds: [] })
-          ));
-        }
-      } else {
-        // Sequenziell für große Mengen
-        for (let i = 0; i < toAdd.length; i += BATCH) {
-          const batch = toAdd.slice(i, i + BATCH);
-          await chrome.declarativeNetRequest.updateDynamicRules({ addRules: batch, removeRuleIds: [] });
+      // Sequenzielle Verarbeitung für bessere Performance
+      for (let i = 0; i < toAdd.length; i += BATCH) {
+        const batch = toAdd.slice(i, i + BATCH);
+        await chrome.declarativeNetRequest.updateDynamicRules({ addRules: batch, removeRuleIds: [] });
+        // Kurze Pause zwischen Batches für bessere Browser-Performance
+        if (i + BATCH < toAdd.length) {
+          await new Promise(resolve => setTimeout(resolve, 10));
         }
       }
       console.log("Finished adding rules.");
