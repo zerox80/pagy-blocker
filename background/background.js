@@ -7,12 +7,16 @@ import createFilterParserModule from '../wasm/filter_parser.js';
 const LOG_PREFIX = "[PagyBlocker]";
 const FILTER_LIST_URL = 'filter_lists/filter.txt';
 const BADGE_ERROR_COLOR = '#FF0000';
-const BADGE_TEXT_INIT_ERROR = 'INIT'; // Kürzer für Badge
+const BADGE_TEXT_INIT_ERROR = 'INIT';
 const BADGE_TEXT_WASM_ERROR = 'WASM';
 const BADGE_TEXT_FETCH_ERROR = 'FETCH';
 const BADGE_TEXT_PARSE_ERROR = 'PARSE';
 const BADGE_TEXT_RULES_ERROR = 'RULES';
 const BADGE_TEXT_EMPTY_LIST = 'EMPTY';
+
+// Performance Optimierung: Cache für Badge-Operationen
+let lastBadgeText = null;
+let lastBadgeColor = null;
 
 // === Globale Zustandsvariablen ===
 let wasmInitPromise = null;
@@ -56,32 +60,40 @@ function ensureWasmModuleLoaded() {
 
 /**
  * Löscht den Text und die Hintergrundfarbe des Browser-Action-Badges.
+ * Optimierung: Verhindert redundante Badge-Updates.
  */
 async function clearBadge() {
   try {
-    // Prüfen, ob chrome.action und die Methoden existieren
     if (chrome.action?.setBadgeText && chrome.action?.setBadgeBackgroundColor) {
-      await chrome.action.setBadgeText({ text: '' });
-      // Setze Hintergrundfarbe auf Standard zurück (optional, falls sie immer rot war)
-      // await chrome.action.setBadgeBackgroundColor({ color: '#00000000' }); // Transparent oder Standardfarbe
+      // Performance: Nur Badge aktualisieren wenn sich der Status geändert hat
+      if (lastBadgeText !== '') {
+        await chrome.action.setBadgeText({ text: '' });
+        lastBadgeText = '';
+        lastBadgeColor = null;
+      }
     } else {
         console.warn(`${LOG_PREFIX} chrome.action API not fully available for badge manipulation.`);
     }
   } catch (e) {
-    // Fehler beim Setzen des Badges ignorieren, aber loggen könnte hilfreich sein
     console.warn(`${LOG_PREFIX} Could not clear badge:`, e.message);
   }
 }
 
 /**
  * Setzt einen Fehlertext und eine rote Hintergrundfarbe für das Browser-Action-Badge.
+ * Optimierung: Verhindert redundante Badge-Updates.
  * @param {string} text - Der Text, der im Badge angezeigt werden soll (kurz halten!).
  */
 async function setErrorBadge(text = BADGE_TEXT_INIT_ERROR) {
   try {
     if (chrome.action?.setBadgeText && chrome.action?.setBadgeBackgroundColor) {
-      await chrome.action.setBadgeText({ text });
-      await chrome.action.setBadgeBackgroundColor({ color: BADGE_ERROR_COLOR });
+      // Performance: Nur Badge aktualisieren wenn sich der Status geändert hat
+      if (lastBadgeText !== text || lastBadgeColor !== BADGE_ERROR_COLOR) {
+        await chrome.action.setBadgeText({ text });
+        await chrome.action.setBadgeBackgroundColor({ color: BADGE_ERROR_COLOR });
+        lastBadgeText = text;
+        lastBadgeColor = BADGE_ERROR_COLOR;
+      }
     } else {
         console.warn(`${LOG_PREFIX} chrome.action API not fully available for badge manipulation.`);
     }
@@ -203,6 +215,8 @@ async function initialize() {
         // await setErrorBadge(BADGE_TEXT_EMPTY_LIST); // Oder nur loggen
         // Speichere 0 als Regelanzahl
         await chrome.storage.local.set({ ruleCount: 0, ruleStats: stats });
+        // Cache invalidieren nach Storage-Update
+        storageCache = null;
     } else {
         console.log(`${LOG_PREFIX} Applying ${rules.length} rules...`);
         // updateRules sollte die Anzahl der erfolgreich angewendeten Regeln zurückgeben oder speichern
@@ -210,6 +224,8 @@ async function initialize() {
         await updateRules(rules); // Fehler hier werden vom äußeren catch gefangen
         // Speichere Statistiken (Anzahl wird von updateRules gesetzt)
         await chrome.storage.local.set({ ruleStats: stats });
+        // Cache invalidieren nach Storage-Update
+        storageCache = null;
     }
 
     // 5. Erfolg signalisieren (Badge löschen)
@@ -252,18 +268,38 @@ chrome.runtime.onStartup.addListener(() => {
   initialize(); // Starte die Initialisierung
 });
 
+// Cache für Storage-Daten zur Performance-Optimierung
+let storageCache = null;
+let cacheTimestamp = 0;
+const CACHE_DURATION = 5000; // 5 Sekunden
+
 // Lauscht auf Nachrichten von anderen Teilen der Erweiterung (z.B. Popup).
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   console.log(`${LOG_PREFIX} Received message:`, request);
 
   if (request.action === "getStats") {
+    // Performance: Cache für häufige Storage-Zugriffe
+    const now = Date.now();
+    if (storageCache && (now - cacheTimestamp) < CACHE_DURATION) {
+      sendResponse({
+        ruleCount: storageCache.ruleCount ?? 'N/A',
+        ruleStats: storageCache.ruleStats ?? {},
+        lastError: storageCache.lastError
+      });
+      return true;
+    }
+
     // Asynchrone Antwort erforderlich -> true zurückgeben
     chrome.storage.local.get(['ruleCount', 'ruleStats', 'lastError'])
       .then(data => {
+        // Cache aktualisieren
+        storageCache = data;
+        cacheTimestamp = now;
+        
         sendResponse({
             ruleCount: data.ruleCount ?? 'N/A',
             ruleStats: data.ruleStats ?? {},
-            lastError: data.lastError // Optional: Letzten Fehler anzeigen
+            lastError: data.lastError
         });
       })
       .catch(err => {

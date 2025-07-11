@@ -66,21 +66,43 @@ if (rules.length > DNR_MAX_RULES) {
 }
 
 try {
-  const allPossibleIds = Array.from({length: DNR_MAX_RULES}, (_, i) => i + 1);
-  console.log(`Attempting to remove all potential rule IDs (1-${DNR_MAX_RULES})...`);
-  await chrome.declarativeNetRequest.updateDynamicRules({ removeRuleIds: allPossibleIds, addRules: [] });
-  console.log("Potential existing rules removed.");
+  // Performance: Nur existierende Regeln abfragen und löschen
+  const existingRules = await chrome.declarativeNetRequest.getDynamicRules();
+  if (existingRules.length > 0) {
+    const existingIds = existingRules.map(rule => rule.id);
+    console.log(`Removing ${existingIds.length} existing rules...`);
+    await chrome.declarativeNetRequest.updateDynamicRules({ removeRuleIds: existingIds, addRules: [] });
+  }
 
-  console.log("Waiting 100ms before adding new rules...");
-  await new Promise(resolve => setTimeout(resolve, 100));
+  // Performance: Verringerte Wartezeit
+  if (existingRules.length > 0) {
+    await new Promise(resolve => setTimeout(resolve, 50));
+  }
 
-  const BATCH = 100;
+  // Performance: Optimierte Batch-Größe
+  const BATCH = 200;
   console.log(`Preparing to add ${toAdd.length} new rules.`);
   if (toAdd.length > 0) {
-      for (let i = 0; i < toAdd.length; i += BATCH) {
-        const batch = toAdd.slice(i, i + BATCH);
-        console.log(`Adding batch ${Math.floor(i / BATCH) + 1}: rules ${i + 1}-${i + batch.length} (IDs: ${batch.map(r=>r.id).join(',')})`);
-        await chrome.declarativeNetRequest.updateDynamicRules({ addRules: batch, removeRuleIds: [] });
+      // Performance: Parallele Batch-Verarbeitung für kleinere Mengen
+      if (toAdd.length <= 1000) {
+        const batches = [];
+        for (let i = 0; i < toAdd.length; i += BATCH) {
+          batches.push(toAdd.slice(i, i + BATCH));
+        }
+        
+        // Verarbeite Batches parallel (max 3 gleichzeitig)
+        for (let i = 0; i < batches.length; i += 3) {
+          const parallelBatches = batches.slice(i, i + 3);
+          await Promise.all(parallelBatches.map(batch => 
+            chrome.declarativeNetRequest.updateDynamicRules({ addRules: batch, removeRuleIds: [] })
+          ));
+        }
+      } else {
+        // Sequenziell für große Mengen
+        for (let i = 0; i < toAdd.length; i += BATCH) {
+          const batch = toAdd.slice(i, i + BATCH);
+          await chrome.declarativeNetRequest.updateDynamicRules({ addRules: batch, removeRuleIds: [] });
+        }
       }
       console.log("Finished adding rules.");
   } else {
