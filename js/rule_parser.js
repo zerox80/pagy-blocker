@@ -90,7 +90,8 @@ function cachedValidateRule(rule) {
   return isValid;
 }
 
-export async function updateRules(rules) {
+// Make function globally available for importScripts
+async function updateRules(rules) {
 const DNR_MAX_RULES = chrome.declarativeNetRequest.MAX_NUMBER_OF_DYNAMIC_AND_SESSION_RULES || 5000;
 
 // Performance: Parallel filtering mit Web Workers Pattern
@@ -223,4 +224,9 @@ try {
   // Fehler weiterwerfen, damit initialize() ihn abfangen kann
   throw new Error(`Rule application failed: ${err.message}`);
 }
+}
+
+// Make function globally available for importScripts
+if (typeof self !== 'undefined') {
+  self.updateRules = updateRules;
 }

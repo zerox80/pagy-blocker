@@ -1,7 +1,8 @@
 // background/background.js
 
-import { updateRules } from '../js/rule_parser.js';
-import createFilterParserModule from '../wasm/filter_parser.js';
+// Import scripts using importScripts for service worker compatibility
+importScripts('../js/rule_parser.js');
+importScripts('../wasm/filter_parser.js');
 
 // === Konstanten ===
 const LOG_PREFIX = "[PagyBlocker]";
@@ -257,7 +258,7 @@ const resourceTypesCache = ["main_frame", "sub_frame", "stylesheet", "script", "
  * @param {string} filterListText - Der Text der Filterliste
  * @returns {Object} Parsed result mit rules und stats
  */
-function parseListWithJS(filterListText) {
+async function parseListWithJS(filterListText) {
   console.log(`${LOG_PREFIX} Starting ultra-fast JS parsing...`);
   console.time(`${LOG_PREFIX} JS Parsing`);
   
