@@ -3,6 +3,7 @@
 // Import modules using ES module syntax
 import { updateRules } from '../js/rule_parser.js';
 import createFilterParserModule from '../wasm/filter_parser.js';
+import { fastYield, getOptimalCacheSize, globalCacheCoordinator } from '../js/utils.js';
 
 // === Konstanten ===
 const LOG_PREFIX = "[PagyBlocker]";
@@ -19,8 +20,8 @@ const BADGE_TEXT_EMPTY_LIST = 'EMPTY';
 let lastBadgeText = null;
 let lastBadgeColor = null;
 
-// Performance: WASM Lazy Loading für kleine Listen
-const WASM_THRESHOLD = 1000; // Nur bei >1000 Zeilen WASM verwenden
+// Performance: WASM Lazy Loading für kleine Listen  
+const WASM_THRESHOLD = 500; // Lowered threshold for better performance on medium lists
 let shouldUseWasm = false;
 
 // Performance: WASM Preloading mit Worker-like Pattern
@@ -33,6 +34,7 @@ let isInitializing = false; // Lock, um parallele Initialisierungen zu verhinder
 let initializationPromise = null; // Promise für wartende Aufrufer
 
 // === Hilfsfunktionen ===
+
 
 /**
  * Preloads WASM module in background for faster access
@@ -150,7 +152,7 @@ async function setErrorBadge(text = BADGE_TEXT_INIT_ERROR) {
 let filterListCache = null;
 let filterListETag = null;
 let lastFilterFetch = 0;
-const FILTER_CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+const FILTER_CACHE_DURATION = 30 * 60 * 1000; // 30 minutes - improved caching for better performance
 const MAX_CACHE_SIZE_BYTES = 10 * 1024 * 1024; // 10MB limit
 
 // Add cache cleanup function
@@ -222,49 +224,105 @@ async function fetchFilterList() {
   }
 }
 
-// Performance: Object pools für Memory-Effizienz
+// Performance: Enhanced Object pools for Memory-Efficiency
 class ObjectPool {
   constructor(createFn, resetFn, initialSize = 10) {
     this.createFn = createFn;
     this.resetFn = resetFn;
     this.pool = [];
+    this.maxSize = initialSize * 2; // Dynamic max size
+    this.hitCount = 0;
+    this.missCount = 0;
     
-    // Pre-allocate objects
+    // Pre-allocate objects efficiently
     for (let i = 0; i < initialSize; i++) {
       this.pool.push(this.createFn());
     }
   }
   
   get() {
-    return this.pool.pop() || this.createFn();
+    if (this.pool.length > 0) {
+      this.hitCount++;
+      return this.pool.pop();
+    } else {
+      this.missCount++;
+      return this.createFn();
+    }
   }
   
   release(obj) {
-    if (this.pool.length < 100) { // Max pool size
-      this.resetFn(obj);
-      this.pool.push(obj);
+    if (!obj) return; // Guard against null/undefined
+    
+    // Dynamic max pool size based on memory pressure and usage patterns
+    const memoryBasedSize = getOptimalCacheSize(500000, 50, 200);
+    const usageBasedSize = this.getUsageBasedSize();
+    this.maxSize = Math.min(memoryBasedSize, usageBasedSize);
+    
+    if (this.pool.length < this.maxSize) {
+      try {
+        this.resetFn(obj);
+        this.pool.push(obj);
+      } catch (error) {
+        // If reset fails, don't add to pool
+        console.warn('Object reset failed, skipping pool return:', error.message);
+      }
+    }
+  }
+  
+  getUsageBasedSize() {
+    // Adjust pool size based on hit/miss ratio
+    const totalRequests = this.hitCount + this.missCount;
+    if (totalRequests === 0) return 100;
+    
+    const hitRatio = this.hitCount / totalRequests;
+    if (hitRatio > 0.8) return Math.min(300, this.maxSize * 1.2); // High hit rate, increase pool
+    if (hitRatio < 0.3) return Math.max(25, this.maxSize * 0.8);   // Low hit rate, decrease pool
+    return this.maxSize; // Keep current size
+  }
+  
+  // Cleanup method for memory management
+  cleanup() {
+    const targetSize = Math.floor(this.maxSize * 0.5);
+    while (this.pool.length > targetSize) {
+      this.pool.pop();
     }
   }
 }
 
-// Memory pools with complete object reset
+// Memory pools with enhanced object reset and cleanup
 const rulePool = new ObjectPool(
   () => ({ id: 0, priority: 1, action: { type: 'block' }, condition: {} }),
   (rule) => {
-    // Complete object reset to prevent memory leaks
+    // Enhanced object reset to prevent memory leaks
     rule.id = 0;
     rule.priority = 1;
-    rule.action = { type: 'block' };
-    rule.condition = {};
-    // Clear any dynamic properties that might have been added
-    delete rule.condition.urlFilter;
-    delete rule.condition.resourceTypes;
-    delete rule.condition.initiatorDomains;
-    delete rule.condition.excludedInitiatorDomains;
-    delete rule.condition.requestDomains;
-    delete rule.condition.excludedRequestDomains;
+    
+    // Reuse action object instead of creating new one
+    if (rule.action) {
+      rule.action.type = 'block';
+      // Clear any other action properties
+      Object.keys(rule.action).forEach(key => {
+        if (key !== 'type') delete rule.action[key];
+      });
+    } else {
+      rule.action = { type: 'block' };
+    }
+    
+    // Clear condition object properties efficiently
+    if (rule.condition) {
+      Object.keys(rule.condition).forEach(key => delete rule.condition[key]);
+    } else {
+      rule.condition = {};
+    }
+    
+    // Clear any other dynamic properties at the root level
+    Object.keys(rule).forEach(key => {
+      if (!['id', 'priority', 'action', 'condition'].includes(key)) {
+        delete rule[key];
+      }
+    });
   },
-  50
+  getOptimalCacheSize(100000, 25, 100) // Use shared utility for pool sizing
 );
 
 // Performance-optimized: Only block tracking-relevant resource types
@@ -288,8 +346,8 @@ async function parseListWithJS(filterListText) {
   // Pre-allocate array size hint
   rules.length = 0;
   
-  // Performance: Batch processing mit reduced GC pressure
-  const BATCH_SIZE = 100;
+  // Performance: Optimized batch processing for better domain parsing
+  const BATCH_SIZE = 50; // Smaller batches for better yielding
   for (let i = 0; i < lines.length; i += BATCH_SIZE) {
     const batchEnd = Math.min(i + BATCH_SIZE, lines.length);
     
@@ -297,7 +355,7 @@ async function parseListWithJS(filterListText) {
       const line = lines[j];
       const trimmed = line.trim();
       
-      if (!trimmed || trimmed.charCodeAt(0) === 33 || trimmed.charCodeAt(0) === 91) { // '!' or '['
+      if (!trimmed || trimmed.charCodeAt(0) === 33 || trimmed.charCodeAt(0) === 91 || trimmed.charCodeAt(0) === 35) { // '!', '[', or '#'
         stats.skippedLines++;
         continue;
       }
@@ -305,15 +363,15 @@ async function parseListWithJS(filterListText) {
       if (trimmed.startsWith('||') && trimmed.endsWith('^')) {
         const domain = trimmed.slice(2, -1);
         
-        // Performance: Inline domain validation
-        if (domain.length > 0 && domain.indexOf('*') === -1) {
+        // Improved domain validation - allow more valid patterns
+        if (domain.length > 0 && domain.indexOf('*') === -1 && domain.indexOf(' ') === -1) {
           // Get pooled object
           const rule = rulePool.get();
           rule.id = ruleId++;
           // Fix: Only block specific tracking subdomains, not entire domains
           rule.condition.urlFilter = `||${domain}^`;
-          // Fix: Only block script, image, and xmlhttprequest (typical tracking resources)
-          rule.condition.resourceTypes = ["script", "image", "xmlhttprequest", "other"];
+          // Fix: Use cached resourceTypes for better performance
+          rule.condition.resourceTypes = resourceTypesCache;
           
           rules.push(rule);
           stats.processedRules++;
@@ -325,18 +383,21 @@ async function parseListWithJS(filterListText) {
       }
     }
     
-    // Adaptive yielding based on processing time
-    if (i > 0 && i % 500 === 0) {
+    // Optimized adaptive yielding for better responsiveness
+    if (i > 0 && i % 250 === 0) { // More frequent yielding
       const now = performance.now();
-      if (now - (performance.mark?.('batchStart')?.startTime || 0) > 16) { // ~60fps threshold
-        await new Promise(resolve => setTimeout(resolve, 0));
-        performance.mark('batchStart');
+      // Store start time for proper timing calculation - use module variable instead of window
+      if (!globalThis.batchStartTime) globalThis.batchStartTime = now;
+      if (now - globalThis.batchStartTime > 10) { // Lower threshold for faster UI
+        await fastYield();
+        globalThis.batchStartTime = performance.now();
       }
     }
   }
   
   console.timeEnd(`${LOG_PREFIX} JS Parsing`);
   console.log(`${LOG_PREFIX} Ultra-fast JS parsed ${rules.length} rules from ${lines.length} lines`);
+  console.log(`${LOG_PREFIX} Parsing stats: Total lines: ${stats.totalLines}, Processed: ${stats.processedRules}, Skipped: ${stats.skippedLines}`);
   return { rules, stats };
 }
 
@@ -514,15 +575,23 @@ chrome.runtime.onStartup.addListener(() => {
   initialize(); // Starte die Initialisierung
 });
 
-// Performance: Advanced Multi-Level Caching
+// Performance: Advanced Multi-Level Caching with adaptive sizing
 class PerformanceCache {
   constructor() {
     this.memoryCache = new Map();
     this.storageCache = null;
     this.cacheTimestamp = 0;
     this.CACHE_DURATION = 2000;
-    this.MAX_MEMORY_ENTRIES = 50;
+    this.MAX_MEMORY_ENTRIES = this.getOptimalCacheSize();
     this.accessOrder = new Map(); // For LRU
+    this.hitRate = 0;
+    this.totalRequests = 0;
+    this.hits = 0;
+  }
+
+  getOptimalCacheSize() {
+    // Use shared utility for consistent cache sizing
+    return getOptimalCacheSize(1000000, 50, 200); // 1 entry per MB, min 50, max 200
   }
 
   // LRU eviction
@@ -542,7 +611,10 @@ class PerformanceCache {
   }
 
   get(key) {
+    this.totalRequests++;
     if (this.memoryCache.has(key)) {
+      this.hits++;
+      this.hitRate = this.hits / this.totalRequests;
       // Update LRU order
       this.accessOrder.delete(key);
       this.accessOrder.set(key, Date.now());
@@ -555,6 +627,29 @@ class PerformanceCache {
     this.memoryCache.clear();
     this.accessOrder.clear();
     this.storageCache = null;
+    this.hits = 0;
+    this.totalRequests = 0;
+    this.hitRate = 0;
+  }
+
+  // Periodic optimization based on hit rate
+  optimize() {
+    if (this.totalRequests > 100) {
+      // If hit rate is very low, reduce cache size
+      if (this.hitRate < 0.1) {
+        this.MAX_MEMORY_ENTRIES = Math.max(25, Math.floor(this.MAX_MEMORY_ENTRIES * 0.8));
+      }
+      // If hit rate is very high, increase cache size (within limits)
+      else if (this.hitRate > 0.9) {
+        this.MAX_MEMORY_ENTRIES = Math.min(300, Math.floor(this.MAX_MEMORY_ENTRIES * 1.2));
+      }
+      
+      // Reset stats periodically
+      if (this.totalRequests > 1000) {
+        this.hits = Math.floor(this.hits * 0.5);
+        this.totalRequests = Math.floor(this.totalRequests * 0.5);
+      }
+    }
   }
 
   isStorageCacheValid() {
@@ -563,6 +658,31 @@ class PerformanceCache {
 }
 
 const performanceCache = new PerformanceCache();
+
+// Register caches with coordinator
+globalCacheCoordinator.register(performanceCache);
+globalCacheCoordinator.register(rulePool);
+
+// Enhanced periodic optimization with coordination
+setInterval(() => {
+  // Use global coordinator for comprehensive optimization
+  globalCacheCoordinator.optimizeAll();
+}, 60000); // Every minute
+
+// Additional emergency cleanup on high memory pressure
+setInterval(() => {
+  const memInfo = (performance.memory && performance.memory.usedJSHeapSize) ? 
+    performance.memory : { usedJSHeapSize: 50000000, totalJSHeapSize: 100000000 };
+  
+  // Emergency cleanup if memory usage is very high (>90%)
+  if (memInfo.usedJSHeapSize > (memInfo.totalJSHeapSize || 100000000) * 0.9) {
+    console.warn(`${LOG_PREFIX} High memory pressure detected, performing emergency cleanup`);
+    globalCacheCoordinator.emergencyCleanup();
+    
+    // Force garbage collection if available
+    if (globalThis.gc) globalThis.gc();
+  }
+}, 30000); // Every 30 seconds
 
 // Lauscht auf Nachrichten von anderen Teilen der Erweiterung (z.B. Popup).
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {

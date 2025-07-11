@@ -1,107 +1,132 @@
 // js/rule_parser.js
 
-/*export async function parseFilterList(filterListText) {
-  const lines = filterListText.split(/\r?\n/);
-  const rules = [];
-  let ruleId = 1;
-  const defaultResourceTypes = [
-    "main_frame", "sub_frame", "stylesheet", "script", "image",
-    "font", "object", "xmlhttprequest", "ping", "csp_report",
-    "media", "websocket", "webtransport", "webbundle", "other"
-  ];
+// Import shared utilities
+import { fastYield, getOptimalCacheSize, globalCacheCoordinator } from './utils.js';
 
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith('!') || trimmed.startsWith('[')) continue;
-    const parts = trimmed.split('$');
-    const filterPart = parts[0];
-    const optionsPart = parts[1] || '';
-    let condition = { resourceTypes: [...defaultResourceTypes] };
-    let valid = false;
-
-    if (filterPart.startsWith('||') && filterPart.endsWith('^')) {
-      const domain = filterPart.slice(2, -1);
-      if (domain && !domain.includes('*')) {
-        condition.urlFilter = `||${domain}/`;
-        valid = true;
-      }
-    }
-
-    if (valid && optionsPart) {
-      for (const opt of optionsPart.split(',')) {
-        if (opt.startsWith('domain=')) {
-          const domains = opt.slice(7).split('|');
-          const inc = [], exc = [];
-          for (const d of domains) {
-            const dm = d.trim();
-            if (!dm) continue;
-            if (dm.startsWith('~')) exc.push(dm.slice(1)); else inc.push(dm);
-          }
-          if (exc.length) {
-            delete condition.initiatorDomains;
-            condition.excludedInitiatorDomains = exc;
-          } else if (inc.length) {
-            condition.initiatorDomains = inc;
-          }
-        }
-      }
-    }
-
-    if (valid && Object.keys(condition).length > 1) {
-      rules.push({ id: ruleId++, priority: 1, action: { type: 'block' }, condition });
-    }
-  }
-
-  return rules;
-}
-*/
-
-function isASCII(str) {
-  return /^[\x00-\x7F]*$/.test(str);
+function isValidDomainFilter(str) {
+  // More permissive validation - allow basic domain characters and common patterns
+  // Block only truly problematic characters while allowing international domains
+  if (!str || str.length === 0) return false;
+  
+  // Allow: letters, numbers, dots, hyphens, pipes, carets (AdBlock syntax)
+  // Allow Unicode characters for international domains
+  const hasProblematicChars = /[\x00-\x1F\x7F-\x9F"'<>\\]/.test(str);
+  return !hasProblematicChars;
 }
 
 function validateRule(rule) {
-  if (rule.condition && rule.condition.urlFilter && !isASCII(rule.condition.urlFilter)) {
-    console.warn(`Skipping rule with id ${rule.id}: urlFilter contains non-ASCII characters: ${rule.condition.urlFilter}`);
+  if (rule.condition && rule.condition.urlFilter && !isValidDomainFilter(rule.condition.urlFilter)) {
+    console.warn(`Skipping rule with id ${rule.id}: urlFilter contains invalid characters: ${rule.condition.urlFilter}`);
     return false;
   }
   return true;
 }
 
-// Performance: Improved Rule validation cache with proper LRU
-const MAX_CACHE_SIZE = 1000;
-const validationCache = new Map();
-const cacheAccessOrder = new Map();
-
 function cachedValidateRule(rule) {
   const key = rule.condition?.urlFilter;
   if (!key) return false;
   
-  if (validationCache.has(key)) {
-    // Update access order for LRU
-    cacheAccessOrder.delete(key);
-    cacheAccessOrder.set(key, Date.now());
-    return validationCache.get(key);
+  const cached = validationCache.get(key);
+  if (cached !== null) {
+    return cached;
   }
   
   const isValid = validateRule(rule);
   validationCache.set(key, isValid);
-  cacheAccessOrder.set(key, Date.now());
-  
-  // Proper LRU cleanup - remove oldest entries until under limit
-  while (validationCache.size > MAX_CACHE_SIZE) {
-    const oldestKey = cacheAccessOrder.keys().next().value;
-    validationCache.delete(oldestKey);
-    cacheAccessOrder.delete(oldestKey);
-  }
-  
   return isValid;
 }
+
+// Enhanced cache management with coordination
+class ValidationCache {
+  constructor() {
+    this.cache = new Map();
+    this.accessOrder = new Map();
+    this.maxSize = getOptimalCacheSize(10000, 1000, 5000);
+    this.hitCount = 0;
+    this.missCount = 0;
+    this.lastOptimization = Date.now();
+  }
+  
+  get(key) {
+    if (this.cache.has(key)) {
+      this.hitCount++;
+      // Update LRU order
+      this.accessOrder.delete(key);
+      this.accessOrder.set(key, Date.now());
+      return this.cache.get(key);
+    }
+    this.missCount++;
+    return null;
+  }
+  
+  set(key, value) {
+    // Periodic optimization
+    this.maybeOptimize();
+    
+    // LRU cleanup before adding
+    while (this.cache.size >= this.maxSize) {
+      const oldestKey = this.accessOrder.keys().next().value;
+      this.cache.delete(oldestKey);
+      this.accessOrder.delete(oldestKey);
+    }
+    
+    this.cache.set(key, value);
+    this.accessOrder.set(key, Date.now());
+  }
+  
+  clear() {
+    this.cache.clear();
+    this.accessOrder.clear();
+    this.hitCount = 0;
+    this.missCount = 0;
+  }
+  
+  maybeOptimize() {
+    const now = Date.now();
+    if (now - this.lastOptimization > 60000) { // Every minute
+      this.optimize();
+      this.lastOptimization = now;
+    }
+  }
+  
+  optimize() {
+    // Adjust cache size based on hit rate
+    const totalRequests = this.hitCount + this.missCount;
+    if (totalRequests > 100) {
+      const hitRate = this.hitCount / totalRequests;
+      if (hitRate > 0.9) {
+        this.maxSize = Math.min(this.maxSize * 1.2, 10000);
+      } else if (hitRate < 0.5) {
+        this.maxSize = Math.max(this.maxSize * 0.8, 500);
+      }
+      
+      // Reset stats periodically
+      if (totalRequests > 10000) {
+        this.hitCount = Math.floor(this.hitCount * 0.5);
+        this.missCount = Math.floor(this.missCount * 0.5);
+      }
+    }
+  }
+  
+  getStats() {
+    return {
+      size: this.cache.size,
+      maxSize: this.maxSize,
+      hitRate: this.hitCount / (this.hitCount + this.missCount) || 0,
+      hitCount: this.hitCount,
+      missCount: this.missCount
+    };
+  }
+}
+
+const validationCache = new ValidationCache();
+
+// Register with global cache coordinator
+globalCacheCoordinator.register(validationCache);
 
 // Add cleanup function for extension shutdown
 function clearValidationCache() {
   validationCache.clear();
-  cacheAccessOrder.clear();
 }
 
 // Make function globally available for importScripts
@@ -128,7 +153,7 @@ if (rules.length > 1000) {
 console.timeEnd('Rule Filtering');
 
 if (toAdd.length !== rules.length) {
-  console.log(`Filtered out ${rules.length - toAdd.length} rules with non-ASCII characters`);
+  console.log(`Filtered out ${rules.length - toAdd.length} rules with invalid characters. Valid rules: ${toAdd.length}`);
 }
 
 if (toAdd.length > DNR_MAX_RULES) {
@@ -201,8 +226,8 @@ try {
       if (i < batches.length - 1) {
         await Promise.all([
           batchPromise,
-          // Minimal delay only for very large updates
-          batches.length > 20 ? new Promise(r => setTimeout(r, 1)) : Promise.resolve()
+          // Minimal delay only for very large updates using fast yielding
+          batches.length > 20 ? fastYield() : Promise.resolve()
         ]);
       } else {
         await batchPromise;
