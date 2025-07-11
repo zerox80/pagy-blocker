@@ -13,7 +13,5 @@ var Module=moduleArg;var readyPromiseResolve,readyPromiseReject;var readyPromise
 );
 })();
 
-// Make module globally available for importScripts
-if (typeof self !== 'undefined') {
-  self.createFilterParserModule = Module;
-}
+// Export module for ES modules
+export default Module;

@@ -226,7 +226,5 @@ try {
 }
 }
 
-// Make function globally available for importScripts
-if (typeof self !== 'undefined') {
-  self.updateRules = updateRules;
-}
+// Export function for ES modules
+export { updateRules };

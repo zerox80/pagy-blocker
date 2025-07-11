@@ -1,8 +1,8 @@
 // background/background.js
 
-// Import scripts using importScripts for service worker compatibility
-importScripts('../js/rule_parser.js');
-importScripts('../wasm/filter_parser.js');
+// Import modules using ES module syntax
+import { updateRules } from '../js/rule_parser.js';
+import createFilterParserModule from '../wasm/filter_parser.js';
 
 // === Konstanten ===
 const LOG_PREFIX = "[PagyBlocker]";
