@@ -36,93 +36,31 @@ function cachedValidateRule(rule) {
   return isValid;
 }
 
-// Enhanced cache management with coordination
-class ValidationCache {
+// Simplified validation cache for faster startup
+class FastValidationCache {
   constructor() {
     this.cache = new Map();
-    this.accessOrder = new Map();
-    this.maxSize = getOptimalCacheSize(10000, 1000, 5000);
-    this.hitCount = 0;
-    this.missCount = 0;
-    this.lastOptimization = Date.now();
+    this.maxSize = 1000; // Fixed size for simplicity
   }
   
   get(key) {
-    if (this.cache.has(key)) {
-      this.hitCount++;
-      // Update LRU order
-      this.accessOrder.delete(key);
-      this.accessOrder.set(key, Date.now());
-      return this.cache.get(key);
-    }
-    this.missCount++;
-    return null;
+    return this.cache.get(key) || null;
   }
   
   set(key, value) {
-    // Periodic optimization
-    this.maybeOptimize();
-    
-    // LRU cleanup before adding
-    while (this.cache.size >= this.maxSize) {
-      const oldestKey = this.accessOrder.keys().next().value;
-      this.cache.delete(oldestKey);
-      this.accessOrder.delete(oldestKey);
+    if (this.cache.size >= this.maxSize) {
+      const firstKey = this.cache.keys().next().value;
+      this.cache.delete(firstKey);
     }
-    
     this.cache.set(key, value);
-    this.accessOrder.set(key, Date.now());
   }
   
   clear() {
     this.cache.clear();
-    this.accessOrder.clear();
-    this.hitCount = 0;
-    this.missCount = 0;
-  }
-  
-  maybeOptimize() {
-    const now = Date.now();
-    if (now - this.lastOptimization > 60000) { // Every minute
-      this.optimize();
-      this.lastOptimization = now;
-    }
-  }
-  
-  optimize() {
-    // Adjust cache size based on hit rate
-    const totalRequests = this.hitCount + this.missCount;
-    if (totalRequests > 100) {
-      const hitRate = this.hitCount / totalRequests;
-      if (hitRate > 0.9) {
-        this.maxSize = Math.min(this.maxSize * 1.2, 10000);
-      } else if (hitRate < 0.5) {
-        this.maxSize = Math.max(this.maxSize * 0.8, 500);
-      }
-      
-      // Reset stats periodically
-      if (totalRequests > 10000) {
-        this.hitCount = Math.floor(this.hitCount * 0.5);
-        this.missCount = Math.floor(this.missCount * 0.5);
-      }
-    }
-  }
-  
-  getStats() {
-    return {
-      size: this.cache.size,
-      maxSize: this.maxSize,
-      hitRate: this.hitCount / (this.hitCount + this.missCount) || 0,
-      hitCount: this.hitCount,
-      missCount: this.missCount
-    };
   }
 }
 
-const validationCache = new ValidationCache();
-
-// Register with global cache coordinator
-globalCacheCoordinator.register(validationCache);
+const validationCache = new FastValidationCache();
 
 // Add cleanup function for extension shutdown
 function clearValidationCache() {
@@ -133,23 +71,9 @@ function clearValidationCache() {
 async function updateRules(rules) {
 const DNR_MAX_RULES = chrome.declarativeNetRequest.MAX_NUMBER_OF_DYNAMIC_AND_SESSION_RULES || 5000;
 
-// Performance: Optimized filtering with dynamic chunking
+// Performance: Fast direct filtering
 console.time('Rule Filtering');
-let toAdd;
-if (rules.length > 1000) {
-  // Dynamic chunk size based on CPU cores (estimated)
-  const optimalChunkSize = Math.max(250, Math.ceil(rules.length / (navigator.hardwareConcurrency || 4)));
-  const chunks = [];
-  for (let i = 0; i < rules.length; i += optimalChunkSize) {
-    chunks.push(rules.slice(i, i + optimalChunkSize));
-  }
-  
-  // Direct filtering without unnecessary Promise.resolve
-  const filteredChunks = chunks.map(chunk => chunk.filter(cachedValidateRule));
-  toAdd = filteredChunks.flat();
-} else {
-  toAdd = rules.filter(cachedValidateRule);
-}
+const toAdd = rules.filter(cachedValidateRule);
 console.timeEnd('Rule Filtering');
 
 if (toAdd.length !== rules.length) {
@@ -164,20 +88,13 @@ if (toAdd.length > DNR_MAX_RULES) {
 try {
   console.time('Rule Update Process');
   
-  // Performance: Parallel rule fetching und processing
-  const [existingRules] = await Promise.all([
-    chrome.declarativeNetRequest.getDynamicRules(),
-    // Preload next operations while fetching
-    Promise.resolve().then(() => console.log('Preparing rule updates...'))
-  ]);
+  // Performance: Direct rule fetching
+  const existingRules = await chrome.declarativeNetRequest.getDynamicRules();
   
   const existingIds = existingRules.map(rule => rule.id);
   
-  // Performance: Dynamische Batch-Größe basierend auf Regel-Anzahl
-  const OPTIMAL_BATCH_SIZE = Math.min(
-    Math.max(100, Math.floor(toAdd.length / 10)), // Min 100, max 10% der Regeln
-    1000 // Absolute max für Stabilität
-  );
+  // Performance: Fixed optimal batch size for speed
+  const OPTIMAL_BATCH_SIZE = 500;
   
   console.log(`Updating ${existingIds.length} -> ${toAdd.length} rules with optimal batch size ${OPTIMAL_BATCH_SIZE}`);
   
@@ -215,22 +132,16 @@ try {
       batches.push(toAdd.slice(i, i + OPTIMAL_BATCH_SIZE));
     }
     
-    // Step 3: Pipeline processing with minimal delays
+    // Step 3: Sequential processing for stability and speed
     for (let i = 0; i < batches.length; i++) {
-      const batchPromise = chrome.declarativeNetRequest.updateDynamicRules({ 
+      await chrome.declarativeNetRequest.updateDynamicRules({ 
         addRules: batches[i], 
         removeRuleIds: [] 
       });
       
-      // Pipeline: Start next batch prep while current processes
-      if (i < batches.length - 1) {
-        await Promise.all([
-          batchPromise,
-          // Minimal delay only for very large updates using fast yielding
-          batches.length > 20 ? fastYield() : Promise.resolve()
-        ]);
-      } else {
-        await batchPromise;
+      // Minimal yielding only for very large updates
+      if (batches.length > 10 && i % 5 === 0) {
+        await fastYield();
       }
     }
     

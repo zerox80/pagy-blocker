@@ -20,13 +20,13 @@ const BADGE_TEXT_EMPTY_LIST = 'EMPTY';
 let lastBadgeText = null;
 let lastBadgeColor = null;
 
-// Performance: WASM Lazy Loading für kleine Listen  
-const WASM_THRESHOLD = 500; // Lowered threshold for better performance on medium lists
+// Performance: Ultra-fast startup - WASM only for very large lists
+const WASM_THRESHOLD = 2000; // Higher threshold for immediate startup
 let shouldUseWasm = false;
 
-// Performance: WASM Preloading mit Worker-like Pattern
+// Performance: Lazy WASM loading - no preloading to speed up startup
 let wasmPreloadPromise = null;
-const PRELOAD_DELAY = 1000; // 1s nach Extension-Start
+const PRELOAD_DELAY = 5000; // 5s after startup, only if needed
 
 // === Globale Zustandsvariablen mit verbesserter Concurrency ===
 let wasmInitPromise = null;
@@ -37,18 +37,18 @@ let initializationPromise = null; // Promise für wartende Aufrufer
 
 
 /**
- * Preloads WASM module in background for faster access
+ * Lazy WASM module loading - only when actually needed
  */
-function preloadWasmModule() {
+function loadWasmModuleOnDemand() {
   if (!wasmPreloadPromise) {
-    console.log(`${LOG_PREFIX} Preloading WASM module...`);
+    console.log(`${LOG_PREFIX} Loading WASM module on demand...`);
     wasmPreloadPromise = createFilterParserModule()
       .then(module => {
-        console.log(`${LOG_PREFIX} WASM module preloaded successfully.`);
+        console.log(`${LOG_PREFIX} WASM module loaded successfully.`);
         return module;
       })
       .catch(error => {
-        console.warn(`${LOG_PREFIX} WASM preload failed:`, error.message);
+        console.warn(`${LOG_PREFIX} WASM load failed:`, error.message);
         wasmPreloadPromise = null;
         return null;
       });
@@ -57,40 +57,36 @@ function preloadWasmModule() {
 }
 
 /**
- * Stellt sicher, dass das WASM-Modul geladen und initialisiert ist.
- * Nutzt Preloading für bessere Performance.
+ * Fast WASM module loading - only when needed for large lists
  */
 function ensureWasmModuleLoaded() {
-  // Versuche zuerst preloaded module zu verwenden
+  // Use on-demand loading to avoid startup delays
   if (wasmPreloadPromise) {
-    console.log(`${LOG_PREFIX} Using preloaded WASM module.`);
     return wasmPreloadPromise.then(module => {
       if (module && typeof module.parseFilterListWasm === 'function') {
         return module;
       }
-      throw new Error('Preloaded WASM module invalid');
+      throw new Error('WASM module invalid');
     }).catch(() => {
-      // Fallback zu normalem Loading
       wasmPreloadPromise = null;
       return ensureWasmModuleLoaded();
     });
   }
 
   if (!wasmInitPromise) {
-    console.log(`${LOG_PREFIX} Initializing WASM module instance...`);
-    console.time(`${LOG_PREFIX} WASM Module Init`);
+    console.log(`${LOG_PREFIX} Initializing WASM module...`);
+    console.time(`${LOG_PREFIX} WASM Init`);
 
     wasmInitPromise = createFilterParserModule()
       .then(module => {
-        console.timeEnd(`${LOG_PREFIX} WASM Module Init`);
-        console.log(`${LOG_PREFIX} WASM module instance initialized.`);
+        console.timeEnd(`${LOG_PREFIX} WASM Init`);
         if (typeof module.parseFilterListWasm !== 'function') {
-          throw new Error("WASM module loaded, but 'parseFilterListWasm' function not found.");
+          throw new Error("WASM function not found.");
         }
         return module;
       })
       .catch(error => {
-        console.error(`${LOG_PREFIX} Failed to load or initialize WASM module:`, error);
+        console.error(`${LOG_PREFIX} WASM init failed:`, error);
         wasmInitPromise = null;
         throw new Error(`WASM Init failed: ${error.message}`);
       });
@@ -148,12 +144,10 @@ async function setErrorBadge(text = BADGE_TEXT_INIT_ERROR) {
   }
 }
 
-// Performance: Intelligent filter list caching with memory management
+// Performance: Simplified filter list caching for faster startup
 let filterListCache = null;
-let filterListETag = null;
 let lastFilterFetch = 0;
-const FILTER_CACHE_DURATION = 30 * 60 * 1000; // 30 minutes - improved caching for better performance
-const MAX_CACHE_SIZE_BYTES = 10 * 1024 * 1024; // 10MB limit
+const FILTER_CACHE_DURATION = 5 * 60 * 1000; // 5 minutes - shorter cache for faster updates
 
 // Add cache cleanup function
 function clearFilterCache() {
@@ -164,7 +158,7 @@ function clearFilterCache() {
 }
 
 /**
- * High-performance filter list fetching with smart caching
+ * Ultra-fast filter list fetching with minimal overhead
  * @returns {Promise<string>} Der Inhalt der Filterliste als Text.
  */
 async function fetchFilterList() {
@@ -172,51 +166,37 @@ async function fetchFilterList() {
   
   // Performance: Return cached version if recent
   if (filterListCache && (now - lastFilterFetch) < FILTER_CACHE_DURATION) {
-    console.log(`${LOG_PREFIX} Using cached filter list (${filterListCache.length} chars)`);
+    console.log(`${LOG_PREFIX} Using cached filter list`);
     return filterListCache;
   }
   
   const url = chrome.runtime.getURL(FILTER_LIST_URL);
-  console.log(`${LOG_PREFIX} Fetching filter list from ${url}`);
   
   try {
-    // Performance: Use streaming for large files
-    const resp = await fetch(url, {
-      cache: 'no-cache',
-      ...(filterListETag && { headers: { 'If-None-Match': filterListETag } })
-    });
+    // Performance: Minimal fetch options for speed
+    const resp = await fetch(url, { cache: 'force-cache' });
     
     if (!resp.ok) {
-      throw new Error(`Fetch failed with status: ${resp.status} ${resp.statusText}`);
-    }
-    
-    // Performance: Check for 304 Not Modified
-    if (resp.status === 304 && filterListCache) {
-      console.log(`${LOG_PREFIX} Filter list not modified, using cache`);
-      lastFilterFetch = now;
-      return filterListCache;
+      throw new Error(`Fetch failed: ${resp.status}`);
     }
     
     const text = await resp.text();
     
-    // Performance: Optimized line counting using regex
-    const lineCount = (text.match(/\n/g) || []).length + 1;
-    
+    // Performance: Fast line counting estimation
+    const lineCount = text.split('\n').length;
     shouldUseWasm = lineCount > WASM_THRESHOLD;
     
     // Update cache
     filterListCache = text;
-    filterListETag = resp.headers.get('etag');
     lastFilterFetch = now;
     
-    console.log(`${LOG_PREFIX} Fetched filter list (${text.length} chars, ${lineCount} lines). Using ${shouldUseWasm ? 'WASM' : 'Ultra-JS'} parser.`);
+    console.log(`${LOG_PREFIX} Fetched ${lineCount} lines. Parser: ${shouldUseWasm ? 'WASM' : 'JS'}`);
     return text;
   } catch (error) {
-    console.error(`${LOG_PREFIX} Error during fetch:`, error);
+    console.error(`${LOG_PREFIX} Fetch error:`, error);
     
-    // Performance: Fallback to cache on error
     if (filterListCache) {
-      console.warn(`${LOG_PREFIX} Using stale cache due to fetch error`);
+      console.warn(`${LOG_PREFIX} Using cached fallback`);
       return filterListCache;
     }
     
@@ -224,105 +204,52 @@ async function fetchFilterList() {
   }
 }
 
-// Performance: Enhanced Object pools for Memory-Efficiency
-class ObjectPool {
-  constructor(createFn, resetFn, initialSize = 10) {
+// Performance: Simplified Object Pool for faster startup
+class FastObjectPool {
+  constructor(createFn, resetFn, initialSize = 50) {
     this.createFn = createFn;
     this.resetFn = resetFn;
     this.pool = [];
-    this.maxSize = initialSize * 2; // Dynamic max size
-    this.hitCount = 0;
-    this.missCount = 0;
+    this.maxSize = 100; // Fixed size for simplicity
     
-    // Pre-allocate objects efficiently
-    for (let i = 0; i < initialSize; i++) {
+    // Pre-allocate smaller pool for startup speed
+    for (let i = 0; i < Math.min(initialSize, 25); i++) {
       this.pool.push(this.createFn());
     }
   }
   
   get() {
-    if (this.pool.length > 0) {
-      this.hitCount++;
-      return this.pool.pop();
-    } else {
-      this.missCount++;
-      return this.createFn();
-    }
+    return this.pool.length > 0 ? this.pool.pop() : this.createFn();
   }
   
   release(obj) {
-    if (!obj) return; // Guard against null/undefined
-    
-    // Dynamic max pool size based on memory pressure and usage patterns
-    const memoryBasedSize = getOptimalCacheSize(500000, 50, 200);
-    const usageBasedSize = this.getUsageBasedSize();
-    this.maxSize = Math.min(memoryBasedSize, usageBasedSize);
-    
-    if (this.pool.length < this.maxSize) {
+    if (obj && this.pool.length < this.maxSize) {
       try {
         this.resetFn(obj);
         this.pool.push(obj);
       } catch (error) {
-        // If reset fails, don't add to pool
-        console.warn('Object reset failed, skipping pool return:', error.message);
+        // Silently skip on reset error
       }
     }
   }
   
-  getUsageBasedSize() {
-    // Adjust pool size based on hit/miss ratio
-    const totalRequests = this.hitCount + this.missCount;
-    if (totalRequests === 0) return 100;
-    
-    const hitRatio = this.hitCount / totalRequests;
-    if (hitRatio > 0.8) return Math.min(300, this.maxSize * 1.2); // High hit rate, increase pool
-    if (hitRatio < 0.3) return Math.max(25, this.maxSize * 0.8);   // Low hit rate, decrease pool
-    return this.maxSize; // Keep current size
-  }
-  
-  // Cleanup method for memory management
   cleanup() {
-    const targetSize = Math.floor(this.maxSize * 0.5);
-    while (this.pool.length > targetSize) {
-      this.pool.pop();
-    }
+    this.pool.length = Math.floor(this.pool.length * 0.5);
   }
 }
 
-// Memory pools with enhanced object reset and cleanup
-const rulePool = new ObjectPool(
+// Simplified rule pool for faster startup
+const rulePool = new FastObjectPool(
   () => ({ id: 0, priority: 1, action: { type: 'block' }, condition: {} }),
   (rule) => {
-    // Enhanced object reset to prevent memory leaks
+    // Fast object reset
     rule.id = 0;
     rule.priority = 1;
-    
-    // Reuse action object instead of creating new one
-    if (rule.action) {
-      rule.action.type = 'block';
-      // Clear any other action properties
-      Object.keys(rule.action).forEach(key => {
-        if (key !== 'type') delete rule.action[key];
-      });
-    } else {
-      rule.action = { type: 'block' };
-    }
-    
-    // Clear condition object properties efficiently
-    if (rule.condition) {
-      Object.keys(rule.condition).forEach(key => delete rule.condition[key]);
-    } else {
-      rule.condition = {};
-    }
-    
-    // Clear any other dynamic properties at the root level
-    Object.keys(rule).forEach(key => {
-      if (!['id', 'priority', 'action', 'condition'].includes(key)) {
-        delete rule[key];
-      }
-    });
+    rule.action.type = 'block';
+    // Clear condition properties
+    Object.keys(rule.condition).forEach(key => delete rule.condition[key]);
   },
-  getOptimalCacheSize(100000, 25, 100) // Use shared utility for pool sizing
+  25 // Smaller initial pool
 );
 
 // Performance-optimized: Only block tracking-relevant resource types
@@ -383,15 +310,9 @@ async function parseListWithJS(filterListText) {
       }
     }
     
-    // Optimized adaptive yielding for better responsiveness
-    if (i > 0 && i % 250 === 0) { // More frequent yielding
-      const now = performance.now();
-      // Store start time for proper timing calculation - use module variable instead of window
-      if (!globalThis.batchStartTime) globalThis.batchStartTime = now;
-      if (now - globalThis.batchStartTime > 10) { // Lower threshold for faster UI
-        await fastYield();
-        globalThis.batchStartTime = performance.now();
-      }
+    // Fast yielding for responsiveness
+    if (i > 0 && i % 500 === 0) { // Less frequent yielding for speed
+      await fastYield();
     }
   }
   
@@ -575,81 +496,31 @@ chrome.runtime.onStartup.addListener(() => {
   initialize(); // Starte die Initialisierung
 });
 
-// Performance: Advanced Multi-Level Caching with adaptive sizing
-class PerformanceCache {
+// Simplified performance cache for faster startup
+class FastCache {
   constructor() {
     this.memoryCache = new Map();
     this.storageCache = null;
     this.cacheTimestamp = 0;
-    this.CACHE_DURATION = 2000;
-    this.MAX_MEMORY_ENTRIES = this.getOptimalCacheSize();
-    this.accessOrder = new Map(); // For LRU
-    this.hitRate = 0;
-    this.totalRequests = 0;
-    this.hits = 0;
-  }
-
-  getOptimalCacheSize() {
-    // Use shared utility for consistent cache sizing
-    return getOptimalCacheSize(1000000, 50, 200); // 1 entry per MB, min 50, max 200
-  }
-
-  // LRU eviction
-  evictOldest() {
-    if (this.memoryCache.size >= this.MAX_MEMORY_ENTRIES) {
-      const oldestKey = this.accessOrder.keys().next().value;
-      this.memoryCache.delete(oldestKey);
-      this.accessOrder.delete(oldestKey);
-    }
+    this.CACHE_DURATION = 1000; // 1 second for faster updates
+    this.MAX_ENTRIES = 50; // Fixed small size
   }
 
   set(key, value) {
-    this.evictOldest();
+    if (this.memoryCache.size >= this.MAX_ENTRIES) {
+      const firstKey = this.memoryCache.keys().next().value;
+      this.memoryCache.delete(firstKey);
+    }
     this.memoryCache.set(key, value);
-    this.accessOrder.delete(key);
-    this.accessOrder.set(key, Date.now());
   }
 
   get(key) {
-    this.totalRequests++;
-    if (this.memoryCache.has(key)) {
-      this.hits++;
-      this.hitRate = this.hits / this.totalRequests;
-      // Update LRU order
-      this.accessOrder.delete(key);
-      this.accessOrder.set(key, Date.now());
-      return this.memoryCache.get(key);
-    }
-    return null;
+    return this.memoryCache.get(key) || null;
   }
 
   clear() {
     this.memoryCache.clear();
-    this.accessOrder.clear();
     this.storageCache = null;
-    this.hits = 0;
-    this.totalRequests = 0;
-    this.hitRate = 0;
-  }
-
-  // Periodic optimization based on hit rate
-  optimize() {
-    if (this.totalRequests > 100) {
-      // If hit rate is very low, reduce cache size
-      if (this.hitRate < 0.1) {
-        this.MAX_MEMORY_ENTRIES = Math.max(25, Math.floor(this.MAX_MEMORY_ENTRIES * 0.8));
-      }
-      // If hit rate is very high, increase cache size (within limits)
-      else if (this.hitRate > 0.9) {
-        this.MAX_MEMORY_ENTRIES = Math.min(300, Math.floor(this.MAX_MEMORY_ENTRIES * 1.2));
-      }
-      
-      // Reset stats periodically
-      if (this.totalRequests > 1000) {
-        this.hits = Math.floor(this.hits * 0.5);
-        this.totalRequests = Math.floor(this.totalRequests * 0.5);
-      }
-    }
   }
 
   isStorageCacheValid() {
@@ -657,32 +528,13 @@ class PerformanceCache {
   }
 }
 
-const performanceCache = new PerformanceCache();
+const performanceCache = new FastCache();
 
-// Register caches with coordinator
-globalCacheCoordinator.register(performanceCache);
-globalCacheCoordinator.register(rulePool);
-
-// Enhanced periodic optimization with coordination
+// Simplified cache management - no heavy coordination during startup
 setInterval(() => {
-  // Use global coordinator for comprehensive optimization
-  globalCacheCoordinator.optimizeAll();
-}, 60000); // Every minute
-
-// Additional emergency cleanup on high memory pressure
-setInterval(() => {
-  const memInfo = (performance.memory && performance.memory.usedJSHeapSize) ? 
-    performance.memory : { usedJSHeapSize: 50000000, totalJSHeapSize: 100000000 };
-  
-  // Emergency cleanup if memory usage is very high (>90%)
-  if (memInfo.usedJSHeapSize > (memInfo.totalJSHeapSize || 100000000) * 0.9) {
-    console.warn(`${LOG_PREFIX} High memory pressure detected, performing emergency cleanup`);
-    globalCacheCoordinator.emergencyCleanup();
-    
-    // Force garbage collection if available
-    if (globalThis.gc) globalThis.gc();
-  }
-}, 30000); // Every 30 seconds
+  performanceCache.clear();
+  rulePool.cleanup();
+}, 300000); // Every 5 minutes instead of complex optimization
 
 // Lauscht auf Nachrichten von anderen Teilen der Erweiterung (z.B. Popup).
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
@@ -790,10 +642,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 console.log(`${LOG_PREFIX} Background script loaded. Triggering initial load.`);
 initialize();
 
-// Performance: WASM Preloading nach kurzer Verzögerung
+// Performance: Only load WASM if actually needed (no preloading)
 setTimeout(() => {
-  if (!shouldUseWasm) {
-    console.log(`${LOG_PREFIX} Starting WASM preload for future use...`);
-    preloadWasmModule();
+  if (shouldUseWasm) {
+    console.log(`${LOG_PREFIX} Loading WASM for large filter lists...`);
+    loadWasmModuleOnDemand();
   }
 }, PRELOAD_DELAY);
