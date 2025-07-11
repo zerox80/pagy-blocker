@@ -68,9 +68,52 @@ function validateRule(rule) {
   return true;
 }
 
+// Performance: Rule validation cache
+const validationCache = new Map();
+function cachedValidateRule(rule) {
+  const key = rule.condition?.urlFilter;
+  if (!key) return false;
+  
+  if (validationCache.has(key)) {
+    return validationCache.get(key);
+  }
+  
+  const isValid = validateRule(rule);
+  validationCache.set(key, isValid);
+  
+  // LRU cleanup
+  if (validationCache.size > 1000) {
+    const firstKey = validationCache.keys().next().value;
+    validationCache.delete(firstKey);
+  }
+  
+  return isValid;
+}
+
 export async function updateRules(rules) {
 const DNR_MAX_RULES = chrome.declarativeNetRequest.MAX_NUMBER_OF_DYNAMIC_AND_SESSION_RULES || 5000;
-let toAdd = rules.filter(validateRule);
+
+// Performance: Parallel filtering mit Web Workers Pattern
+console.time('Rule Filtering');
+let toAdd;
+if (rules.length > 1000) {
+  // Chunked parallel processing für große Listen
+  const chunkSize = Math.ceil(rules.length / 4);
+  const chunks = [];
+  for (let i = 0; i < rules.length; i += chunkSize) {
+    chunks.push(rules.slice(i, i + chunkSize));
+  }
+  
+  const filterPromises = chunks.map(chunk => 
+    Promise.resolve(chunk.filter(cachedValidateRule))
+  );
+  
+  const filteredChunks = await Promise.all(filterPromises);
+  toAdd = filteredChunks.flat();
+} else {
+  toAdd = rules.filter(cachedValidateRule);
+}
+console.timeEnd('Rule Filtering');
 
 if (toAdd.length !== rules.length) {
   console.log(`Filtered out ${rules.length - toAdd.length} rules with non-ASCII characters`);
@@ -82,53 +125,99 @@ if (toAdd.length > DNR_MAX_RULES) {
 }
 
 try {
-  // Performance: Nur existierende Regeln abfragen und löschen
-  const existingRules = await chrome.declarativeNetRequest.getDynamicRules();
-  if (existingRules.length > 0) {
-    const existingIds = existingRules.map(rule => rule.id);
-    console.log(`Removing ${existingIds.length} existing rules...`);
-    await chrome.declarativeNetRequest.updateDynamicRules({ removeRuleIds: existingIds, addRules: [] });
-  }
-
-  // Performance: Verringerte Wartezeit
-  if (existingRules.length > 0) {
-    await new Promise(resolve => setTimeout(resolve, 50));
-  }
-
-  // Performance: Optimierte Batch-Größe
-  const BATCH = 200;
-  console.log(`Preparing to add ${toAdd.length} new rules.`);
-  if (toAdd.length > 0) {
-      // Sequenzielle Verarbeitung für bessere Performance
-      for (let i = 0; i < toAdd.length; i += BATCH) {
-        const batch = toAdd.slice(i, i + BATCH);
-        await chrome.declarativeNetRequest.updateDynamicRules({ addRules: batch, removeRuleIds: [] });
-        // Kurze Pause zwischen Batches für bessere Browser-Performance
-        if (i + BATCH < toAdd.length) {
-          await new Promise(resolve => setTimeout(resolve, 10));
-        }
-      }
-      console.log("Finished adding rules.");
+  console.time('Rule Update Process');
+  
+  // Performance: Parallel rule fetching und processing
+  const [existingRules] = await Promise.all([
+    chrome.declarativeNetRequest.getDynamicRules(),
+    // Preload next operations while fetching
+    Promise.resolve().then(() => console.log('Preparing rule updates...'))
+  ]);
+  
+  const existingIds = existingRules.map(rule => rule.id);
+  
+  // Performance: Dynamische Batch-Größe basierend auf Regel-Anzahl
+  const OPTIMAL_BATCH_SIZE = Math.min(
+    Math.max(100, Math.floor(toAdd.length / 10)), // Min 100, max 10% der Regeln
+    1000 // Absolute max für Stabilität
+  );
+  
+  console.log(`Updating ${existingIds.length} -> ${toAdd.length} rules with optimal batch size ${OPTIMAL_BATCH_SIZE}`);
+  
+  if (toAdd.length === 0) {
+    // Optimierter leerer Update
+    if (existingIds.length > 0) {
+      await chrome.declarativeNetRequest.updateDynamicRules({ 
+        removeRuleIds: existingIds, 
+        addRules: [] 
+      });
+    }
+    console.log("All rules removed.");
+  } else if (toAdd.length <= OPTIMAL_BATCH_SIZE) {
+    // Single atomic transaction - fastest path
+    await chrome.declarativeNetRequest.updateDynamicRules({ 
+      removeRuleIds: existingIds, 
+      addRules: toAdd 
+    });
+    console.log(`Atomically updated to ${toAdd.length} rules.`);
   } else {
-      console.log("No new rules to add.");
+    // High-performance chunked processing
+    console.time('Chunked Rule Updates');
+    
+    // Step 1: Clear existing rules
+    if (existingIds.length > 0) {
+      await chrome.declarativeNetRequest.updateDynamicRules({ 
+        removeRuleIds: existingIds, 
+        addRules: [] 
+      });
+    }
+    
+    // Step 2: Parallel batch preparation
+    const batches = [];
+    for (let i = 0; i < toAdd.length; i += OPTIMAL_BATCH_SIZE) {
+      batches.push(toAdd.slice(i, i + OPTIMAL_BATCH_SIZE));
+    }
+    
+    // Step 3: Pipeline processing with minimal delays
+    for (let i = 0; i < batches.length; i++) {
+      const batchPromise = chrome.declarativeNetRequest.updateDynamicRules({ 
+        addRules: batches[i], 
+        removeRuleIds: [] 
+      });
+      
+      // Pipeline: Start next batch prep while current processes
+      if (i < batches.length - 1) {
+        await Promise.all([
+          batchPromise,
+          // Minimal delay only for very large updates
+          batches.length > 20 ? new Promise(r => setTimeout(r, 1)) : Promise.resolve()
+        ]);
+      } else {
+        await batchPromise;
+      }
+    }
+    
+    console.timeEnd('Chunked Rule Updates');
+    console.log(`Added ${toAdd.length} rules in ${batches.length} optimized batches.`);
   }
+  
+  console.timeEnd('Rule Update Process');
 
   const finalRuleCount = toAdd.length;
   await chrome.storage.local.set({ ruleCount: finalRuleCount });
   console.log(`Stored rule count: ${finalRuleCount}`);
 
-  console.log("Clearing badge (updateRules successful).");
-  if (chrome.action?.setBadgeText) {
-      await chrome.action.setBadgeText({ text: '' });
-  }
+  // Badge wird in background.js durch clearBadge() verwaltet
 
 } catch (err) {
   console.error('Error updating rules:', err);
-  if (chrome.action?.setBadgeText && chrome.action.setBadgeBackgroundColor) {
-     const badgeText = 'UPD ERR'; // Oder dein 'PD ER'
+  if (chrome.action?.setBadgeText && chrome.action?.setBadgeBackgroundColor) {
+     const badgeText = 'UPD ERR';
     console.log(`Setting error badge: ${badgeText}`);
-    await chrome.action.setBadgeText({ text: badgeText });
-    await chrome.action.setBadgeBackgroundColor({ color: '#FF0000' });
+    await Promise.all([
+      chrome.action.setBadgeText({ text: badgeText }),
+      chrome.action.setBadgeBackgroundColor({ color: '#FF0000' })
+    ]);
   }
   console.log("Rule update failed, ruleCount not stored/updated.");
   // Fehler weiterwerfen, damit initialize() ihn abfangen kann

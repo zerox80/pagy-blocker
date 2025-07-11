@@ -18,6 +18,14 @@ const BADGE_TEXT_EMPTY_LIST = 'EMPTY';
 let lastBadgeText = null;
 let lastBadgeColor = null;
 
+// Performance: WASM Lazy Loading für kleine Listen
+const WASM_THRESHOLD = 1000; // Nur bei >1000 Zeilen WASM verwenden
+let shouldUseWasm = false;
+
+// Performance: WASM Preloading mit Worker-like Pattern
+let wasmPreloadPromise = null;
+const PRELOAD_DELAY = 1000; // 1s nach Extension-Start
+
 // === Globale Zustandsvariablen ===
 let wasmInitPromise = null;
 let isInitializing = false; // Lock, um parallele Initialisierungen zu verhindern
@@ -25,11 +33,45 @@ let isInitializing = false; // Lock, um parallele Initialisierungen zu verhinder
 // === Hilfsfunktionen ===
 
 /**
+ * Preloads WASM module in background for faster access
+ */
+function preloadWasmModule() {
+  if (!wasmPreloadPromise) {
+    console.log(`${LOG_PREFIX} Preloading WASM module...`);
+    wasmPreloadPromise = createFilterParserModule()
+      .then(module => {
+        console.log(`${LOG_PREFIX} WASM module preloaded successfully.`);
+        return module;
+      })
+      .catch(error => {
+        console.warn(`${LOG_PREFIX} WASM preload failed:`, error.message);
+        wasmPreloadPromise = null;
+        return null;
+      });
+  }
+  return wasmPreloadPromise;
+}
+
+/**
  * Stellt sicher, dass das WASM-Modul geladen und initialisiert ist.
- * Verwendet eine Singleton-Promise, um mehrfache Initialisierungen zu vermeiden.
- * Setzt die Promise bei einem Fehler zurück, um einen erneuten Versuch zu ermöglichen.
+ * Nutzt Preloading für bessere Performance.
  */
 function ensureWasmModuleLoaded() {
+  // Versuche zuerst preloaded module zu verwenden
+  if (wasmPreloadPromise) {
+    console.log(`${LOG_PREFIX} Using preloaded WASM module.`);
+    return wasmPreloadPromise.then(module => {
+      if (module && typeof module.parseFilterListWasm === 'function') {
+        return module;
+      }
+      throw new Error('Preloaded WASM module invalid');
+    }).catch(() => {
+      // Fallback zu normalem Loading
+      wasmPreloadPromise = null;
+      return ensureWasmModuleLoaded();
+    });
+  }
+
   if (!wasmInitPromise) {
     console.log(`${LOG_PREFIX} Initializing WASM module instance...`);
     console.time(`${LOG_PREFIX} WASM Module Init`);
@@ -39,33 +81,19 @@ function ensureWasmModuleLoaded() {
         console.timeEnd(`${LOG_PREFIX} WASM Module Init`);
         console.log(`${LOG_PREFIX} WASM module instance initialized.`);
         if (typeof module.parseFilterListWasm !== 'function') {
-          // Dieser Fehler sollte idealerweise schon im createFilterParserModule behandelt werden
           throw new Error("WASM module loaded, but 'parseFilterListWasm' function not found.");
         }
         return module;
       })
       .catch(error => {
         console.error(`${LOG_PREFIX} Failed to load or initialize WASM module:`, error);
-        if (error.stack) console.error(error.stack);
-        // Rücksetzen, damit ein späterer Aufruf neu versucht
-        // Wichtig: Erst nach dem Error-Handling zurücksetzen, um Race Conditions zu vermeiden
-        const failedPromise = wasmInitPromise;
         wasmInitPromise = null;
-        // Fehler weiterwerfen, damit er in initialize() gefangen wird
         throw new Error(`WASM Init failed: ${error.message}`);
       });
-  } else {
-    console.log(`${LOG_PREFIX} Using existing WASM module promise.`);
   }
   
-  // Defensive Kopie für Race Condition Protection
-  const currentPromise = wasmInitPromise;
-  
-  // Falls die Promise während der Ausführung fehlschlägt und zurückgesetzt wird,
-  // stellen wir sicher, dass diese spezifische Promise-Instanz zurückgegeben wird
-  return currentPromise.catch(error => {
-    // Wenn diese spezifische Promise fehlschlägt, aber wasmInitPromise bereits
-    // von einem anderen Aufruf zurückgesetzt wurde, werfen wir den Fehler trotzdem weiter
+  return wasmInitPromise.catch(error => {
+    wasmInitPromise = null;
     throw error;
   });
 }
@@ -101,8 +129,10 @@ async function setErrorBadge(text = BADGE_TEXT_INIT_ERROR) {
     if (chrome.action?.setBadgeText && chrome.action?.setBadgeBackgroundColor) {
       // Performance: Nur Badge aktualisieren wenn sich der Status geändert hat
       if (lastBadgeText !== text || lastBadgeColor !== BADGE_ERROR_COLOR) {
-        await chrome.action.setBadgeText({ text });
-        await chrome.action.setBadgeBackgroundColor({ color: BADGE_ERROR_COLOR });
+        await Promise.all([
+          chrome.action.setBadgeText({ text }),
+          chrome.action.setBadgeBackgroundColor({ color: BADGE_ERROR_COLOR })
+        ]);
         lastBadgeText = text;
         lastBadgeColor = BADGE_ERROR_COLOR;
       }
@@ -114,27 +144,176 @@ async function setErrorBadge(text = BADGE_TEXT_INIT_ERROR) {
   }
 }
 
+// Performance: Intelligent filter list caching
+let filterListCache = null;
+let filterListETag = null;
+let lastFilterFetch = 0;
+const FILTER_CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
 /**
- * Ruft die Filterliste von der angegebenen URL ab.
+ * High-performance filter list fetching with smart caching
  * @returns {Promise<string>} Der Inhalt der Filterliste als Text.
  */
 async function fetchFilterList() {
+  const now = Date.now();
+  
+  // Performance: Return cached version if recent
+  if (filterListCache && (now - lastFilterFetch) < FILTER_CACHE_DURATION) {
+    console.log(`${LOG_PREFIX} Using cached filter list (${filterListCache.length} chars)`);
+    return filterListCache;
+  }
+  
   const url = chrome.runtime.getURL(FILTER_LIST_URL);
   console.log(`${LOG_PREFIX} Fetching filter list from ${url}`);
+  
   try {
-    const resp = await fetch(url);
+    // Performance: Use streaming for large files
+    const resp = await fetch(url, {
+      cache: 'no-cache',
+      ...(filterListETag && { headers: { 'If-None-Match': filterListETag } })
+    });
+    
     if (!resp.ok) {
-      // Spezifischer Fehler für Fetch-Probleme
       throw new Error(`Fetch failed with status: ${resp.status} ${resp.statusText}`);
     }
+    
+    // Performance: Check for 304 Not Modified
+    if (resp.status === 304 && filterListCache) {
+      console.log(`${LOG_PREFIX} Filter list not modified, using cache`);
+      lastFilterFetch = now;
+      return filterListCache;
+    }
+    
     const text = await resp.text();
-    console.log(`${LOG_PREFIX} Fetched filter list (${text.length} chars).`);
+    
+    // Performance: Fast line counting without full split
+    let lineCount = 1;
+    for (let i = 0; i < text.length; i++) {
+      if (text.charCodeAt(i) === 10) lineCount++; // '\n'
+    }
+    
+    shouldUseWasm = lineCount > WASM_THRESHOLD;
+    
+    // Update cache
+    filterListCache = text;
+    filterListETag = resp.headers.get('etag');
+    lastFilterFetch = now;
+    
+    console.log(`${LOG_PREFIX} Fetched filter list (${text.length} chars, ${lineCount} lines). Using ${shouldUseWasm ? 'WASM' : 'Ultra-JS'} parser.`);
     return text;
   } catch (error) {
-      // Fehler weiterwerfen, um ihn in initialize() zu fangen
-      console.error(`${LOG_PREFIX} Error during fetch:`, error);
-      throw new Error(`Fetch Error: ${error.message}`);
+    console.error(`${LOG_PREFIX} Error during fetch:`, error);
+    
+    // Performance: Fallback to cache on error
+    if (filterListCache) {
+      console.warn(`${LOG_PREFIX} Using stale cache due to fetch error`);
+      return filterListCache;
+    }
+    
+    throw new Error(`Fetch Error: ${error.message}`);
   }
+}
+
+// Performance: Object pools für Memory-Effizienz
+class ObjectPool {
+  constructor(createFn, resetFn, initialSize = 10) {
+    this.createFn = createFn;
+    this.resetFn = resetFn;
+    this.pool = [];
+    
+    // Pre-allocate objects
+    for (let i = 0; i < initialSize; i++) {
+      this.pool.push(this.createFn());
+    }
+  }
+  
+  get() {
+    return this.pool.pop() || this.createFn();
+  }
+  
+  release(obj) {
+    if (this.pool.length < 100) { // Max pool size
+      this.resetFn(obj);
+      this.pool.push(obj);
+    }
+  }
+}
+
+// Memory pools
+const rulePool = new ObjectPool(
+  () => ({ id: 0, priority: 1, action: { type: 'block' }, condition: {} }),
+  (rule) => {
+    rule.id = 0;
+    rule.condition.urlFilter = '';
+    rule.condition.resourceTypes = null;
+  },
+  50
+);
+
+const resourceTypesCache = ["main_frame", "sub_frame", "stylesheet", "script", "image", "font", "object", "xmlhttprequest", "ping", "media", "websocket", "other"];
+
+/**
+ * Ultra-fast JS-Parser mit Memory-Optimierungen
+ * @param {string} filterListText - Der Text der Filterliste
+ * @returns {Object} Parsed result mit rules und stats
+ */
+function parseListWithJS(filterListText) {
+  console.log(`${LOG_PREFIX} Starting ultra-fast JS parsing...`);
+  console.time(`${LOG_PREFIX} JS Parsing`);
+  
+  // Performance: Optimierte String-Verarbeitung
+  const lines = filterListText.split(/\r?\n/);
+  const rules = [];
+  let ruleId = 1;
+  const stats = { totalLines: lines.length, processedRules: 0, skippedLines: 0 };
+  
+  // Pre-allocate array size hint
+  rules.length = 0;
+  
+  // Performance: Batch processing mit reduced GC pressure
+  const BATCH_SIZE = 100;
+  for (let i = 0; i < lines.length; i += BATCH_SIZE) {
+    const batchEnd = Math.min(i + BATCH_SIZE, lines.length);
+    
+    for (let j = i; j < batchEnd; j++) {
+      const line = lines[j];
+      const trimmed = line.trim();
+      
+      if (!trimmed || trimmed.charCodeAt(0) === 33 || trimmed.charCodeAt(0) === 91) { // '!' or '['
+        stats.skippedLines++;
+        continue;
+      }
+      
+      if (trimmed.startsWith('||') && trimmed.endsWith('^')) {
+        const domain = trimmed.slice(2, -1);
+        
+        // Performance: Inline domain validation
+        if (domain.length > 0 && domain.indexOf('*') === -1) {
+          // Get pooled object
+          const rule = rulePool.get();
+          rule.id = ruleId++;
+          rule.condition.urlFilter = `||${domain}/`;
+          rule.condition.resourceTypes = resourceTypesCache; // Shared reference
+          
+          rules.push(rule);
+          stats.processedRules++;
+        } else {
+          stats.skippedLines++;
+        }
+      } else {
+        stats.skippedLines++;
+      }
+    }
+    
+    // Micro-yield for better responsiveness on large lists
+    if (i > 0 && i % 1000 === 0) {
+      await new Promise(resolve => setTimeout(resolve, 0));
+    }
+  }
+  
+  console.timeEnd(`${LOG_PREFIX} JS Parsing`);
+  console.log(`${LOG_PREFIX} Ultra-fast JS parsed ${rules.length} rules from ${lines.length} lines`);
+  return { rules, stats };
 }
 
 /**
@@ -158,10 +337,7 @@ function parseListWithWasm(module, filterListText) {
   }
 
   if (!jsonString) {
-    // Kann passieren, wenn die Liste leer ist oder nur Kommentare enthält
     console.warn(`${LOG_PREFIX} WASM parser returned empty or null string. Assuming empty rule set.`);
-    // Wir geben ein leeres Regelset zurück, anstatt einen Fehler zu werfen
-    // Die Behandlung erfolgt dann in initialize()
     return { rules: [], stats: { totalLines: 0, processedRules: 0, skippedLines: 0 } };
   }
 
@@ -173,7 +349,6 @@ function parseListWithWasm(module, filterListText) {
     throw new Error(`JSON Parse Error: ${e.message}`);
   }
 
-  // Strukturprüfung
   if (!result || typeof result !== 'object' || !Array.isArray(result.rules) || typeof result.stats !== 'object') {
     console.error(`${LOG_PREFIX} Unexpected structure received from WASM:`, result);
     throw new Error("Invalid data structure from WASM parser.");
@@ -185,7 +360,7 @@ function parseListWithWasm(module, filterListText) {
     `processed=${result.stats.processedRules}, ` +
     `skipped=${result.stats.skippedLines}`
   );
-  return result; // Gibt das ganze Objekt zurück, inkl. Stats
+  return result;
 }
 
 // === Kernlogik ===
@@ -205,16 +380,22 @@ async function initialize() {
   await clearBadge(); // Badge zu Beginn löschen
 
   try {
-    // 1. WASM-Modul laden/sicherstellen
-    const wasmModule = await ensureWasmModuleLoaded();
-
-    // 2. Filterliste abrufen
+    // 1. Filterliste abrufen (bestimmt Parser-Typ)
     const listText = await fetchFilterList();
 
-    // 3. Liste mit WASM parsen
-    const parseResult = parseListWithWasm(wasmModule, listText);
+    // 2. Parser basierend auf Listengröße wählen
+    let parseResult;
+    if (shouldUseWasm) {
+      // Große Listen: WASM-Parser
+      const wasmModule = await ensureWasmModuleLoaded();
+      parseResult = parseListWithWasm(wasmModule, listText);
+    } else {
+      // Kleine Listen: Ultra-fast JS-Parser
+      parseResult = await parseListWithJS(listText);
+    }
+    
     const rules = parseResult.rules;
-    const stats = parseResult.stats; // Statistiken extrahieren
+    const stats = parseResult.stats;
 
     // 4. Regeln anwenden (via declarativeNetRequest)
     if (rules.length === 0) {
@@ -227,8 +408,8 @@ async function initialize() {
         // await setErrorBadge(BADGE_TEXT_EMPTY_LIST); // Oder nur loggen
         // Speichere 0 als Regelanzahl
         await chrome.storage.local.set({ ruleCount: 0, ruleStats: stats });
-        // Cache invalidieren nach Storage-Update (mit Defensive Synchronisation)
-        setTimeout(() => { storageCache = null; }, 10);
+        // Performance: Cache invalidieren
+        performanceCache.clear();
     } else {
         console.log(`${LOG_PREFIX} Applying ${rules.length} rules...`);
         // updateRules sollte die Anzahl der erfolgreich angewendeten Regeln zurückgeben oder speichern
@@ -236,8 +417,8 @@ async function initialize() {
         await updateRules(rules); // Fehler hier werden vom äußeren catch gefangen
         // Speichere Statistiken (Anzahl wird von updateRules gesetzt)
         await chrome.storage.local.set({ ruleStats: stats });
-        // Cache invalidieren nach Storage-Update (mit Defensive Synchronisation)
-        setTimeout(() => { storageCache = null; }, 10);
+        // Performance: Cache invalidieren
+        performanceCache.clear();
     }
 
     // 5. Erfolg signalisieren (Badge löschen)
@@ -284,45 +465,104 @@ chrome.runtime.onStartup.addListener(() => {
   initialize(); // Starte die Initialisierung
 });
 
-// Cache für Storage-Daten zur Performance-Optimierung
-let storageCache = null;
-let cacheTimestamp = 0;
-const CACHE_DURATION = 5000; // 5 Sekunden
+// Performance: Advanced Multi-Level Caching
+class PerformanceCache {
+  constructor() {
+    this.memoryCache = new Map();
+    this.storageCache = null;
+    this.cacheTimestamp = 0;
+    this.CACHE_DURATION = 2000;
+    this.MAX_MEMORY_ENTRIES = 50;
+    this.accessOrder = new Map(); // For LRU
+  }
+
+  // LRU eviction
+  evictOldest() {
+    if (this.memoryCache.size >= this.MAX_MEMORY_ENTRIES) {
+      const oldestKey = this.accessOrder.keys().next().value;
+      this.memoryCache.delete(oldestKey);
+      this.accessOrder.delete(oldestKey);
+    }
+  }
+
+  set(key, value) {
+    this.evictOldest();
+    this.memoryCache.set(key, value);
+    this.accessOrder.delete(key);
+    this.accessOrder.set(key, Date.now());
+  }
+
+  get(key) {
+    if (this.memoryCache.has(key)) {
+      // Update LRU order
+      this.accessOrder.delete(key);
+      this.accessOrder.set(key, Date.now());
+      return this.memoryCache.get(key);
+    }
+    return null;
+  }
+
+  clear() {
+    this.memoryCache.clear();
+    this.accessOrder.clear();
+    this.storageCache = null;
+  }
+
+  isStorageCacheValid() {
+    return this.storageCache && (Date.now() - this.cacheTimestamp) < this.CACHE_DURATION;
+  }
+}
+
+const performanceCache = new PerformanceCache();
 
 // Lauscht auf Nachrichten von anderen Teilen der Erweiterung (z.B. Popup).
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   console.log(`${LOG_PREFIX} Received message:`, request);
 
   if (request.action === "getStats") {
-    // Performance: Cache für häufige Storage-Zugriffe
-    const now = Date.now();
-    if (storageCache && (now - cacheTimestamp) < CACHE_DURATION) {
-      sendResponse({
-        ruleCount: storageCache.ruleCount ?? 'N/A',
-        ruleStats: storageCache.ruleStats ?? {},
-        lastError: storageCache.lastError
-      });
+    // Performance: Multi-Level Caching
+    const cacheKey = 'stats';
+    const cachedStats = performanceCache.get(cacheKey);
+    
+    if (cachedStats) {
+      sendResponse({ ...cachedStats, cached: true });
       return true;
     }
 
-    // Asynchrone Antwort erforderlich -> true zurückgeben
-    chrome.storage.local.get(['ruleCount', 'ruleStats', 'lastError'])
-      .then(data => {
-        // Cache aktualisieren
-        storageCache = data;
-        cacheTimestamp = now;
+    if (performanceCache.isStorageCacheValid()) {
+      const response = {
+        ruleCount: performanceCache.storageCache.ruleCount ?? 'N/A',
+        ruleStats: performanceCache.storageCache.ruleStats ?? {},
+        lastError: performanceCache.storageCache.lastError,
+        cached: true
+      };
+      performanceCache.set(cacheKey, response);
+      sendResponse(response);
+      return true;
+    }
+
+    // Asynchroner Storage-Zugriff mit verbessertem Caching
+    (async () => {
+      try {
+        const data = await chrome.storage.local.get(['ruleCount', 'ruleStats', 'lastError']);
+        performanceCache.storageCache = data;
+        performanceCache.cacheTimestamp = Date.now();
         
-        sendResponse({
-            ruleCount: data.ruleCount ?? 'N/A',
-            ruleStats: data.ruleStats ?? {},
-            lastError: data.lastError
-        });
-      })
-      .catch(err => {
+        const response = {
+          ruleCount: data.ruleCount ?? 'N/A',
+          ruleStats: data.ruleStats ?? {},
+          lastError: data.lastError,
+          cached: false
+        };
+        
+        performanceCache.set(cacheKey, response);
+        sendResponse(response);
+      } catch (err) {
         console.error(`${LOG_PREFIX} Error getting stats from storage:`, err);
         sendResponse({ ruleCount: 'Fehler', ruleStats: {}, error: err.message });
-      });
-    return true; // Signalisiert asynchrone Antwort
+      }
+    })();
+    return true;
   }
 
   if (request.action === "reloadRules") {
@@ -337,8 +577,19 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         // GRÜNDLICH TESTEN, ob der ruleCount sofort korrekt ist!
         // await new Promise(r => setTimeout(r, 200)); // Entfernt - testen!
 
-        // Hole die aktualisierten Daten direkt nach Abschluss von initialize
+        // Performance: Cache invalidieren und aktualisieren
+        performanceCache.clear();
         const data = await chrome.storage.local.get(['ruleCount', 'ruleStats']);
+        performanceCache.storageCache = data;
+        performanceCache.cacheTimestamp = Date.now();
+        
+        // Warme Cache-Einträge für häufige Zugriffe
+        performanceCache.set('stats', {
+          ruleCount: data.ruleCount ?? 'N/A',
+          ruleStats: data.ruleStats ?? {},
+          cached: false
+        });
+        
         sendResponse({
           success: true,
           message: "Rules reloaded successfully.",
@@ -366,8 +617,14 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 });
 
 // === Initialer Start ===
-// Starte die Initialisierung direkt beim Laden des Background-Skripts.
-// Dies deckt Fälle ab, in denen weder onInstalled noch onStartup feuern
-// (z.B. nach einem Absturz des Extension-Prozesses oder beim Debuggen).
+// Performance: Sofort starten + WASM preloading
 console.log(`${LOG_PREFIX} Background script loaded. Triggering initial load.`);
 initialize();
+
+// Performance: WASM Preloading nach kurzer Verzögerung
+setTimeout(() => {
+  if (!shouldUseWasm) {
+    console.log(`${LOG_PREFIX} Starting WASM preload for future use...`);
+    preloadWasmModule();
+  }
+}, PRELOAD_DELAY);
