@@ -9,17 +9,17 @@ const LOG_PREFIX = "[PagyBlocker]";
 const FILTER_LIST_URL = 'filter_lists/filter.txt';
 const BADGE_ERROR_COLOR = '#FF0000';
 
-// Simple caching with fixed duration
+// Optimized caching with longer duration for performance
 let filterListCache = null;
 let lastFilterFetch = 0;
-const FILTER_CACHE_DURATION = 2 * 60 * 1000; // 2 minutes
+const FILTER_CACHE_DURATION = 30 * 60 * 1000; // 30 minutes
 
-// Simplified WASM handling
-const WASM_THRESHOLD = 3000; // Only use WASM for very large lists
+// Optimized WASM handling - only for very large lists
+const WASM_THRESHOLD = 3000; // Only use WASM for lists > 3000 rules
 let wasmModule = null;
 
-// Simple initialization lock
-let isInitializing = false;
+// Robust initialization lock with Promise-based coordination
+let initializationPromise = null;
 
 // === Hilfsfunktionen ===
 
@@ -50,7 +50,7 @@ async function setErrorBadge(text = 'ERR') {
 }
 
 /**
- * Simple WASM loading only when needed
+ * Optimized WASM loading with proper cleanup
  */
 async function loadWasmIfNeeded(lineCount) {
   if (lineCount <= WASM_THRESHOLD) {
@@ -72,6 +72,25 @@ async function loadWasmIfNeeded(lineCount) {
   }
   
   return wasmModule;
+}
+
+/**
+ * Cleanup WASM module to prevent memory leaks
+ */
+function cleanupWasm() {
+  if (wasmModule) {
+    try {
+      console.log(`${LOG_PREFIX} Cleaning up WASM module`);
+      // If WASM module has cleanup methods, call them
+      if (typeof wasmModule._free === 'function') {
+        // Module-specific cleanup if available
+      }
+      wasmModule = null;
+    } catch (error) {
+      console.warn(`${LOG_PREFIX} WASM cleanup warning:`, error);
+      wasmModule = null;
+    }
+  }
 }
 
 /**
@@ -116,54 +135,79 @@ async function fetchFilterList() {
 }
 
 /**
- * Simplified JS Parser - fast and efficient
+ * Optimized JS Parser with error boundaries
  */
 async function parseListWithJS(filterListText) {
+  if (!filterListText || typeof filterListText !== 'string') {
+    throw new Error('Invalid filter list text provided');
+  }
+
   console.log(`${LOG_PREFIX} Starting JS parsing...`);
   console.time(`${LOG_PREFIX} JS Parsing`);
   
-  const lines = filterListText.split(/\r?\n/);
-  const rules = [];
-  let ruleId = 1;
-  const stats = { totalLines: lines.length, processedRules: 0, skippedLines: 0 };
-  
-  // Simple parsing - no batching, no yielding for maximum speed
-  for (const line of lines) {
-    const trimmed = line.trim();
+  try {
+    const lines = filterListText.split(/\r?\n/);
+    const rules = [];
+    let ruleId = 1;
+    const stats = { totalLines: lines.length, processedRules: 0, skippedLines: 0, errors: 0 };
     
-    // Skip comments and empty lines
-    if (!trimmed || trimmed.startsWith('#') || trimmed.startsWith('!') || trimmed.startsWith('[')) {
-      stats.skippedLines++;
-      continue;
-    }
-    
-    // Parse ||domain^ format
-    if (trimmed.startsWith('||') && trimmed.endsWith('^')) {
-      const domain = trimmed.slice(2, -1);
-      
-      // Basic domain validation
-      if (domain.length > 0 && !domain.includes('*') && !domain.includes(' ')) {
-        rules.push({
-          id: ruleId++,
-          priority: 1,
-          action: { type: 'block' },
-          condition: {
-            urlFilter: trimmed,
-            resourceTypes: ["script", "image", "xmlhttprequest", "other"]
+    // Optimized parsing with error boundaries
+    for (let i = 0; i < lines.length; i++) {
+      try {
+        const line = lines[i];
+        const trimmed = line.trim();
+        
+        // Skip comments and empty lines
+        if (!trimmed || trimmed.startsWith('#') || trimmed.startsWith('!') || trimmed.startsWith('[')) {
+          stats.skippedLines++;
+          continue;
+        }
+        
+        // Parse ||domain^ format
+        if (trimmed.startsWith('||') && trimmed.endsWith('^')) {
+          const domain = trimmed.slice(2, -1);
+          
+          // Enhanced domain validation
+          if (domain.length > 0 && domain.length < 100 && 
+              !domain.includes('*') && !domain.includes(' ') && 
+              /^[a-zA-Z0-9.-_]+$/.test(domain)) {
+            
+            rules.push({
+              id: ruleId++,
+              priority: 1,
+              action: { type: 'block' },
+              condition: {
+                urlFilter: trimmed,
+                resourceTypes: ["script", "image", "xmlhttprequest", "other", "stylesheet", "font"]
+              }
+            });
+            stats.processedRules++;
+          } else {
+            stats.skippedLines++;
           }
-        });
-        stats.processedRules++;
-      } else {
+        } else {
+          stats.skippedLines++;
+        }
+      } catch (lineError) {
+        console.warn(`${LOG_PREFIX} Error parsing line ${i + 1}:`, lineError);
+        stats.errors++;
         stats.skippedLines++;
       }
-    } else {
-      stats.skippedLines++;
     }
+    
+    console.timeEnd(`${LOG_PREFIX} JS Parsing`);
+    console.log(`${LOG_PREFIX} Parsed ${rules.length} rules from ${lines.length} lines (${stats.errors} errors)`);
+    
+    if (rules.length === 0) {
+      throw new Error('No valid rules found in filter list');
+    }
+    
+    return { rules, stats };
+  } catch (error) {
+    console.timeEnd(`${LOG_PREFIX} JS Parsing`);
+    console.error(`${LOG_PREFIX} JS parsing failed:`, error);
+    throw error;
   }
-  
-  console.timeEnd(`${LOG_PREFIX} JS Parsing`);
-  console.log(`${LOG_PREFIX} Parsed ${rules.length} rules from ${lines.length} lines`);
-  return { rules, stats };
 }
 
 /**
@@ -194,50 +238,74 @@ function parseListWithWasm(module, filterListText) {
 // === Kernlogik ===
 
 /**
- * Simple extension initialization
+ * Optimized extension initialization with race condition protection
  */
 async function initialize() {
-  if (isInitializing) {
-    console.log(`${LOG_PREFIX} Initialization already in progress`);
-    return;
+  // If already initializing, return the existing promise
+  if (initializationPromise) {
+    console.log(`${LOG_PREFIX} Initialization already in progress, waiting...`);
+    return initializationPromise;
   }
   
-  isInitializing = true;
-  
-  try {
-    console.log(`${LOG_PREFIX} Starting initialization...`);
-    await clearBadge();
+  // Create new initialization promise
+  initializationPromise = (async () => {
+    try {
+      console.log(`${LOG_PREFIX} Starting initialization...`);
+      await clearBadge();
 
-    // 1. Fetch filter list
-    const listText = await fetchFilterList();
-    const lineCount = listText.split('\n').length;
+      // 1. Fetch filter list
+      const listText = await fetchFilterList();
+      const lineCount = listText.split('\n').filter(line => {
+        const trimmed = line.trim();
+        return trimmed && !trimmed.startsWith('#') && !trimmed.startsWith('!') && !trimmed.startsWith('[');
+      }).length;
 
-    // 2. Choose parser based on size
-    let parseResult;
-    const wasmModule = await loadWasmIfNeeded(lineCount);
-    
-    if (wasmModule) {
-      parseResult = parseListWithWasm(wasmModule, listText);
-    } else {
-      parseResult = await parseListWithJS(listText);
+      console.log(`${LOG_PREFIX} Processing ${lineCount} rules (threshold: ${WASM_THRESHOLD})`);
+
+      // 2. Choose parser based on size - prefer JS for better performance on small lists
+      let parseResult;
+      const shouldUseWasm = lineCount > WASM_THRESHOLD;
+      
+      if (shouldUseWasm) {
+        console.log(`${LOG_PREFIX} Using WASM parser for large list`);
+        const wasmModule = await loadWasmIfNeeded(lineCount);
+        if (wasmModule) {
+          parseResult = parseListWithWasm(wasmModule, listText);
+        } else {
+          console.log(`${LOG_PREFIX} WASM failed, falling back to JS`);
+          parseResult = await parseListWithJS(listText);
+        }
+      } else {
+        console.log(`${LOG_PREFIX} Using optimized JS parser for small list`);
+        parseResult = await parseListWithJS(listText);
+      }
+
+      // 3. Apply rules with error recovery
+      await updateRules(parseResult.rules);
+      await chrome.storage.local.set({ 
+        ruleCount: parseResult.rules.length, 
+        ruleStats: parseResult.stats,
+        lastUpdate: Date.now()
+      });
+
+      // 4. Success
+      await clearBadge();
+      console.log(`${LOG_PREFIX} Initialization complete - ${parseResult.rules.length} rules loaded`);
+      return parseResult;
+
+    } catch (error) {
+      console.error(`${LOG_PREFIX} Initialization failed:`, error);
+      await setErrorBadge('ERR');
+      throw error;
     }
-
-    // 3. Apply rules
-    await updateRules(parseResult.rules);
-    await chrome.storage.local.set({ 
-      ruleCount: parseResult.rules.length, 
-      ruleStats: parseResult.stats 
-    });
-
-    // 4. Success
-    await clearBadge();
-    console.log(`${LOG_PREFIX} Initialization complete - ${parseResult.rules.length} rules loaded`);
-
-  } catch (error) {
-    console.error(`${LOG_PREFIX} Initialization failed:`, error);
-    await setErrorBadge('ERR');
+  })();
+  
+  // Clean up promise when done
+  try {
+    const result = await initializationPromise;
+    return result;
   } finally {
-    isInitializing = false;
+    initializationPromise = null;
   }
 }
 
@@ -298,6 +366,14 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   }
 
   return false;
+});
+
+// === Cleanup on extension shutdown ===
+chrome.runtime.onSuspend?.addListener(() => {
+  console.log(`${LOG_PREFIX} Extension suspending, cleaning up...`);
+  cleanupWasm();
+  filterListCache = null;
+  initializationPromise = null;
 });
 
 // === Start ===

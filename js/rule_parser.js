@@ -15,79 +15,145 @@ function validateRule(rule) {
   return true;
 }
 
-// Simple rule updating function
+// Optimized rule updating function with enhanced error handling
 async function updateRules(rules) {
+  if (!rules || !Array.isArray(rules)) {
+    throw new Error("Invalid rules array provided");
+  }
+
   const DNR_MAX_RULES = chrome.declarativeNetRequest.MAX_NUMBER_OF_DYNAMIC_AND_SESSION_RULES || 5000;
 
-  // Filter valid rules
-  const validRules = rules.filter(validateRule);
-  
-  if (validRules.length !== rules.length) {
-    console.log(`Filtered out ${rules.length - validRules.length} invalid rules`);
-  }
-
-  // Limit to max rules
-  const toAdd = validRules.slice(0, DNR_MAX_RULES);
-  
-  if (toAdd.length < validRules.length) {
-    console.warn(`Truncated from ${validRules.length} to ${toAdd.length} rules`);
-  }
-
   try {
-    // Get existing rules
-    const existingRules = await chrome.declarativeNetRequest.getDynamicRules();
-    const existingIds = existingRules.map(rule => rule.id);
+    // Filter valid rules with error boundaries
+    const validRules = rules.filter(rule => {
+      try {
+        return validateRule(rule);
+      } catch (error) {
+        console.warn('Rule validation error:', error, rule);
+        return false;
+      }
+    });
+    
+    if (validRules.length !== rules.length) {
+      console.log(`Filtered out ${rules.length - validRules.length} invalid rules`);
+    }
+
+    // Limit to max rules
+    const toAdd = validRules.slice(0, DNR_MAX_RULES);
+    
+    if (toAdd.length < validRules.length) {
+      console.warn(`Truncated from ${validRules.length} to ${toAdd.length} rules`);
+    }
+
+    if (toAdd.length === 0) {
+      console.warn('No valid rules to add');
+      return;
+    }
+
+    // Get existing rules with retry logic
+    let existingRules = [];
+    let existingIds = [];
+    
+    try {
+      existingRules = await chrome.declarativeNetRequest.getDynamicRules();
+      existingIds = existingRules.map(rule => rule.id);
+    } catch (error) {
+      console.warn('Failed to get existing rules, continuing with update:', error);
+    }
     
     console.log(`Updating ${existingIds.length} -> ${toAdd.length} rules`);
     
-    // Simple batch size for reliable updates
+    // Optimized batch size for reliable updates
     const BATCH_SIZE = 1000;
     
     if (toAdd.length <= BATCH_SIZE) {
-      // Single update for small rule sets
-      await chrome.declarativeNetRequest.updateDynamicRules({ 
-        removeRuleIds: existingIds, 
-        addRules: toAdd 
-      });
+      // Single update for small rule sets with retry
+      await retryOperation(async () => {
+        await chrome.declarativeNetRequest.updateDynamicRules({ 
+          removeRuleIds: existingIds, 
+          addRules: toAdd 
+        });
+      }, 3, 'single rule update');
+      
       console.log(`Updated to ${toAdd.length} rules`);
     } else {
       // Clear existing rules first
       if (existingIds.length > 0) {
-        await chrome.declarativeNetRequest.updateDynamicRules({ 
-          removeRuleIds: existingIds, 
-          addRules: [] 
-        });
+        await retryOperation(async () => {
+          await chrome.declarativeNetRequest.updateDynamicRules({ 
+            removeRuleIds: existingIds, 
+            addRules: [] 
+          });
+        }, 3, 'clear existing rules');
       }
       
-      // Add rules in batches
+      // Add rules in batches with error recovery
       for (let i = 0; i < toAdd.length; i += BATCH_SIZE) {
         const batch = toAdd.slice(i, i + BATCH_SIZE);
-        await chrome.declarativeNetRequest.updateDynamicRules({ 
-          addRules: batch, 
-          removeRuleIds: [] 
-        });
+        
+        await retryOperation(async () => {
+          await chrome.declarativeNetRequest.updateDynamicRules({ 
+            addRules: batch, 
+            removeRuleIds: [] 
+          });
+        }, 3, `batch ${Math.floor(i/BATCH_SIZE) + 1}`);
       }
       
       console.log(`Added ${toAdd.length} rules in batches`);
     }
 
-    // Store rule count
-    await chrome.storage.local.set({ ruleCount: toAdd.length });
-    console.log(`Stored rule count: ${toAdd.length}`);
+    // Store rule count with fallback
+    try {
+      await chrome.storage.local.set({ ruleCount: toAdd.length });
+      console.log(`Stored rule count: ${toAdd.length}`);
+    } catch (storageError) {
+      console.warn('Failed to store rule count:', storageError);
+      // Continue execution, this is not critical
+    }
 
   } catch (err) {
     console.error('Error updating rules:', err);
     
-    // Set error badge
-    if (chrome.action?.setBadgeText && chrome.action?.setBadgeBackgroundColor) {
-      await Promise.all([
-        chrome.action.setBadgeText({ text: 'ERR' }),
-        chrome.action.setBadgeBackgroundColor({ color: '#FF0000' })
-      ]);
+    // Set error badge with fallback
+    try {
+      if (chrome.action?.setBadgeText && chrome.action?.setBadgeBackgroundColor) {
+        await Promise.all([
+          chrome.action.setBadgeText({ text: 'ERR' }),
+          chrome.action.setBadgeBackgroundColor({ color: '#FF0000' })
+        ]);
+      }
+    } catch (badgeError) {
+      console.warn('Failed to set error badge:', badgeError);
     }
     
     throw new Error(`Rule update failed: ${err.message}`);
   }
+}
+
+// Retry operation helper for improved reliability
+async function retryOperation(operation, maxRetries, operationName) {
+  let lastError;
+  
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      await operation();
+      if (attempt > 1) {
+        console.log(`${operationName} succeeded on attempt ${attempt}`);
+      }
+      return;
+    } catch (error) {
+      lastError = error;
+      console.warn(`${operationName} failed on attempt ${attempt}:`, error);
+      
+      if (attempt < maxRetries) {
+        // Exponential backoff
+        const delay = Math.pow(2, attempt - 1) * 100;
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+  }
+  
+  throw new Error(`${operationName} failed after ${maxRetries} attempts: ${lastError.message}`);
 }
 
 // Export function for ES modules

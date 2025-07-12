@@ -1,9 +1,15 @@
 // popup/popup.js
-// Simple popup management
+// Optimized popup management with caching
 
 let ruleCountElement;
 let refreshButton;
 let isUpdating = false;
+
+// Local cache for faster popup loading
+let cachedStats = null;
+let cacheTimestamp = 0;
+const POPUP_CACHE_DURATION = 5000; // 5 seconds
+const MESSAGE_TIMEOUT = 3000; // 3 seconds
 
 // Simple stats display update
 function updateStatsDisplay(stats) {
@@ -22,15 +28,31 @@ function updateStatsDisplay(stats) {
     console.log("Popup updated:", stats);
 }
 
-// Simple reload function
+// Optimized reload function with timeout
 function reloadRules() {
-    if (isUpdating) return;
+    if (isUpdating) {
+        console.log("Reload already in progress, skipping");
+        return;
+    }
     
     isUpdating = true;
     ruleCountElement.textContent = 'Lädt...';
     ruleCountElement.className = 'loading';
     
+    // Clear cache on reload
+    cachedStats = null;
+    cacheTimestamp = 0;
+    
+    const timeoutId = setTimeout(() => {
+        if (isUpdating) {
+            isUpdating = false;
+            ruleCountElement.textContent = 'Timeout';
+            ruleCountElement.className = 'error';
+        }
+    }, MESSAGE_TIMEOUT);
+    
     chrome.runtime.sendMessage({ action: "reloadRules" }, (response) => {
+        clearTimeout(timeoutId);
         isUpdating = false;
         
         if (chrome.runtime.lastError) {
@@ -41,10 +63,16 @@ function reloadRules() {
         }
         
         if (response && response.success) {
-            updateStatsDisplay({
+            const stats = {
                 ruleCount: response.ruleCount,
                 ruleStats: response.ruleStats
-            });
+            };
+            
+            // Update cache
+            cachedStats = stats;
+            cacheTimestamp = Date.now();
+            
+            updateStatsDisplay(stats);
         } else {
             console.error("Reload failed:", response?.message || 'Unknown error');
             ruleCountElement.textContent = 'Fehler';
@@ -53,36 +81,72 @@ function reloadRules() {
     });
 }
 
-// Simple stats fetching
+// Optimized stats fetching with caching
 function fetchStats() {
-    if (isUpdating) return;
+    if (isUpdating) {
+        console.log("Update already in progress, skipping stats fetch");
+        return;
+    }
+    
+    // Check cache first
+    const now = Date.now();
+    if (cachedStats && (now - cacheTimestamp) < POPUP_CACHE_DURATION) {
+        console.log("Using cached stats");
+        updateStatsDisplay(cachedStats);
+        return;
+    }
     
     isUpdating = true;
     ruleCountElement.textContent = 'Lädt...';
     ruleCountElement.className = 'loading';
     
+    const timeoutId = setTimeout(() => {
+        if (isUpdating) {
+            isUpdating = false;
+            // Try storage fallback on timeout
+            tryStorageFallback();
+        }
+    }, MESSAGE_TIMEOUT);
+    
     chrome.runtime.sendMessage({ action: "getStats" }, (response) => {
+        clearTimeout(timeoutId);
         isUpdating = false;
         
         if (chrome.runtime.lastError) {
             console.error("Error fetching stats:", chrome.runtime.lastError.message);
-            ruleCountElement.textContent = 'Fehler';
-            ruleCountElement.className = 'error';
+            tryStorageFallback();
             return;
         }
         
         if (response) {
+            // Update cache
+            cachedStats = response;
+            cacheTimestamp = now;
             updateStatsDisplay(response);
         } else {
-            // Fallback to storage
-            chrome.storage.local.get(['ruleCount']).then(stats => {
-                updateStatsDisplay(stats);
-            }).catch(err => {
-                console.error("Storage fallback failed:", err);
-                ruleCountElement.textContent = 'Fehler';
-                ruleCountElement.className = 'error';
-            });
+            tryStorageFallback();
         }
+    });
+}
+
+// Optimized storage fallback
+function tryStorageFallback() {
+    chrome.storage.local.get(['ruleCount', 'ruleStats']).then(stats => {
+        if (stats.ruleCount !== undefined) {
+            const fallbackStats = {
+                ruleCount: stats.ruleCount,
+                ruleStats: stats.ruleStats || {}
+            };
+            updateStatsDisplay(fallbackStats);
+        } else {
+            ruleCountElement.textContent = 'N/A';
+            ruleCountElement.className = 'error';
+            console.warn("No rule count found in storage fallback");
+        }
+    }).catch(err => {
+        console.error("Storage fallback failed:", err);
+        ruleCountElement.textContent = 'Fehler';
+        ruleCountElement.className = 'error';
     });
 }
 
