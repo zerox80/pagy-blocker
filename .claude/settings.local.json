@@ -11,7 +11,8 @@
       "Bash(powershell:*)",
       "Bash(make:*)",
       "WebFetch(domain:heise.de)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(python:*)"
     ],
     "deny": []
   }
