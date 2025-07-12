@@ -24,15 +24,27 @@ async function updateRules(rules) {
   const DNR_MAX_RULES = chrome.declarativeNetRequest.MAX_NUMBER_OF_DYNAMIC_AND_SESSION_RULES || 5000;
 
   try {
-    // Filter valid rules with error boundaries
-    const validRules = rules.filter(rule => {
-      try {
-        return validateRule(rule);
-      } catch (error) {
-        console.warn('Rule validation error:', error, rule);
-        return false;
+    // Optimized batch rule validation
+    const validRules = [];
+    const batchSize = 100;
+    
+    for (let i = 0; i < rules.length; i += batchSize) {
+      const batch = rules.slice(i, i + batchSize);
+      for (const rule of batch) {
+        try {
+          if (validateRule(rule)) {
+            validRules.push(rule);
+          }
+        } catch (error) {
+          console.warn('Rule validation error:', error, rule);
+        }
       }
-    });
+      
+      // Yield control after each batch for better responsiveness
+      if (i + batchSize < rules.length) {
+        await new Promise(resolve => setTimeout(resolve, 0));
+      }
+    }
     
     if (validRules.length !== rules.length) {
       console.log(`Filtered out ${rules.length - validRules.length} invalid rules`);

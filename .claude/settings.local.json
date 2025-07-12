@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node:*)",
+      "Bash(del debug_filter.js)",
+      "Bash(rm:*)"
+    ],
+    "deny": []
+  }
+}
