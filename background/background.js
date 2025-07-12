@@ -253,9 +253,9 @@ async function parseListWithJS(filterListText) {
             continue;
           }
           
-          if (domain.length > 0 && domain.length < 100 && 
+          if (domain.length > 0 && domain.length < 200 && 
               !domain.includes('*') && !domain.includes(' ') && 
-              /^[a-zA-Z0-9._-]+$/.test(domain)) {
+              /^[a-zA-Z0-9._/-]+(\?[a-zA-Z0-9=&_-]*)?$/.test(domain)) {
             
             const rule = {
               id: ruleId++,

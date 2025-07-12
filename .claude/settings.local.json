@@ -9,7 +9,9 @@
       "Bash(wc:*)",
       "Bash(find:*)",
       "Bash(powershell:*)",
-      "Bash(make:*)"
+      "Bash(make:*)",
+      "WebFetch(domain:heise.de)",
+      "Bash(grep:*)"
     ],
     "deny": []
   }
