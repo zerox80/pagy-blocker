@@ -7,10 +7,9 @@ const BADGE_ERROR_COLOR = '#FF0000';
 
 let filterListCache = null;
 let lastFilterFetch = 0;
-let cachedFilterLines = null; // Vorverarbeitete Zeilen für schnellen Zugriff
-const FILTER_CACHE_DURATION = 3 * 60 * 1000; // 3 Minuten Cache für optimale Performance
+const FILTER_CACHE_DURATION = 5 * 60 * 1000; // 5 Minuten Cache - reduziert für bessere Reaktivität
 
-const WASM_THRESHOLD = 1500; // Schwellenwert für WASM-Aktivierung
+const WASM_THRESHOLD = 10000; // Schwellenwert für WASM-Aktivierung - optimiert für kleine Listen
 let wasmModule = null;
 
 let initializationPromise = null;
@@ -243,9 +242,8 @@ async function fetchFilterList() {
     
     const text = await resp.text();
     
-    // Speicher-Optimierung: Text und vorverarbeitete Zeilen cachen
+    // Cache-Aktualisierung
     filterListCache = text;
-    cachedFilterLines = null; // Wird bei Bedarf lazy geladen
     lastFilterFetch = now;
     
     // Zeilen schätzen ohne vollständige Aufteilung für besseren Speicherverbrauch
@@ -273,86 +271,56 @@ async function parseListWithJS(filterListText) {
     throw new Error('Invalid filter list text provided');
   }
 
-  console.log(`${LOG_PREFIX} Starte optimiertes JS-Parsing...`);
+  console.log(`${LOG_PREFIX} Starte vereinfachtes JS-Parsing...`);
   console.time(`${LOG_PREFIX} JS Parsing`);
   
   try {
-    // Schnelle Zeilen-Aufteilung mit indexOf-Schleife statt Regex
-    const lines = [];
-    let start = 0;
-    let pos = 0;
-    while ((pos = filterListText.indexOf('\n', start)) !== -1) {
-      const line = filterListText.slice(start, pos).trim();
-      if (line) lines.push(line);
-      start = pos + 1;
-    }
-    if (start < filterListText.length) {
-      const line = filterListText.slice(start).trim();
-      if (line) lines.push(line);
-    }
-    
+    // Einfache und schnelle Zeilen-Verarbeitung
+    const lines = filterListText.split('\n');
     const rules = [];
     let ruleId = 1;
     const stats = { totalLines: lines.length, processedRules: 0, skippedLines: 0, errors: 0 };
     
-    // Optimierte Whitelist als Objekt für O(1)-Lookup
-    const whitelist = {
-      'fonts.gstatic.com': true, 
-      'fonts.googleapis.com': true, 
-      'cdnjs.cloudflare.com': true, 
-      'code.jquery.com': true, 
-      'maxcdn.bootstrapcdn.com': true
-    };
+    // Einfache Whitelist für wichtige CDNs
+    const whitelist = new Set([
+      'fonts.gstatic.com', 'fonts.googleapis.com', 'cdnjs.cloudflare.com', 
+      'code.jquery.com', 'maxcdn.bootstrapcdn.com'
+    ]);
     
-    // ResourceTypes-Array vorab allokieren um wiederholte Allokierung zu vermeiden
-    const resourceTypes = ["script", "image", "xmlhttprequest", "other"];
+    const resourceTypes = ["script", "image", "xmlhttprequest"];
     
-    // Schnelle Verarbeitung ohne Batch-Overhead
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
+    // Schnelle direkte Verarbeitung ohne Batching-Overhead
+    for (const line of lines) {
+      const trimmed = line.trim();
       
-      // Schnelle zeichenbasierte Filterung
-      const firstChar = line[0];
-      if (!line || firstChar === '#' || firstChar === '!' || firstChar === '[') {
+      // Einfache Filterung
+      if (!trimmed || trimmed.startsWith('#') || trimmed.startsWith('!') || trimmed.startsWith('[')) {
         stats.skippedLines++;
         continue;
       }
       
-      // Schnelle Präfix/Suffix-Prüfung mit charAt und slice
-      if (line.length > 4 && line[0] === '|' && line[1] === '|' && line[line.length - 1] === '^') {
-        const domain = line.slice(2, -1);
+      // Einfache Domain-Filter-Prüfung
+      if (trimmed.startsWith('||') && trimmed.endsWith('^')) {
+        const domain = trimmed.slice(2, -1);
         
-        // Schnelle Whitelist-Prüfung
-        if (whitelist[domain]) {
+        // Whitelist-Prüfung
+        if (whitelist.has(domain)) {
           stats.skippedLines++;
           continue;
         }
         
-        // Schnelle Validierung mit Zeichen-Prüfung
-        if (domain.length > 0 && domain.length < 200) {
-          let isValid = true;
-          for (let j = 0; j < domain.length; j++) {
-            const char = domain[j];
-            if (char === '*' || char === ' ') {
-              isValid = false;
-              break;
+        // Einfache Validierung - nur Länge und gefährliche Zeichen prüfen
+        if (domain.length > 0 && domain.length < 200 && !domain.includes('*') && !domain.includes(' ')) {
+          rules.push({
+            id: ruleId++,
+            priority: 1,
+            action: { type: 'block' },
+            condition: {
+              urlFilter: trimmed,
+              resourceTypes: resourceTypes
             }
-          }
-          
-          if (isValid) {
-            rules.push({
-              id: ruleId++,
-              priority: 1,
-              action: { type: 'block' },
-              condition: {
-                urlFilter: line,
-                resourceTypes: resourceTypes
-              }
-            });
-            stats.processedRules++;
-          } else {
-            stats.skippedLines++;
-          }
+          });
+          stats.processedRules++;
         } else {
           stats.skippedLines++;
         }
@@ -563,18 +531,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         
         const newStatus = await toggleWebsiteBlocking(domain);
         
-        try {
-          const tabs = await chrome.tabs.query({active: true, currentWindow: true});
-          if (tabs.length > 0) {
-            const activeTab = tabs[0];
-            if (activeTab.url && (activeTab.url.startsWith('http://') || activeTab.url.startsWith('https://'))) {
-              await chrome.tabs.reload(activeTab.id);
-              console.log(`${LOG_PREFIX} Aktiven Tab neu geladen: ${activeTab.id}`);
-            }
-          }
-        } catch (err) {
-          console.warn(`${LOG_PREFIX} Tab-Neuladen Fehler:`, err);
-        }
+        // Tab-Neuladen entfernt - verursacht Performance-Probleme
+        // Benutzer kann manuell neu laden wenn nötig
         
         sendResponse({
           success: true,
@@ -601,10 +559,7 @@ chrome.runtime.onSuspend?.addListener(() => {
   console.log(`${LOG_PREFIX} Extension wird suspendiert, bereinige...`);
   cleanupWasm();
   filterListCache = null;
-  cachedFilterLines = null;
   initializationPromise = null;
-  // Garbage Collection Hinweise forcieren
-  if (global && global.gc) global.gc();
 });
 
 console.log(`${LOG_PREFIX} Background-Script geladen`);

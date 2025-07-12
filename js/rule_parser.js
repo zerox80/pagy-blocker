@@ -62,45 +62,42 @@ async function updateRules(rules) {
     
     console.log(`Aktualisiere ${existingIds.length} -> ${toAdd.length} Regeln`);
     
-    // Optimierte dynamische Batchverarbeitung basierend auf Systemleistung
-    const systemLoad = performance.now() % 100; // Einfacher Lastindikator
-    const OPTIMAL_BATCH_SIZE = systemLoad < 50 ? 
-      Math.min(2000, Math.max(750, Math.floor(toAdd.length / 2))) : // Hohe Leistung
-      Math.min(1000, Math.max(400, Math.floor(toAdd.length / 4)));   // Konservativ
-    
-    if (toAdd.length <= OPTIMAL_BATCH_SIZE && existingIds.length <= OPTIMAL_BATCH_SIZE) {
-      // Einzel-Operation für kleinere Regel-Sets
+    // Einfache Regel-Aktualisierung ohne komplexes Batching
+    if (toAdd.length <= 1000 && existingIds.length <= 1000) {
+      // Direkte Aktualisierung für kleine Regel-Sets
       await retryOperation(async () => {
         await chrome.declarativeNetRequest.updateDynamicRules({ 
           removeRuleIds: existingIds, 
           addRules: toAdd 
         });
-      }, 3, 'optimierte Einzel-Aktualisierung');
+      }, 3, 'Regel-Aktualisierung');
       
-      console.log(`Auf ${toAdd.length} Regeln in einer Operation aktualisiert`);
+      console.log(`${toAdd.length} Regeln direkt aktualisiert`);
     } else {
-      // Löschen und Batch-Hinzufügen für größere Regel-Sets
+      // Einfaches Batching nur bei wirklich großen Regel-Sets
+      const BATCH_SIZE = 500;
+      
       if (existingIds.length > 0) {
         await retryOperation(async () => {
           await chrome.declarativeNetRequest.updateDynamicRules({ 
             removeRuleIds: existingIds, 
             addRules: [] 
           });
-        }, 3, 'existierende Regeln löschen');
+        }, 3, 'Regeln löschen');
       }
       
-      for (let i = 0; i < toAdd.length; i += OPTIMAL_BATCH_SIZE) {
-        const batch = toAdd.slice(i, i + OPTIMAL_BATCH_SIZE);
+      for (let i = 0; i < toAdd.length; i += BATCH_SIZE) {
+        const batch = toAdd.slice(i, i + BATCH_SIZE);
         
         await retryOperation(async () => {
           await chrome.declarativeNetRequest.updateDynamicRules({ 
             addRules: batch, 
             removeRuleIds: [] 
           });
-        }, 3, `optimierter Batch ${Math.floor(i/OPTIMAL_BATCH_SIZE) + 1}`);
+        }, 3, `Batch ${Math.floor(i/BATCH_SIZE) + 1}`);
       }
       
-      console.log(`${toAdd.length} Regeln in ${Math.ceil(toAdd.length/OPTIMAL_BATCH_SIZE)} optimierten Batches hinzugefügt`);
+      console.log(`${toAdd.length} Regeln in ${Math.ceil(toAdd.length/BATCH_SIZE)} Batches hinzugefügt`);
     }
 
     // Asynchrone Speicher-Aktualisierung um Blockierung zu vermeiden

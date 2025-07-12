@@ -1,900 +1,134 @@
-# ★ ULTRA-PERFEKTE PAGY BLOCKER FILTER LISTE 2025 ★
-# ═══════════════════════════════════════════════════════════════════════════════
-# 🚀 MAXIMALE WERBEBLOCKIERUNG MIT MINIMALER WEBSITE-BEEINTRÄCHTIGUNG
-# 🔧 Umfasst modernste Tracking-Methoden, KI-Analytics, Emerging Tech und 2025 Ad-Tech
-# 🌍 Globale Abdeckung: Europa, Amerika, Asien, Afrika, Naher Osten
-# 🧠 AI/ML-Tracking: OpenAI, Anthropic, Meta AI, Google AI, Microsoft AI
-# 🥽 AR/VR/Metaverse: Meta Reality, Apple Vision, Steam VR, Magic Leap
-# 🏠 IoT-Tracking: Alexa, Google Assistant, Smart Home, Tesla
-# 📱 5G/Satellit: Starlink, OneWeb, 5G-Netzwerk Analytics
-# 🎮 Gaming/Streaming: Epic, Steam, Netflix, Disney+, YouTube Premium
-# 💰 Crypto/NFT: OpenSea, Binance NFT, Ethereum, Solana Analytics
-# 🌱 Clean Tech: EV-Charging, ESG Analytics, Klimatech-Tracking
-# 🔮 Next-Gen: Quantum Computing, Biometrie, Neuromarketing
-# ═══════════════════════════════════════════════════════════════════════════════
-# Version: 2025-07-12-PERFECT | Regeln: 725 | Zeilen: 947 | Status: ULTRA-KOMPLETT
-# Letzte Aktualisierung: Komplette 2025-Modernisierung mit KI-Schutz
-
-# ==========================================
-# GOOGLE ADS & ANALYTICS ECOSYSTEM
-# ==========================================
+||ad.doubleclick.net^
+||ads.google.com^
+||adservice.google.com^
+||googleads.g.doubleclick.net^
 ||googleadservices.com^
 ||googlesyndication.com^
-||doubleclick.net^
-||googletagmanager.com^
 ||googletagservices.com^
 ||pagead2.googlesyndication.com^
-||pagead.googlesyndication.com^
-||partner.googleadservices.com^
-||adsystem.google.com^
-||ads.google.com^
-||google-analytics.com^
-||googleanalytics.com^
-||googleoptimize.com^
-||firebase.google.com^
-||firebaseio.com^
-||gstatic.com/analytics^
-||firebase-settings.crashlytics.com^
-||crashlytics.com^
-||fabric.io^
-||answers.io^
-
-# === GOOGLE TAG GATEWAY & FIRST-PARTY TRACKING ===
-||googletagmanager.com/gtag^
-||google.com/analytics^
-||google.com/tagmanager^
+||securepubads.g.doubleclick.net^
+||tpc.googlesyndication.com^
+||www.google-analytics.com^
+||ssl.google-analytics.com^
 ||analytics.google.com^
-||tagmanager.google.com^
-
-# ==========================================
-# META/FACEBOOK ADVERTISING ECOSYSTEM
-# ==========================================
-||connect.facebook.net^
-||analytics.facebook.com^
-||pixel.facebook.com^
-||an.facebook.com^
-||facebook.com/tr^
-||facebook.com/analytics^
-||instagram.com/logging^
-||workplace.com/analytics^
-||threads.net/analytics^
-
-# ==========================================
-# AMAZON ADVERTISING ECOSYSTEM
-# ==========================================
-||amazon-adsystem.com^
-||amazonadssystem.com^
-||assoc-amazon.com^
-||aax.amazon-adsystem.com^
-||amazon.com/gp/aw/cr^
-||amazoncognito.com^
-||aps.amazon.com^
-||amazon-dsp.com^
-||amazon.com/api/marketsdk^
-
-# ==========================================
-# MICROSOFT/BING ADVERTISING
-# ==========================================
-||bat.bing.com^
-||ads.msn.com^
-||flex.msn.com^
-||bing.com/bat^
-||microsoft.com/bat^
-||msn.com/ads^
-||clarity.ms^
-||bing.com/analytics^
-
-# ==========================================
-# LINKEDIN ADVERTISING
-# ==========================================
-||ads.linkedin.com^
-||analytics.pointdrive.linkedin.com^
-||dc.ads.linkedin.com^
-||px.ads.linkedin.com^
-||linkedin.com/analytics^
-||linkedin.com/li/track^
-||licdn.com/analytics^
-
-# ==========================================
-# TWITTER/X ADVERTISING
-# ==========================================
-||ads-twitter.com^
-||analytics.twitter.com^
-||ads-api.twitter.com^
-||twitter.com/i/adsct^
-||x.com/i/adsct^
-||twimg.com/analytics^
-||twitter.com/analytics^
-
-# ==========================================
-# TIKTOK ADVERTISING
-# ==========================================
-||ads.tiktok.com^
-||analytics.tiktok.com^
-||ads-sg.tiktok.com^
-||tiktok.com/api/analytics^
-||bytedance.com/analytics^
-||musical.ly/analytics^
-
-# ==========================================
-# PROGRAMMATIC AD EXCHANGES & RTB PLATFORMS
-# ==========================================
-||adsrvr.org^
-||adnxs.com^
-||criteo.net^
-||criteo.com^
-||crto.in^
-||rubiconproject.com^
-||pubmatic.com^
-||openx.net^
-||casalemedia.com^
-||contextweb.com^
-||spotxchange.com^
-||smartadserver.com^
-||indexexchange.com^
-||yieldmo.com^
-||sonobi.com^
-||adsystem.com^
-||adform.net^
-||adsystem.turn.com^
-||adsystem.amazon.com^
-||adsystem.indexexchange.com^
-||adsystem.yieldlab.net^
-||adsystem.oracle.com^
-||adsystem.aol.com^
-||adsystem.media.net^
-||adsystem.yandex.ru^
-||adsystem.ads^
-
-# === MODERN PROGRAMMATIC PLATFORMS ===
-||magnite.com^
-||thetradedesk.com^
-||xandr.com^
-||ttd.com^
-||yahoo.com/ssp^
-||verizonmedia.com/ssp^
-||adobe.com/audience-manager^
-||salesforce.com/dmp^
-
-# ==========================================
-# ADVANCED TRACKING & FINGERPRINTING (2025)
-# ==========================================
-||omtrdc.net^
-||demdex.net^
-||everesttech.net^
-||bluekai.com^
-||krxd.net^
-||rlcdn.com^
-||rfihub.com^
-||bkrtx.com^
-||bidswitch.net^
-
-# === DEVICE FINGERPRINTING & BROWSER PROFILING ===
-||fingerprint.com^
-||fingerprintjs.com^
-||deviceatlas.com^
-||51degrees.com^
-||browscap.org^
-||deviceinfo.me^
-||browserleaks.com^
-||panopticlick.eff.org^
-||amiunique.org^
-||clientjs.org^
-||uniquemachine.org^
-||browserprint.info^
-
-# === CROSS-DEVICE TRACKING ===
-||drawbridge.com^
-||tapad.com^
-||crosswise.com^
-||liveramp.com^
-||acxiom.com^
-||experian.com/marketing^
-||epsilon.com^
-||neustar.biz^
-
-# === BEHAVIORAL ANALYTICS & HEATMAPS ===
-||hotjar.com^
-||fullstory.com^
-||mouseflow.com^
-||crazyegg.com^
-||inspectlet.com^
-||luckyorange.com^
-||sessioncam.com^
-||smartlook.com^
-||logrocket.com^
-||mixpanel.com^
-||amplitude.com^
-||heap.io^
-||segment.com^
-||kissmetrics.com^
-||optimizely.com^
-||unbounce.com^
-||visualwebsiteoptimizer.com^
-||convert.com^
-
-# ==========================================
-# CDN-BASED ADVERTISING & TRACKING
-# ==========================================
-||cloudflare.com/analytics^
-||fastly.com/analytics^
-||amazonaws.com/analytics^
-||akamai.com/analytics^
-||maxcdn.com/analytics^
-||bootstrapcdn.com/analytics^
-||cdnjs.com/analytics^
-||jsdelivr.com/analytics^
-||unpkg.com/analytics^
-
-# === AD-SERVING CDNS ===
+||googletagmanager.com^
+||stats.g.doubleclick.net^
+||ad.bitmedia.io^
+||ad.a-ads.com^
+||ads.pubmatic.com^
+||adserver.adtech.de^
 ||ads.yahoo.com^
-||ads.aol.com^
-||ads.bing.com^
-||ads.pinterest.com^
-||ads.reddit.com^
-||ads.spotify.com^
-||ads.snapchat.com^
-||ads.amazon.com^
-
-# ==========================================
-# MOBILE ADVERTISING ECOSYSTEM
-# ==========================================
-||admob.com^
-||unityads.unity3d.com^
-||ads.unity3d.com^
-||ironsrc.com^
-||supersonic.com^
-||chartboost.com^
-||vungle.com^
-||applovin.com^
-||tapjoy.com^
-||fyber.com^
-||adcolony.com^
-||startapp.com^
-||inmobi.com^
-||mobfox.com^
-||millennialmedia.com^
-||nexage.com^
-||mopub.com^
-||flurry.com^
-||localytics.com^
-||adjust.com^
-||branch.io^
-||appsflyer.com^
-||kochava.com^
-
-# ==========================================
-# SOCIAL MEDIA TRACKING & WIDGETS
-# ==========================================
-||addthis.com^
-||addtoany.com^
-||sharethis.com^
-||shareaholic.com^
-||po.st^
-||disqus.com^
-||livefyre.com^
-||intensedebate.com^
-||facebook.com/plugins^
-||twitter.com/widgets^
-||linkedin.com/widgets^
-||pinterest.com/widgets^
-||instagram.com/embed^
-||youtube.com/embed/analytics^
-
-# ==========================================
-# RETARGETING & REMARKETING PLATFORMS
-# ==========================================
-||adroll.com^
-||perfectaudience.com^
-||retargeter.com^
-||chango.com^
-||struq.com^
-||triggit.com^
-||fetchback.com^
-
-# ==========================================
-# VIDEO ADVERTISING NETWORKS
-# ==========================================
-||googlevideo.com/videoplayback*&adsystem
-||youtube.com/api/stats/ads^
-||youtube.com/ptracking^
-||googlevideo.com/generate_204^
-||brightcove.com/analytics^
-||jwplatform.com/analytics^
-||vimeo.com/analytics^
-||dailymotion.com/analytics^
-||twitch.tv/analytics^
-||wistia.com/analytics^
-||vidyard.com/analytics^
-||spotx.tv^
-||springserve.com^
-||tremormedia.com^
-||adap.tv^
-||freewheel.tv^
-||videologygroup.com^
-
-# ==========================================
-# AFFILIATE MARKETING & SPONSORED CONTENT
-# ==========================================
-||outbrain.com^
-||taboola.com^
-||revcontent.com^
-||content.ad^
-||mgid.com^
-||adblade.com^
-||sharethrough.com^
-||nativo.com^
-||plista.com^
-||ligatus.com^
-||zemanta.com^
-||gravity.com^
-||affilinet.de^
-||tradedoubler.com^
-||zanox.com^
-||cj.com^
-||commission-junction.com^
-||linksynergy.com^
-||shareasale.com^
-||rakuten.com/advertising^
-||impact.com^
-||idealo-partner.com^
-
-# ==========================================
-# REGIONAL AD NETWORKS (GERMANY)
-# ==========================================
-||glomex.com^
-||smartstream.tv^
-||stroeer.de^
-||stroeer-digital-media.de^
-||iq-digital.io^
-||scoota.com^
-||yieldlab.net^
-||adscale.de^
-||nugg.ad^
-||intelliad.de^
-||madvertise.de^
-||mobile.de/werbung^
-
-# ==========================================
-# ASIAN AD NETWORKS
-# ==========================================
-||baidu.com/cpro^
-||googleadservices.com.cn^
-||googlesyndication.com.cn^
-||union.360.cn^
-||tanx.com^
-||alimama.com^
-||bytedance.com/ads^
-||toutiao.com/ads^
-||weibo.com/ads^
-||qq.com/ads^
-||sohu.com/ads^
-||sina.com.cn/ads^
-
-# ==========================================
-# DATA BROKERS & ANALYTICS PLATFORMS
-# ==========================================
-||analytics.yahoo.com^
-||analytics.bing.com^
-||adobe.com/analytics^
-||omniture.com^
-||comscore.com^
-||quantcast.com^
-||alexa.com^
-||similarweb.com^
+||ad.yieldmanager.com^
+||amazon-adsystem.com^
+||c.amazon-adsystem.com^
+||s.amazon-adsystem.com^
+||aax.amazon-adsystem.com^
+||trk.pinterest.com^
+||widgets.pinterest.com^
+||static.ads-twitter.com^
+||ads-api.twitter.com^
+||connect.facebook.net^
+||www.connect.facebook.net^
+||static.xx.fbcdn.net^
+||amplitude.com^
+||api.amplitude.com^
+||api2.amplitude.com^
+||cdn.amplitude.com^
 ||chartbeat.com^
-||newrelic.com^
-||bugsnag.com^
-||sentry.io^
-||rollbar.com^
-||intercom.io^
-||zendesk.com/analytics^
-||salesforce.com/analytics^
-||hubspot.com/analytics^
-||marketo.com^
-||pardot.com^
-||eloqua.com^
-||mailchimp.com/analytics^
-||constantcontact.com/analytics^
-
-# ==========================================
-# ANTI-ADBLOCK & CIRCUMVENTION
-# ==========================================
-||blockadblock.com^
-||fuckadblock.com^
-||antiadblock.org^
-||detect.adblock.com^
-||pagefair.com^
-||admiral.com^
-||sourcepoint.com^
-||quantcast.com/choice^
-||cookiebot.com^
-||onetrust.com^
-||trustarc.com^
-||cookiepro.com^
-||termly.io^
-
-# ==========================================
-# POP-UP, NOTIFICATION & MALVERTISING
-# ==========================================
-||adsystem.onesignal.com^
-||pusher.com/ads^
-||webpushr.com^
-||pushnotifications.com^
-||pushcrew.com^
-||pushengage.com^
-||wonderpush.com^
-||pushwoosh.com^
-||propellerads.com^
-||popads.net^
-||popcash.net^
-||popunder.net^
-||exoclick.com^
-||juicyads.com^
-||trafficjunky.net^
-||plugrush.com^
-||adsterra.com^
-||hilltopads.net^
-||adcash.com^
-||bidvertiser.com^
-||a-ads.com^
-||adnow.com^
-||revresponse.com^
-
-# ==========================================
-# WEB3 & CRYPTOCURRENCY ADVERTISING
-# ==========================================
-||coinbase.com/ads^
-||binance.com/ads^
-||crypto.com/ads^
-||coindesk.com/ads^
-||cointelegraph.com/ads^
-||decrypt.co/ads^
-||brave.com/ads^
-||basicattentiontoken.org^
-||metamask.io/analytics^
-||opensea.io/analytics^
-
-# ==========================================
-# CRYPTOCURRENCY MINING & HIJACKING
-# ==========================================
-||coinhive.com^
-||coinerra.com^
-||crypto-loot.com^
-||webminepool.com^
-||papoto.com^
-||jsecoin.com^
-||minero.cc^
-||coin-have.com^
-||cryptoloot.pro^
-||minemytraffic.com^
-||gridcash.net^
-||deepminer.net^
-||minergate.com^
-||nicehash.com^
-
-# ==========================================
-# EMAIL TRACKING & NEWSLETTERS
-# ==========================================
-||campaignmonitor.com/analytics^
-||aweber.com/analytics^
-||getresponse.com/analytics^
-||sendinblue.com/analytics^
-||mailerlite.com/analytics^
-||convertkit.com/analytics^
-||drip.com/analytics^
-||activecampaign.com/analytics^
-
-# ==========================================
-# CHAT WIDGETS & SUPPORT TRACKING
-# ==========================================
-||freshchat.com^
-||drift.com^
-||crisp.chat^
-||tawk.to^
-||livechatinc.com^
-||olark.com^
-||smartsupp.com^
-||uservoice.com^
-||hotjar.com/surveys^
-
-# ==========================================
-# E-COMMERCE TRACKING
-# ==========================================
-||shopify.com/analytics^
-||bigcommerce.com/analytics^
-||woocommerce.com/analytics^
-||magento.com/analytics^
-||prestashop.com/analytics^
-||opencart.com/analytics^
-||ebay.com/analytics^
-||aliexpress.com/analytics^
-||etsy.com/analytics^
-
-# ==========================================
-# STREAMING & ENTERTAINMENT ADS
-# ==========================================
-||netflix.com/ads^
-||hulu.com/ads^
-||disney.com/ads^
-||paramount.com/ads^
-||hbo.com/ads^
-||peacocktv.com/ads^
-||pluto.tv/ads^
-||tubi.tv/ads^
-||crackle.com/ads^
-||vudu.com/ads^
-||imdb.com/ads^
-
-# ==========================================
-# GAMING PLATFORM ADVERTISING
-# ==========================================
-||steam.com/ads^
-||epicgames.com/ads^
-||origin.com/ads^
-||battle.net/ads^
-||gog.com/ads^
-||itch.io/ads^
-||discord.com/analytics^
-||roblox.com/ads^
-||minecraft.net/ads^
-
-# ==========================================
-# NEWS & MEDIA TRACKING
-# ==========================================
-
-# ==========================================
-# SEARCH ENGINE ALTERNATIVES TRACKING
-# ==========================================
-||duckduckgo.com/analytics^
-||yahoo.com/analytics^
-||yandex.ru/analytics^
-||baidu.com/analytics^
-||ask.com/analytics^
-||aol.com/analytics^
-
-# ==========================================
-# PERFORMANCE & ERROR TRACKING
-# ==========================================
-||airbrake.io^
-||honeybadger.io^
-||raygun.com^
-||trackjs.com^
-||loggly.com^
-||papertrail.com^
-||splunk.com^
-
-# ==========================================
-# ADDITIONAL COMPREHENSIVE BLOCKS
-# ==========================================
-||media.net^
-||33across.com^
-||sovrn.com^
-||lijit.com^
-||advertising.com^
-
-# ==========================================
-# AI & MACHINE LEARNING TRACKING (2025)
-# ==========================================
-# AI-Powered Analytics & Behavioral Prediction
-||openai.com/analytics^
-||anthropic.com/analytics^
-||claude.ai/analytics^
-||chatgpt.com/analytics^
-||bard.google.com/analytics^
-||ai.google.com/analytics^
-||microsoft.com/ai/analytics^
-||azure.com/cognitiveservices/analytics^
-||aws.amazon.com/ai/analytics^
-||ai.meta.com/analytics^
-||stability.ai/analytics^
-||midjourney.com/analytics^
-||runwayml.com/analytics^
-||replicate.com/analytics^
-||huggingface.co/analytics^
-||cohere.ai/analytics^
-
-# AI-Enhanced Fingerprinting & Profiling
-||aifingerprint.com^
-||mlprofile.io^
-||behavioriq.ai^
-||predictive-analytics.com^
-||aitracking.net^
-||machinelearning-ads.com^
-||neuralnetwork-tracking.io^
-||deeplearning-analytics.com^
-||aiuserprofile.com^
-||intelligenttracking.ai^
-
-# Edge Computing Analytics
-||cloudflare.com/edge-analytics^
-||fastly.com/edge-insights^
-||akamai.com/edge-analytics^
-||amazonaws.com/edge/analytics^
-||azure.com/edge/analytics^
-||vercel.com/analytics^
-||netlify.com/analytics^
-
-# ==========================================
-# EMERGING TECHNOLOGY TRACKING (2025)
-# ==========================================
-# AR/VR & Metaverse Analytics
-||meta.com/vr/analytics^
-||oculus.com/analytics^
-||reality.meta.com/analytics^
-||apple.com/vr/analytics^
-||visionos.apple.com/analytics^
-||steamvr.com/analytics^
-||htcvive.com/analytics^
-||pico-interactive.com/analytics^
-||varjo.com/analytics^
-||magicleap.com/analytics^
-||microsoft.com/hololens/analytics^
-||snapchat.com/ar/analytics^
-||tiktok.com/ar/analytics^
-||instagram.com/ar/analytics^
-||metaverse.com/analytics^
-||horizon.meta.com/analytics^
-||vrchat.com/analytics^
-||recroom.com/analytics^
-||roblox.com/vr/analytics^
-
-# IoT & Smart Device Tracking
-||alexa.amazon.com/analytics^
-||assistant.google.com/analytics^
-||siri.apple.com/analytics^
-||smartthings.samsung.com/analytics^
-||iot.microsoft.com/analytics^
-||nest.google.com/analytics^
-||philips-hue.com/analytics^
-||ring.com/analytics^
-||ecobee.com/analytics^
-||tesla.com/analytics^
-||apple.com/homekit/analytics^
-||xiaomi.com/iot/analytics^
-
-# 5G & Network Analytics
-||verizon.com/5g/analytics^
-||att.com/5g/analytics^
-||tmobile.com/5g/analytics^
-||vodafone.com/5g/analytics^
-||ericsson.com/5g/analytics^
-||nokia.com/5g/analytics^
-||qualcomm.com/5g/analytics^
-||huawei.com/5g/analytics^
-
-# Satellite Internet Tracking
-||starlink.com/analytics^
-||spacex.com/analytics^
-||amazon.com/kuiper/analytics^
-||oneweb.com/analytics^
-
-# ==========================================
-# GLOBAL REGIONAL AD NETWORKS (2025)
-# ==========================================
-# India & South Asia
-||google.co.in/ads^
-||facebook.com/ads/india^
-||flipkart.com/ads^
-||amazon.in/ads^
-||paytm.com/ads^
-||zomato.com/ads^
-||swiggy.com/ads^
-||ola.com/ads^
-||uber.com/in/ads^
-||jio.com/ads^
-||airtel.in/ads^
-||hotstar.com/ads^
-||zee5.com/ads^
-||sharechat.com/ads^
-||mxplayer.in/ads^
-||inmobi.com/india^
-||glance.com/ads^
-||pubmatic.com/india^
-||mediasmart.io^
-||vserv.com^
-||komli.com^
-||tyroo.com^
-
-# Brazil & Latin America
-||google.com.br/ads^
-||facebook.com/ads/brazil^
-||mercadolivre.com.br/ads^
-||magazine.com.br/ads^
-||globo.com/ads^
-||uol.com.br/ads^
-||terra.com.br/ads^
-||abril.com.br/ads^
-||estadao.com.br/ads^
-||folha.uol.com.br/ads^
-||netflix.com/br/ads^
-||primevideo.com/br/ads^
-||spotify.com/br/ads^
-||nubank.com.br/ads^
-||ifood.com.br/ads^
-||99app.com/ads^
-||rappi.com/ads^
-||buscapecompany.com^
-||buscape.com.br/ads^
-
-# Africa & Middle East
-||google.co.za/ads^
-||google.com.eg/ads^
-||google.ae/ads^
-||facebook.com/ads/africa^
-||jumia.com/ads^
-||konga.com/ads^
-||souq.com/ads^
-||noon.com/ads^
-||careem.com/ads^
-||talabat.com/ads^
-||zain.com/ads^
-||mtnonline.com/ads^
-||vodacom.co.za/ads^
-||dstv.com/ads^
-||showmax.com/ads^
-||bbc.com/arabic/ads^
-||alarabiya.net/ads^
-||aljazeera.com/ads^
-
-# Eastern Europe & Russia
-||yandex.ru/ads^
-||mail.ru/ads^
-||vk.com/ads^
-||ok.ru/ads^
-||avito.ru/ads^
-||ozon.ru/ads^
-||wildberries.ru/ads^
-||sberbank.ru/ads^
-||tinkoff.ru/ads^
-||kaspersky.com/ads^
-||allegro.pl/ads^
-||seznam.cz/ads^
-||emag.ro/ads^
-
-# ==========================================
-# MODERN SERVICE PLATFORMS (2025)
-# ==========================================
-# AI Chatbot Integration Analytics
-||openai.com/integrations/analytics^
-||anthropic.com/integrations/analytics^
-||character.ai/analytics^
-||janitor.ai/analytics^
-||poe.com/analytics^
-||claude.ai/integrations/analytics^
-||chatgpt.com/integrations/analytics^
-||bard.google.com/integrations/analytics^
-||bing.com/ai/analytics^
-||perplexity.ai/analytics^
-
-# Cloud Gaming Platforms
-||stadia.google.com/analytics^
-||xcloud.microsoft.com/analytics^
-||luna.amazon.com/analytics^
-||geforce.nvidia.com/analytics^
-||shadow.tech/analytics^
-||parsec.app/analytics^
-||rainway.com/analytics^
-||playstation.com/now/analytics^
-||xbox.com/cloud/analytics^
-
-# NFT & Blockchain Advanced Analytics
-||opensea.io/advanced/analytics^
-||rarible.com/analytics^
-||superrare.com/analytics^
-||foundation.app/analytics^
-||makersplace.com/analytics^
-||async.art/analytics^
-||binance.com/nft/analytics^
-||coinbase.com/nft/analytics^
-||crypto.com/nft/analytics^
-||polygon.technology/analytics^
-||ethereum.org/analytics^
-||avalanche.network/analytics^
-||solana.com/analytics^
-||cardano.org/analytics^
-
-# Electric Vehicle & Clean Tech
-||rivian.com/analytics^
-||lucidmotors.com/analytics^
-||nio.com/analytics^
-||byd.com/analytics^
-||chargepoint.com/analytics^
-||electrifyamerica.com/analytics^
-||evgo.com/analytics^
-||shell.com/ev/analytics^
-||bp.com/ev/analytics^
-
-# Climate Tech & ESG Analytics
-||climatetech.com/analytics^
-||carbontracker.org/analytics^
-||sustainability.com/analytics^
-||esg-analytics.com^
-||climateanalytics.org^
-||carbonfootprint.com/analytics^
-
-# ==========================================
-# ADVANCED PRIVACY CIRCUMVENTION (2025)
-# ==========================================
-# Advanced Anti-Privacy Tools
-||privacybadger.org/bypass^
-||ghostery.com/bypass^
-||ublock.org/bypass^
-||adblockplus.org/bypass^
-||disconnect.me/bypass^
-||duckduckgo.com/bypass^
-||brave.com/shields/bypass^
-||firefox.com/privacy/bypass^
-
-# Consent Management Bypass
-||cookieyes.com^
-||cookiefirst.com^
-||usercentrics.com^
-||consentmanager.net^
-||didomi.io^
-||iubenda.com^
-||complianz.io^
-
-# ==========================================
-# NEXT-GENERATION TRACKING (2025)
-# ==========================================
-# Quantum Computing Analytics (Emerging)
-||ibm.com/quantum/analytics^
-||rigetti.com/analytics^
-||ionq.com/analytics^
-||google.com/quantum/analytics^
-||microsoft.com/quantum/analytics^
-||aws.amazon.com/braket/analytics^
-
-# Biometric Tracking
-||biometric-tracking.com^
-||facerecognition.com/analytics^
-||voiceprint.com/analytics^
-||biometrics.com/analytics^
-||iris-scan.com/analytics^
-||fingerprint-analytics.com^
-
-# Neuromarketing & Brain-Computer Interfaces
-||neuromarketing.com/analytics^
-||emotiv.com/analytics^
-||neuralink.com/analytics^
-||kernel.com/analytics^
-||mindmaze.com/analytics^
-||brainstorm-analytics.com^
-
-# ==========================================
-# STREAMING & CONTENT PLATFORM EXPANSION
-# ==========================================
-# International Streaming
-||netflix.com/*/ads^
-||disney.com/*/ads^
-||hulu.com/*/ads^
-||paramount.com/*/ads^
-||peacocktv.com/*/ads^
-||appletv.com/*/ads^
-||amazon.com/prime/*/ads^
-||youtube.com/*/ads^
-||twitch.tv/*/ads^
-||tiktok.com/*/ads^
-||instagram.com/*/ads^
-||snapchat.com/*/ads^
-
-# Gaming Platform Analytics
-||epicgames.com/analytics^
-||steam.com/analytics^
-||origin.com/analytics^
-||uplay.com/analytics^
-||battlenet.com/analytics^
-||gog.com/analytics^
-||itch.io/analytics^
-||gamejolt.com/analytics^
-||kongregate.com/analytics^
-||newgrounds.com/analytics^
-
-# ==========================================
-# ADDITIONAL CDN & INFRASTRUCTURE ANALYTICS
-# ==========================================
-||stackpath.com/analytics^
-||keycdn.com/analytics^
-||bunnycdn.com/analytics^
-||pusher.com/analytics^
+||chartbeat.net^
+||static.chartbeat.com^
+||ping.chartbeat.net^
+||clicktale.net^
+||ws.clicktale.net^
+||clicky.com^
+||static.getclicky.com^
+||criteo.com^
+||static.criteo.net^
+||bidder.criteo.com^
+||hotjar.com^
+||static.hotjar.com^
+||vars.hotjar.com^
+||script.hotjar.com^
+||mouseflow.com^
+||cdn.mouseflow.com^
+||scorecardresearch.com^
+||sb.scorecardresearch.com^
+||quantserve.com^
+||rules.quantserve.com^
+||pixel.quantserve.com^
+||ad.crwdcntrl.net^
+||b.crwdcntrl.net^
+||dis.criteo.com^
+||gum.criteo.com^
+||rtax.criteo.com^
+||ads.creative-serving.com^
+||d.turn.com^
+||r.turn.com^
+||acuityplatform.com^
+||adroll.com^
+||s.adroll.com^
+||d.adroll.com^
+||bid.g.doubleclick.net^
+||cm.g.doubleclick.net^
+||creative.ak.fbcdn.net^
+||cx.atdmt.com^
+||ds.serving-sys.com^
+||bs.serving-sys.com^
+||flashtalking.com^
+||cdn.flashtalking.com^
+||go.flashtalking.com^
+||log.outbrain.com^
+||lp.outbrain.com^
+||odb.outbrain.com^
+||widgets.outbrain.com^
+||zemanta.com^
+||api.zemanta.com^
+||sail-horizon.com^
+||sync.mathtag.com^
+||mathid.mathtag.com^
+||pixel.mathtag.com^
+||v.mathtag.com^
+||tiqcdn.com^
+||tags.tiqcdn.com^
+||tr.snapchat.com^
+||sc-static.net^
+||ads.rubiconproject.com^
+||pixel.rubiconproject.com^
+||tap.rubiconproject.com^
+||ads.servenobid.com^
+||app-measurement.com^
+||taboola.com^
+||cdn.taboola.com^
+||images.taboola.com^
+||match.taboola.com^
+||trc.taboola.com^
+||widgets.taboola.com^
+||vid.taboola.com^
+||outbrain.com^
+||amplify.outbrain.com^
+||mag.outbrain.com^
+||traffic.outbrain.com^
+||revcontent.com^
+||trends.revcontent.com^
+||cdn.revcontent.com^
+||img.revcontent.com^
+||internal.revcontent.com^
+||ligatus.com^
+||ad.ligatus.com^
+||plista.com^
+||static.plista.com^
+||recommend.plista.com^
+||telemetry.microsoft.com^
+||v10.vortex-win.data.microsoft.com^
+||settings-win.data.microsoft.com^
+||events.data.microsoft.com^
+||telemetry.remoteapp.windowsazure.com^
+||telemetry.urs.microsoft.com^
+||vortex.data.microsoft.com^
+||ocsp.digicert.com^
+||crl3.digicert.com^
+||crl4.digicert.com^
+||fls-na.amazon.com^
+||mads.amazon-adsystem.com^
+||unagi-na.amazon.com^
+||device-metrics-us.amazon.com^

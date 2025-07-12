@@ -1,10 +1,13 @@
-let ruleCountElement;
-let refreshButton;
-let toggleButton;
-let statusElement;
-let domainElement;
-let isUpdating = false;
+// Globale Element-Cache für bessere Performance
+const elementCache = {
+  ruleCount: null,
+  refresh: null,
+  toggle: null,
+  status: null,
+  domain: null
+};
 
+let isUpdating = false;
 let cachedStats = null;
 let cacheTimestamp = 0;
 let currentDomain = null;
@@ -62,32 +65,32 @@ function updateStatsDisplay(stats) {
         : (stats.ruleCount || 'N/A');
     
     // Direkte Eigenschaftszuweisung für schnelle DOM-Aktualisierungen
-    ruleCountElement.textContent = displayValue;
-    ruleCountElement.className = 'loaded';
+    elementCache.ruleCount.textContent = displayValue;
+    elementCache.ruleCount.className = 'loaded';
     
     isUpdating = false;
     console.log("Popup aktualisiert:", stats);
 }
 
 function updateStatusDisplay(enabled) {
-    if (statusElement) {
+    if (elementCache.status) {
         const domainText = currentDomain ? ` für ${currentDomain}` : '';
-        statusElement.textContent = (enabled ? 'Aktiviert' : 'Deaktiviert') + domainText;
-        statusElement.className = enabled ? 'enabled' : 'disabled';
+        elementCache.status.textContent = (enabled ? 'Aktiviert' : 'Deaktiviert') + domainText;
+        elementCache.status.className = enabled ? 'enabled' : 'disabled';
     }
     
-    if (toggleButton) {
+    if (elementCache.toggle) {
         const actionText = enabled ? 'Deaktivieren' : 'Aktivieren';
         const domainText = currentDomain ? ` für ${currentDomain}` : '';
-        toggleButton.textContent = actionText + domainText;
-        toggleButton.className = enabled ? 'enabled' : 'disabled';
+        elementCache.toggle.textContent = actionText + domainText;
+        elementCache.toggle.className = enabled ? 'enabled' : 'disabled';
     }
     
-    if (domainElement && currentDomain) {
-        domainElement.textContent = currentDomain;
-        domainElement.style.display = 'block';
-    } else if (domainElement) {
-        domainElement.style.display = 'none';
+    if (elementCache.domain && currentDomain) {
+        elementCache.domain.textContent = currentDomain;
+        elementCache.domain.style.display = 'block';
+    } else if (elementCache.domain) {
+        elementCache.domain.style.display = 'none';
     }
 }
 
@@ -99,25 +102,25 @@ function toggleBlocker() {
     
     if (!currentDomain) {
         console.error("Keine Domain für Umschaltung verfügbar");
-        statusElement.textContent = 'Fehler: Keine Domain';
-        statusElement.className = 'error';
+        elementCache.status.textContent = 'Fehler: Keine Domain';
+        elementCache.status.className = 'error';
         return;
     }
     
     console.log("Starte Umschaltung für Domain:", currentDomain);
     isUpdating = true;
-    toggleButton.disabled = true;
-    statusElement.textContent = 'Wird geändert...';
+    elementCache.toggle.disabled = true;
+    elementCache.status.textContent = 'Wird geändert...';
     
     chrome.runtime.sendMessage({ action: "toggleBlocker", domain: currentDomain }, (response) => {
         console.log("Umschalt-Antwort:", response);
         isUpdating = false;
-        toggleButton.disabled = false;
+        elementCache.toggle.disabled = false;
         
         if (chrome.runtime.lastError) {
             console.error("Fehler beim Umschalten des Blockers:", chrome.runtime.lastError.message);
-            statusElement.textContent = 'Fehler';
-            statusElement.className = 'error';
+            elementCache.status.textContent = 'Fehler';
+            elementCache.status.className = 'error';
             return;
         }
         
@@ -126,8 +129,8 @@ function toggleBlocker() {
             updateStatusDisplay(response.enabled);
         } else {
             console.error("Umschaltung fehlgeschlagen oder ungültige Antwort:", response);
-            statusElement.textContent = 'Fehler';
-            statusElement.className = 'error';
+            elementCache.status.textContent = 'Fehler';
+            elementCache.status.className = 'error';
         }
     });
 }
@@ -139,8 +142,8 @@ function reloadRules() {
     }
     
     isUpdating = true;
-    ruleCountElement.textContent = 'Lädt...';
-    ruleCountElement.className = 'loading';
+    elementCache.ruleCount.textContent = 'Lädt...';
+    elementCache.ruleCount.className = 'loading';
     
     cachedStats = null;
     cacheTimestamp = 0;
@@ -148,8 +151,8 @@ function reloadRules() {
     const timeoutId = setTimeout(() => {
         if (isUpdating) {
             isUpdating = false;
-            ruleCountElement.textContent = 'Timeout';
-            ruleCountElement.className = 'error';
+            elementCache.ruleCount.textContent = 'Timeout';
+            elementCache.ruleCount.className = 'error';
         }
     }, MESSAGE_TIMEOUT);
     
@@ -159,8 +162,8 @@ function reloadRules() {
         
         if (chrome.runtime.lastError) {
             console.error("Fehler beim Neuladen der Regeln:", chrome.runtime.lastError.message);
-            ruleCountElement.textContent = 'Fehler';
-            ruleCountElement.className = 'error';
+            elementCache.ruleCount.textContent = 'Fehler';
+            elementCache.ruleCount.className = 'error';
             return;
         }
         
@@ -178,10 +181,10 @@ function reloadRules() {
             updateStatusDisplay(stats.enabled);
         } else {
             console.error("Neuladen fehlgeschlagen:", response?.message || 'Unbekannter Fehler');
-            ruleCountElement.textContent = 'Fehler';
-            ruleCountElement.className = 'error';
-            statusElement.textContent = 'Fehler';
-            statusElement.className = 'error';
+            elementCache.ruleCount.textContent = 'Fehler';
+            elementCache.ruleCount.className = 'error';
+            elementCache.status.textContent = 'Fehler';
+            elementCache.status.className = 'error';
         }
     });
 }
@@ -201,8 +204,8 @@ function fetchStats() {
     }
     
     isUpdating = true;
-    ruleCountElement.textContent = 'Loading...';
-    ruleCountElement.className = 'loading';
+    elementCache.ruleCount.textContent = 'Loading...';
+    elementCache.ruleCount.className = 'loading';
     
     // Schnellerer Fallback mit reduziertem Timeout
     const timeoutId = setTimeout(() => {
@@ -244,9 +247,9 @@ function fetchStats() {
 function tryStorageFallback() {
     if (!chrome.storage || !chrome.storage.local) {
         console.warn("chrome.storage.local nicht verfügbar");
-        ruleCountElement.textContent = 'Error';
-        ruleCountElement.className = 'error';
-        statusElement.textContent = 'Error';
+        elementCache.ruleCount.textContent = 'Error';
+        elementCache.ruleCount.className = 'error';
+        elementCache.status.textContent = 'Error';
         return;
     }
     
@@ -263,37 +266,29 @@ function tryStorageFallback() {
             updateStatsDisplay(fallbackStats);
             updateStatusDisplay(fallbackStats.enabled);
         } else {
-            ruleCountElement.textContent = 'N/A';
-            ruleCountElement.className = 'error';
-            statusElement.textContent = 'Unknown';
+            elementCache.ruleCount.textContent = 'N/A';
+            elementCache.ruleCount.className = 'error';
+            elementCache.status.textContent = 'Unknown';
             console.warn("Keine Regel-Anzahl im Speicher-Fallback gefunden");
         }
     }).catch(err => {
         console.error("Speicher-Fallback fehlgeschlagen:", err);
-        ruleCountElement.textContent = 'Error';
-        ruleCountElement.className = 'error';
-        statusElement.textContent = 'Error';
+        elementCache.ruleCount.textContent = 'Error';
+        elementCache.ruleCount.className = 'error';
+        elementCache.status.textContent = 'Error';
     });
 }
 
 async function initializePopup() {
     try {
-        // Schnelle DOM-Element-Abfrage
-        const elements = {
-            ruleCount: document.getElementById('rule-count'),
-            refresh: document.getElementById('refresh-button'),
-            toggle: document.getElementById('toggle-button'),
-            status: document.getElementById('blocker-status'),
-            domain: document.getElementById('current-domain')
-        };
+        // Optimierte DOM-Element-Abfrage mit direkter Cache-Zuweisung
+        elementCache.ruleCount = document.getElementById('rule-count');
+        elementCache.refresh = document.getElementById('refresh-button');
+        elementCache.toggle = document.getElementById('toggle-button');
+        elementCache.status = document.getElementById('blocker-status');
+        elementCache.domain = document.getElementById('current-domain');
         
-        ruleCountElement = elements.ruleCount;
-        refreshButton = elements.refresh;
-        toggleButton = elements.toggle;
-        statusElement = elements.status;
-        domainElement = elements.domain;
-        
-        if (!ruleCountElement || !refreshButton || !toggleButton || !statusElement) {
+        if (!elementCache.ruleCount || !elementCache.refresh || !elementCache.toggle || !elementCache.status) {
             throw new Error('Erforderliche DOM-Elemente nicht gefunden');
         }
         
@@ -302,21 +297,21 @@ async function initializePopup() {
         console.log("Domain:", currentDomain);
         
         if (!currentDomain) {
-            statusElement.textContent = 'Nicht auf einer Website';
-            statusElement.className = 'disabled';
-            toggleButton.textContent = 'Nicht verfügbar';
-            toggleButton.disabled = true;
-            ruleCountElement.textContent = 'N/A';
+            elementCache.status.textContent = 'Nicht auf einer Website';
+            elementCache.status.className = 'disabled';
+            elementCache.toggle.textContent = 'Nicht verfügbar';
+            elementCache.toggle.disabled = true;
+            elementCache.ruleCount.textContent = 'N/A';
             return;
         }
         
         // Schnelle Event-Listener mit passiver Option wo möglich
-        refreshButton.addEventListener('click', (e) => {
+        elementCache.refresh.addEventListener('click', (e) => {
             e.preventDefault();
             reloadRules();
         }, { passive: false });
         
-        toggleButton.addEventListener('click', (e) => {
+        elementCache.toggle.addEventListener('click', (e) => {
             e.preventDefault();
             toggleBlocker();
         }, { passive: false });
