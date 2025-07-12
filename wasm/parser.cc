@@ -1,15 +1,3 @@
-/***********************************************************************
- *  Filter-List → Chrome DNR-JSON Parser  (WASM)
- *  – überarbeitete Version 2025-04-26
- *
- *  Wichtige Änderungen ggü. Original:
- *    1. Regex-Regeln werden jetzt unterstützt.
- *    2. Unsinnige Operationen (z. B. replace '^'→'^') entfernt.
- *    3. Temporäre Kopien reduziert – weite Teile arbeiten mit
- *       std::string_view.
- *    4. Kleinere Logik-Bugs behoben (leere resourceTypes, Negation).
- ***********************************************************************/
-
  #include <algorithm>
  #include <cctype>
  #include <optional>
@@ -24,10 +12,6 @@
  #include <emscripten/bind.h>
  
  using json = nlohmann::json;
- 
- /* ------------------------------------------------------------------ *
-  *  Hilfs-Utilities
-  * ------------------------------------------------------------------ */
  
  constexpr std::string_view WHITESPACE = " \t\r\n";
  
@@ -65,10 +49,6 @@
      return out;
  }
  
- /* ------------------------------------------------------------------ *
-  *  Konstanten
-  * ------------------------------------------------------------------ */
- 
  const std::vector<std::string> ALL_DNR_RESOURCE_TYPES = {
      "main_frame",  "sub_frame", "stylesheet",   "script",  "image",
      "font",        "object",    "xmlhttprequest","ping",    "csp_report",
@@ -89,10 +69,6 @@
      "connect", "delete", "get", "head",
      "options", "patch",  "post", "put"};
  
- /* ------------------------------------------------------------------ *
-  *  Datenstrukturen
-  * ------------------------------------------------------------------ */
- 
  struct DnrRule {
      int id;
      int priority                 = 1;
@@ -109,10 +85,6 @@
      std::optional<std::vector<std::string>> conditionRequestMethods;
      std::optional<std::vector<std::string>> conditionExcludedRequestMethods;
  };
- 
- /* ------------------------------------------------------------------ *
-  *  Optionen-Parser
-  * ------------------------------------------------------------------ */
  
  static void parse_domain_option(
          std::string_view value,
@@ -131,7 +103,6 @@
  }
  
  static void parse_options(std::string_view options_sv, DnrRule &rule) {
-     // Sammelcontainer
      std::vector<std::string_view> initiatorInc, initiatorExc;
      std::vector<std::string_view> requestInc,   requestExc;
      std::unordered_set<std::string> methodsInc, methodsExc;
@@ -152,23 +123,20 @@
              val = trim(keyval.substr(eq + 1));
          }
  
-         // 1. Ressource-Typ?
          if (auto it = RESOURCE_TYPE_MAP.find(key); it != RESOURCE_TYPE_MAP.end()) {
              (neg ? resTypesExc : resTypesInc).insert(it->second);
              return;
          }
  
-         // 2. Domains
-         if (key == "domain") {                      // initiator
+         if (key == "domain") {
              parse_domain_option(val, initiatorInc, initiatorExc);
              return;
          }
-         if (key == "domains") {                     // request
+         if (key == "domains") {
              parse_domain_option(val, requestInc, requestExc);
              return;
          }
  
-         // 3. Methoden
          if (key == "method" || key == "request-method") {
              split_sv<'|'>(val, [&](std::string_view m) {
                  m = trim(m);
@@ -183,13 +151,8 @@
              });
              return;
          }
- 
-         // 4. Ignorierte Schlüssel (third-party/first-party etc.) -> noop
      });
  
-     /* -- Resultate in Rule schreiben -------------------------------- */
- 
-     // Ressourcentypen
      if (!resTypesInc.empty()) {
          rule.conditionResourceTypes = {resTypesInc.begin(), resTypesInc.end()};
      } else if (!resTypesExc.empty()) {
@@ -201,7 +164,6 @@
              rule.conditionResourceTypes = std::move(final);
      }
  
-     // Initiator- / Request-Domains
      if (!initiatorInc.empty())
          rule.conditionInitiatorDomains = to_string_vector_unique(initiatorInc);
      if (!initiatorExc.empty()) {
@@ -218,7 +180,6 @@
              to_string_vector_unique(requestExc);
      }
  
-     // Methoden
      if (!methodsInc.empty()) {
          rule.conditionRequestMethods = {methodsInc.begin(), methodsInc.end()};
          std::sort(rule.conditionRequestMethods->begin(),
@@ -233,15 +194,10 @@
      }
  }
  
- /* ------------------------------------------------------------------ *
-  *  Einzelne Zeile parsen
-  * ------------------------------------------------------------------ */
- 
  static std::optional<DnrRule> parse_line(std::string_view line, int id) {
      line = trim(line);
      if (line.empty() || line.starts_with('!') || line.starts_with('[')) return {};
  
-     // Cosmetic/HTML-Regeln überspringen
      if (line.find("##") != std::string_view::npos ||
          line.find("#?#") != std::string_view::npos ||
          line.find("#$#") != std::string_view::npos ||
@@ -251,7 +207,6 @@
      DnrRule rule;
      rule.id = id;
  
-     /* -------- Ausnahme-Regel? (allow) ----------------------------- */
      if (line.starts_with("@@")) {
          rule.actionType = "allow";
          rule.priority   = 2;
@@ -259,7 +214,6 @@
          if (line.empty()) return {};
      }
  
-     /* -------- $-Optionen abtrennen -------------------------------- */
      std::string_view filterPart = line, optionsPart;
      const size_t posDollar      = line.find('$');
      if (posDollar != std::string_view::npos) {
@@ -269,13 +223,12 @@
      filterPart = trim(filterPart);
      if (filterPart.empty()) return {};
  
-     /* -------- Regex erkennen -------------------------------------- */
      if (filterPart.size() > 2 && filterPart.front() == '/' &&
          filterPart.back() == '/' && !filterPart.starts_with("||")) {
  
          rule.conditionRegexFilter =
              std::string(filterPart.substr(1, filterPart.size() - 2));
-     } else { /* ---- URL-Filter konstruieren ------------------------ */
+     } else {
          if (filterPart.starts_with("||") && filterPart.ends_with('^')) {
              std::string_view domain = filterPart.substr(2, filterPart.size() - 3);
              if (!domain.empty() && domain.find('/') == std::string_view::npos &&
@@ -312,10 +265,8 @@
          }
      }
  
-     /* -------- Optionen verarbeiten -------------------------------- */
      if (!optionsPart.empty()) parse_options(optionsPart, rule);
  
-     /* -------- Mindest-Konditionen erfüllt? ------------------------ */
      const bool hasCondition =
          rule.conditionUrlFilter.has_value() ||
          rule.conditionRegexFilter.has_value() ||
@@ -329,8 +280,6 @@
  
      if (!hasCondition) return {};
  
-     // allow-Regeln brauchen laut Chrome-DNR entweder url/regexFilter ODER
-     // domains. Wenn beides fehlt, verwerfen.
      if (rule.actionType == "allow" &&
          !rule.conditionUrlFilter && !rule.conditionRegexFilter &&
          !rule.conditionRequestDomains)
@@ -339,13 +288,9 @@
      return rule;
  }
  
- /* ------------------------------------------------------------------ *
-  *  Serialisierung
-  * ------------------------------------------------------------------ */
- 
  static json rule_to_json(const DnrRule &r) {
      json j;
-     j["id"]       = r.id;
+     j["id"]       = std::to_string(r.id);
      j["priority"] = r.priority;
      j["action"]   = {{"type", r.actionType}};
  
@@ -366,10 +311,6 @@
      if (!cond.empty()) j["condition"] = std::move(cond);
      return j;
  }
- 
- /* ------------------------------------------------------------------ *
-  *  Haupt-Entry-Point für JavaScript (WASM)
-  * ------------------------------------------------------------------ */
  
  std::string parseFilterListWasm(std::string filterListText) {
      json rules = json::array();
@@ -401,9 +342,6 @@
      return out.dump(-1, ' ', false, json::error_handler_t::ignore);
  }
  
- /* ------------------------------------------------------------------ *
-  *  EMSCRIPTEN-Binding
-  * ------------------------------------------------------------------ */
  EMSCRIPTEN_BINDINGS(filter_parser_module) {
      emscripten::function("parseFilterListWasm", &parseFilterListWasm);
  }

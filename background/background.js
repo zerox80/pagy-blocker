@@ -1,32 +1,20 @@
-// background/background.js
-
-// Import modules using ES module syntax
 import { updateRules } from '../js/rule_parser.js';
 import createFilterParserModule from '../wasm/filter_parser.js';
 
-// === Konstanten ===
 const LOG_PREFIX = "[PagyBlocker]";
 const FILTER_LIST_URL = 'filter_lists/filter.txt';
 const BADGE_ERROR_COLOR = '#FF0000';
 
-// Optimized caching with hash-based invalidation
 let filterListCache = null;
 let lastFilterFetch = 0;
 let cachedFilterHash = null;
-const FILTER_CACHE_DURATION = 60 * 60 * 1000; // 1 hour
+const FILTER_CACHE_DURATION = 60 * 60 * 1000;
 
-// Optimized WASM handling - use for medium-large lists
-const WASM_THRESHOLD = 1200; // Use WASM for lists > 1200 rules for better performance
+const WASM_THRESHOLD = 1200;
 let wasmModule = null;
 
-// Robust initialization lock with Promise-based coordination
 let initializationPromise = null;
 
-// === Hilfsfunktionen ===
-
-/**
- * Simplified badge management
- */
 async function clearBadge() {
   try {
     if (chrome.action?.setBadgeText) {
@@ -50,12 +38,9 @@ async function setErrorBadge(text = 'ERR') {
   }
 }
 
-/**
- * Optimized WASM loading with proper cleanup
- */
 async function loadWasmIfNeeded(lineCount) {
   if (lineCount <= WASM_THRESHOLD) {
-    return null; // Use JS parser for smaller lists
+    return null;
   }
   
   if (!wasmModule) {
@@ -75,16 +60,11 @@ async function loadWasmIfNeeded(lineCount) {
   return wasmModule;
 }
 
-/**
- * Cleanup WASM module to prevent memory leaks
- */
 function cleanupWasm() {
   if (wasmModule) {
     try {
       console.log(`${LOG_PREFIX} Cleaning up WASM module`);
-      // If WASM module has cleanup methods, call them
       if (typeof wasmModule._free === 'function') {
-        // Module-specific cleanup if available
       }
       wasmModule = null;
     } catch (error) {
@@ -94,17 +74,12 @@ function cleanupWasm() {
   }
 }
 
-/**
- * Enable the ad blocker by reloading rules
- */
 async function enableBlocker() {
   try {
     console.log(`${LOG_PREFIX} Enabling blocker...`);
     
-    // Set enabled status first
     await chrome.storage.local.set({ blockerEnabled: true });
     
-    // Reinitialize to load rules
     await initialize();
     
     await clearBadge();
@@ -117,19 +92,17 @@ async function enableBlocker() {
   }
 }
 
-/**
- * Disable the ad blocker by removing all dynamic rules
- */
 async function disableBlocker() {
   try {
     console.log(`${LOG_PREFIX} Disabling blocker...`);
     
-    // Get all existing dynamic rules
     const existingRules = await chrome.declarativeNetRequest.getDynamicRules();
     const existingIds = existingRules.map(rule => rule.id);
     
-    // Remove all rules
+    console.log(`${LOG_PREFIX} Found ${existingIds.length} existing rules with IDs:`, existingIds.slice(0, 5));
+    
     if (existingIds.length > 0) {
+      console.log(`${LOG_PREFIX} Calling updateDynamicRules with removeRuleIds:`, existingIds.slice(0, 5));
       await chrome.declarativeNetRequest.updateDynamicRules({
         removeRuleIds: existingIds,
         addRules: []
@@ -151,26 +124,19 @@ async function disableBlocker() {
   }
 }
 
-/**
- * Get current blocker status
- */
 async function getBlockerStatus() {
   try {
     const result = await chrome.storage.local.get(['blockerEnabled']);
-    return result.blockerEnabled !== false; // Default to enabled
+    return result.blockerEnabled !== false;
   } catch (error) {
     console.warn(`${LOG_PREFIX} Failed to get blocker status:`, error);
-    return true; // Default to enabled on error
+    return true;
   }
 }
 
-/**
- * Enhanced filter list fetching with hash-based caching
- */
 async function fetchFilterList() {
   const now = Date.now();
   
-  // Use cache if recent and hash matches
   if (filterListCache && (now - lastFilterFetch) < FILTER_CACHE_DURATION) {
     console.log(`${LOG_PREFIX} Using cached filter list`);
     return filterListCache;
@@ -186,7 +152,6 @@ async function fetchFilterList() {
     
     const text = await resp.text();
     
-    // Update cache
     filterListCache = text;
     lastFilterFetch = now;
     
@@ -205,9 +170,6 @@ async function fetchFilterList() {
   }
 }
 
-/**
- * Optimized JS Parser with error boundaries
- */
 async function parseListWithJS(filterListText) {
   if (!filterListText || typeof filterListText !== 'string') {
     throw new Error('Invalid filter list text provided');
@@ -222,30 +184,25 @@ async function parseListWithJS(filterListText) {
     let ruleId = 1;
     const stats = { totalLines: lines.length, processedRules: 0, skippedLines: 0, errors: 0 };
     
-    // Optimized parsing with error boundaries
     for (let i = 0; i < lines.length; i++) {
       try {
         const line = lines[i];
         const trimmed = line.trim();
         
-        // Skip comments and empty lines
         if (!trimmed || trimmed.startsWith('#') || trimmed.startsWith('!') || trimmed.startsWith('[')) {
           stats.skippedLines++;
           continue;
         }
         
-        // Parse ||domain^ format
         if (trimmed.startsWith('||') && trimmed.endsWith('^')) {
           const domain = trimmed.slice(2, -1);
           
-          // Whitelist for legitimate CDNs and services
           const whitelist = ['fonts.gstatic.com', 'fonts.googleapis.com', 'cdnjs.cloudflare.com', 'code.jquery.com', 'maxcdn.bootstrapcdn.com'];
           if (whitelist.includes(domain)) {
             stats.skippedLines++;
             continue;
           }
           
-          // Enhanced domain validation
           if (domain.length > 0 && domain.length < 100 && 
               !domain.includes('*') && !domain.includes(' ') && 
               /^[a-zA-Z0-9._-]+$/.test(domain)) {
@@ -288,9 +245,6 @@ async function parseListWithJS(filterListText) {
   }
 }
 
-/**
- * Simple WASM parsing with basic error handling
- */
 function parseListWithWasm(module, filterListText) {
   console.log(`${LOG_PREFIX} Starting WASM parsing...`);
   console.time(`${LOG_PREFIX} WASM Parsing`);
@@ -313,24 +267,16 @@ function parseListWithWasm(module, filterListText) {
   }
 }
 
-// === Kernlogik ===
-
-/**
- * Optimized extension initialization with race condition protection
- */
 async function initialize() {
-  // If already initializing, return the existing promise
   if (initializationPromise) {
     console.log(`${LOG_PREFIX} Initialization already in progress, waiting...`);
     return initializationPromise;
   }
   
-  // Create new initialization promise
   initializationPromise = (async () => {
     try {
       console.log(`${LOG_PREFIX} Starting initialization...`);
       
-      // Check if blocker is disabled
       const isEnabled = await getBlockerStatus();
       if (!isEnabled) {
         console.log(`${LOG_PREFIX} Blocker is disabled, skipping rule loading`);
@@ -341,7 +287,6 @@ async function initialize() {
       
       await clearBadge();
 
-      // 1. Fetch filter list
       const listText = await fetchFilterList();
       const lineCount = listText.split('\n').filter(line => {
         const trimmed = line.trim();
@@ -350,7 +295,6 @@ async function initialize() {
 
       console.log(`${LOG_PREFIX} Processing ${lineCount} rules (threshold: ${WASM_THRESHOLD})`);
 
-      // 2. Choose parser based on size - prefer JS for better performance on small lists
       let parseResult;
       const shouldUseWasm = lineCount > WASM_THRESHOLD;
       
@@ -368,16 +312,14 @@ async function initialize() {
         parseResult = await parseListWithJS(listText);
       }
 
-      // 3. Apply rules with error recovery
       await updateRules(parseResult.rules);
       await chrome.storage.local.set({ 
         ruleCount: parseResult.rules.length, 
         ruleStats: parseResult.stats,
         lastUpdate: Date.now(),
-        blockerEnabled: true // Set enabled on initialization
+        blockerEnabled: true
       });
 
-      // 4. Success
       await clearBadge();
       console.log(`${LOG_PREFIX} Initialization complete - ${parseResult.rules.length} rules loaded`);
       return parseResult;
@@ -389,7 +331,6 @@ async function initialize() {
     }
   })();
   
-  // Clean up promise when done
   try {
     const result = await initializationPromise;
     return result;
@@ -397,8 +338,6 @@ async function initialize() {
     initializationPromise = null;
   }
 }
-
-// === Event-Listener ===
 
 chrome.runtime.onInstalled.addListener((details) => {
   console.log(`${LOG_PREFIX} Extension ${details.reason}`);
@@ -410,19 +349,17 @@ chrome.runtime.onStartup.addListener(() => {
   initialize();
 });
 
-// Simple message handling
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   console.log(`${LOG_PREFIX} Received message:`, request);
 
   if (request.action === "getStats") {
-    // Simple async storage access
     (async () => {
       try {
         const data = await chrome.storage.local.get(['ruleCount', 'ruleStats', 'blockerEnabled']);
         sendResponse({
           ruleCount: data.ruleCount ?? 'N/A',
           ruleStats: data.ruleStats ?? {},
-          enabled: data.blockerEnabled !== false // Default to enabled
+          enabled: data.blockerEnabled !== false
         });
       } catch (err) {
         console.error(`${LOG_PREFIX} Error getting stats:`, err);
@@ -470,20 +407,15 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           await disableBlocker();
         }
         
-        // Reload all active tabs
         try {
-          const tabs = await chrome.tabs.query({});
-          const reloadPromises = tabs.map(tab => {
-            // Only reload http/https tabs, skip chrome:// pages and extensions
-            if (tab.url && (tab.url.startsWith('http://') || tab.url.startsWith('https://'))) {
-              return chrome.tabs.reload(tab.id).catch(err => {
-                console.warn(`${LOG_PREFIX} Could not reload tab ${tab.id}:`, err);
-              });
+          const tabs = await chrome.tabs.query({active: true, currentWindow: true});
+          if (tabs.length > 0) {
+            const activeTab = tabs[0];
+            if (activeTab.url && (activeTab.url.startsWith('http://') || activeTab.url.startsWith('https://'))) {
+              await chrome.tabs.reload(activeTab.id);
+              console.log(`${LOG_PREFIX} Reloaded active tab: ${activeTab.id}`);
             }
-          }).filter(Boolean);
-          
-          await Promise.allSettled(reloadPromises);
-          console.log(`${LOG_PREFIX} Reloaded ${reloadPromises.length} tabs`);
+          }
         } catch (err) {
           console.warn(`${LOG_PREFIX} Tab reload error:`, err);
         }
@@ -508,7 +440,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   return false;
 });
 
-// === Cleanup on extension shutdown ===
 chrome.runtime.onSuspend?.addListener(() => {
   console.log(`${LOG_PREFIX} Extension suspending, cleaning up...`);
   cleanupWasm();
@@ -516,6 +447,5 @@ chrome.runtime.onSuspend?.addListener(() => {
   initializationPromise = null;
 });
 
-// === Start ===
 console.log(`${LOG_PREFIX} Background script loaded`);
 initialize();

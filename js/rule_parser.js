@@ -1,9 +1,5 @@
-// js/rule_parser.js
-
-// Simple rule validation
 function isValidDomainFilter(str) {
   if (!str || str.length === 0) return false;
-  // Block problematic characters
   const hasProblematicChars = /[\x00-\x1F\x7F-\x9F"'<>\\]/.test(str);
   return !hasProblematicChars;
 }
@@ -15,7 +11,6 @@ function validateRule(rule) {
   return true;
 }
 
-// Optimized rule updating function with enhanced error handling
 async function updateRules(rules) {
   if (!rules || !Array.isArray(rules)) {
     throw new Error("Invalid rules array provided");
@@ -24,7 +19,6 @@ async function updateRules(rules) {
   const DNR_MAX_RULES = chrome.declarativeNetRequest.MAX_NUMBER_OF_DYNAMIC_AND_SESSION_RULES || 5000;
 
   try {
-    // Optimized batch rule validation
     const validRules = [];
     const batchSize = 100;
     
@@ -40,7 +34,6 @@ async function updateRules(rules) {
         }
       }
       
-      // Yield control after each batch for better responsiveness
       if (i + batchSize < rules.length) {
         await new Promise(resolve => setTimeout(resolve, 0));
       }
@@ -50,7 +43,6 @@ async function updateRules(rules) {
       console.log(`Filtered out ${rules.length - validRules.length} invalid rules`);
     }
 
-    // Limit to max rules
     const toAdd = validRules.slice(0, DNR_MAX_RULES);
     
     if (toAdd.length < validRules.length) {
@@ -62,7 +54,6 @@ async function updateRules(rules) {
       return;
     }
 
-    // Get existing rules with retry logic
     let existingRules = [];
     let existingIds = [];
     
@@ -75,11 +66,9 @@ async function updateRules(rules) {
     
     console.log(`Updating ${existingIds.length} -> ${toAdd.length} rules`);
     
-    // Optimized batch size for reliable updates
     const BATCH_SIZE = 1000;
     
     if (toAdd.length <= BATCH_SIZE) {
-      // Single update for small rule sets with retry
       await retryOperation(async () => {
         await chrome.declarativeNetRequest.updateDynamicRules({ 
           removeRuleIds: existingIds, 
@@ -89,7 +78,6 @@ async function updateRules(rules) {
       
       console.log(`Updated to ${toAdd.length} rules`);
     } else {
-      // Clear existing rules first
       if (existingIds.length > 0) {
         await retryOperation(async () => {
           await chrome.declarativeNetRequest.updateDynamicRules({ 
@@ -99,7 +87,6 @@ async function updateRules(rules) {
         }, 3, 'clear existing rules');
       }
       
-      // Add rules in batches with error recovery
       for (let i = 0; i < toAdd.length; i += BATCH_SIZE) {
         const batch = toAdd.slice(i, i + BATCH_SIZE);
         
@@ -114,19 +101,16 @@ async function updateRules(rules) {
       console.log(`Added ${toAdd.length} rules in batches`);
     }
 
-    // Store rule count with fallback
     try {
       await chrome.storage.local.set({ ruleCount: toAdd.length });
       console.log(`Stored rule count: ${toAdd.length}`);
     } catch (storageError) {
       console.warn('Failed to store rule count:', storageError);
-      // Continue execution, this is not critical
     }
 
   } catch (err) {
     console.error('Error updating rules:', err);
     
-    // Set error badge with fallback
     try {
       if (chrome.action?.setBadgeText && chrome.action?.setBadgeBackgroundColor) {
         await Promise.all([
@@ -142,7 +126,6 @@ async function updateRules(rules) {
   }
 }
 
-// Retry operation helper for improved reliability
 async function retryOperation(operation, maxRetries, operationName) {
   let lastError;
   
@@ -158,7 +141,6 @@ async function retryOperation(operation, maxRetries, operationName) {
       console.warn(`${operationName} failed on attempt ${attempt}:`, error);
       
       if (attempt < maxRetries) {
-        // Exponential backoff
         const delay = Math.pow(2, attempt - 1) * 100;
         await new Promise(resolve => setTimeout(resolve, delay));
       }
@@ -168,5 +150,4 @@ async function retryOperation(operation, maxRetries, operationName) {
   throw new Error(`${operationName} failed after ${maxRetries} attempts: ${lastError.message}`);
 }
 
-// Export function for ES modules
 export { updateRules };

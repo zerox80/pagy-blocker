@@ -1,17 +1,11 @@
 #!/usr/bin/env node
 
-/**
- * Ultra-performance test script for the simplified Pagy Blocker extension
- * Tests the dramatic improvements from removing complexity overhead
- */
-
 const fs = require('fs');
 const path = require('path');
 
 console.log('🧪 Pagy Blocker Performance & Bug Fix Tests');
 console.log('============================================');
 
-// Test 1: Validate filter list format
 console.log('\n1. Testing filter list validation...');
 const filterPath = path.join(__dirname, 'filter_lists', 'filter.txt');
 const filterContent = fs.readFileSync(filterPath, 'utf8');
@@ -25,7 +19,6 @@ console.log(`✅ Filter list contains ${lines.length} total lines`);
 console.log(`✅ Found ${validRules.length} valid filter rules`);
 console.log(`✅ Sample rules: ${validRules.slice(0, 3).join(', ')}`);
 
-// Test 2: Validate manifest.json
 console.log('\n2. Testing manifest.json validity...');
 const manifestPath = path.join(__dirname, 'manifest.json');
 const manifestContent = fs.readFileSync(manifestPath, 'utf8');
@@ -39,7 +32,6 @@ try {
   console.log(`❌ Manifest JSON error: ${error.message}`);
 }
 
-// Test 3: Check for syntax errors in main files
 console.log('\n3. Testing file structure...');
 const requiredFiles = [
   'background/background.js',
@@ -60,72 +52,60 @@ for (const file of requiredFiles) {
   }
 }
 
-// Test 4: Check for ultra-optimization improvements
 console.log('\n4. Testing ultra-optimizations...');
 const backgroundContent = fs.readFileSync(path.join(__dirname, 'background/background.js'), 'utf8');
 
-// Check complexity elimination
 if (!backgroundContent.includes('FastObjectPool') && !backgroundContent.includes('FastCache')) {
   console.log('✅ Complex caching systems eliminated');
 } else {
   console.log('❌ Complex caching systems still present');
 }
 
-// Check simplified initialization
 if (backgroundContent.includes('Simple extension initialization')) {
   console.log('✅ Initialization process simplified');
 } else {
   console.log('❌ Initialization still complex');
 }
 
-// Check WASM threshold optimization
 if (backgroundContent.includes('WASM_THRESHOLD = 3000')) {
   console.log('✅ WASM threshold optimized for JS performance');
 } else {
   console.log('❌ WASM threshold not optimized');
 }
 
-// Test 5: Check rule_parser.js ultra-simplification
 console.log('\n5. Testing rule_parser.js ultra-simplification...');
 const ruleParserContent = fs.readFileSync(path.join(__dirname, 'js/rule_parser.js'), 'utf8');
 
-// Check validation cache elimination
 if (!ruleParserContent.includes('FastValidationCache') && !ruleParserContent.includes('cachedValidateRule')) {
   console.log('✅ Validation cache complexity eliminated');
 } else {
   console.log('❌ Validation cache still present');
 }
 
-// Check simple rule updating
 if (ruleParserContent.includes('Simple rule updating function')) {
   console.log('✅ Rule updating process simplified');
 } else {
   console.log('❌ Rule updating still complex');
 }
 
-// Check batch simplification
 if (ruleParserContent.includes('BATCH_SIZE = 1000')) {
   console.log('✅ Fixed batch size for reliability');
 } else {
   console.log('❌ Batch size not simplified');
 }
 
-// Test 6: Check ultra-simplification achievements
 console.log('\n6. Testing ultra-simplification achievements...');
 
-// Check utils.js minimization
 const utilsPath = path.join(__dirname, 'js', 'utils.js');
 if (fs.existsSync(utilsPath)) {
   const utilsContent = fs.readFileSync(utilsPath, 'utf8');
   
-  // Check for minimal content
   if (utilsContent.length < 300) {
     console.log('✅ Utils.js ultra-minimized (removed complexity)');
   } else {
     console.log('❌ Utils.js still too complex');
   }
   
-  // Check cache coordinator removal
   if (!utilsContent.includes('CacheCoordinator') && !utilsContent.includes('getOptimalCacheSize')) {
     console.log('✅ Complex utility functions eliminated');
   } else {
@@ -135,19 +115,16 @@ if (fs.existsSync(utilsPath)) {
   console.log('❌ Utils.js module missing');
 }
 
-// Check popup simplification
 const popupPath = path.join(__dirname, 'popup', 'popup.js');
 if (fs.existsSync(popupPath)) {
   const popupContent = fs.readFileSync(popupPath, 'utf8');
   
-  // Check state management elimination
   if (!popupContent.includes('lastDisplayedStats') && !popupContent.includes('updateInProgress')) {
     console.log('✅ Complex popup state management eliminated');
   } else {
     console.log('❌ Complex popup state management still present');
   }
   
-  // Check throttling elimination
   if (!popupContent.includes('UPDATE_THROTTLE') && !popupContent.includes('fetchStatsPromise')) {
     console.log('✅ Popup throttling complexity eliminated');
   } else {
@@ -155,7 +132,6 @@ if (fs.existsSync(popupPath)) {
   }
 }
 
-// Ultra-performance summary
 console.log('\n📊 Ultra-Performance Test Summary');
 console.log('===================================');
 console.log('✅ All complexity overhead eliminated');

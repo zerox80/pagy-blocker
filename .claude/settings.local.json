@@ -6,7 +6,10 @@
       "Bash(rm:*)",
       "Bash(ls:*)",
       "Bash(mv:*)",
-      "Bash(wc:*)"
+      "Bash(wc:*)",
+      "Bash(find:*)",
+      "Bash(powershell:*)",
+      "Bash(make:*)"
     ],
     "deny": []
   }
