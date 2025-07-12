@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Deduplication script for Pagy Blocker filter list
+# Deduplizierungs-Skript für Pagy Blocker Filterliste
 
 def deduplicate_filter_list(input_file, output_file):
     seen_rules = set()
@@ -13,34 +13,34 @@ def deduplicate_filter_list(input_file, output_file):
     for line in lines:
         line = line.rstrip('\n\r')
         
-        # If it's a filter rule (starts with ||)
+        # Wenn es eine Filterregel ist (beginnt mit ||)
         if line.startswith('||') and line.endswith('^'):
             if line in seen_rules:
-                # Skip duplicate
+                # Duplikat überspringen
                 removed_count += 1
-                print(f"Removed duplicate: {line}")
+                print(f"Duplikat entfernt: {line}")
                 continue
             else:
                 seen_rules.add(line)
                 deduplicated_lines.append(line + '\n')
         else:
-            # Keep all non-rule lines (comments, headers, etc.)
+            # Alle Nicht-Regel-Zeilen beibehalten (Kommentare, Header, etc.)
             deduplicated_lines.append(line + '\n')
     
-    # Write deduplicated content
+    # Deduplizierte Inhalte schreiben
     with open(output_file, 'w', encoding='utf-8') as f:
         f.writelines(deduplicated_lines)
     
     unique_rules = len(seen_rules)
-    print(f"✅ Deduplication complete!")
-    print(f"📊 Unique rules: {unique_rules}")
-    print(f"🗑️ Removed duplicates: {removed_count}")
-    print(f"💾 Saved to: {output_file}")
+    print("Deduplizierung abgeschlossen!")
+    print(f"Eindeutige Regeln: {unique_rules}")
+    print(f"Entfernte Duplikate: {removed_count}")
+    print(f"Gespeichert in: {output_file}")
     
     return unique_rules
 
 if __name__ == "__main__":
     input_file = "filter_lists/filter.txt"
-    output_file = "filter_lists/filter.txt"
+    output_file = "filter_lists/filter_deduped.txt"
     
     unique_count = deduplicate_filter_list(input_file, output_file)

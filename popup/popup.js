@@ -8,31 +8,45 @@ let isUpdating = false;
 let cachedStats = null;
 let cacheTimestamp = 0;
 let currentDomain = null;
-const POPUP_CACHE_DURATION = 5000;
-const MESSAGE_TIMEOUT = 3000;
+const POPUP_CACHE_DURATION = 1500; // Reduziert für maximale Reaktionsfähigkeit
+const MESSAGE_TIMEOUT = 1500; // Schneller Timeout für sofortigen Fallback
 
 function extractDomain(url) {
     try {
-        const urlObj = new URL(url);
-        return urlObj.hostname.toLowerCase();
+        // Schnelle Domain-Extraktion ohne URL-Konstruktor-Overhead
+        const protocolEnd = url.indexOf('://');
+        if (protocolEnd === -1) return null;
+        
+        const afterProtocol = url.substring(protocolEnd + 3);
+        const pathStart = afterProtocol.indexOf('/');
+        const domain = pathStart === -1 ? afterProtocol : afterProtocol.substring(0, pathStart);
+        
+        return domain.toLowerCase();
     } catch (error) {
-        console.warn("Invalid URL:", url);
+        console.warn("Ungültige URL:", url);
         return null;
     }
 }
 
 async function getCurrentTabDomain() {
     try {
+        if (!chrome.tabs?.query) {
+            console.warn("chrome.tabs.query nicht verfügbar");
+            return null;
+        }
+        
+        // Schnelle Tab-Abfrage mit minimalen Optionen
         const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-        if (tabs.length > 0) {
-            const activeTab = tabs[0];
-            if (activeTab.url && (activeTab.url.startsWith('http://') || activeTab.url.startsWith('https://'))) {
-                return extractDomain(activeTab.url);
+        if (tabs[0]?.url) {
+            const url = tabs[0].url;
+            // Schnelle Protokoll-Prüfung
+            if (url[0] === 'h' && (url.startsWith('http://') || url.startsWith('https://'))) {
+                return extractDomain(url);
             }
         }
         return null;
     } catch (error) {
-        console.error("Failed to get current tab domain:", error);
+        console.error("Fehler beim Abrufen der aktuellen Tab-Domain:", error);
         return null;
     }
 }
@@ -42,15 +56,17 @@ function updateStatsDisplay(stats) {
     
     isUpdating = true;
     
+    // Schnelle Zahlen-Formatierung ohne Locale-Overhead
     const displayValue = (typeof stats.ruleCount === 'number') 
-        ? stats.ruleCount.toLocaleString() 
+        ? (stats.ruleCount >= 1000 ? `${Math.floor(stats.ruleCount/1000)}k` : stats.ruleCount.toString())
         : (stats.ruleCount || 'N/A');
     
+    // Direkte Eigenschaftszuweisung für schnelle DOM-Aktualisierungen
     ruleCountElement.textContent = displayValue;
     ruleCountElement.className = 'loaded';
     
     isUpdating = false;
-    console.log("Popup updated:", stats);
+    console.log("Popup aktualisiert:", stats);
 }
 
 function updateStatusDisplay(enabled) {
@@ -77,39 +93,39 @@ function updateStatusDisplay(enabled) {
 
 function toggleBlocker() {
     if (isUpdating) {
-        console.log("Update in progress, skipping toggle");
+        console.log("Aktualisierung läuft, überspringe Umschaltung");
         return;
     }
     
     if (!currentDomain) {
-        console.error("No domain available for toggle");
+        console.error("Keine Domain für Umschaltung verfügbar");
         statusElement.textContent = 'Fehler: Keine Domain';
         statusElement.className = 'error';
         return;
     }
     
-    console.log("Starting toggle for domain:", currentDomain);
+    console.log("Starte Umschaltung für Domain:", currentDomain);
     isUpdating = true;
     toggleButton.disabled = true;
     statusElement.textContent = 'Wird geändert...';
     
     chrome.runtime.sendMessage({ action: "toggleBlocker", domain: currentDomain }, (response) => {
-        console.log("Toggle response:", response);
+        console.log("Umschalt-Antwort:", response);
         isUpdating = false;
         toggleButton.disabled = false;
         
         if (chrome.runtime.lastError) {
-            console.error("Error toggling blocker:", chrome.runtime.lastError.message);
+            console.error("Fehler beim Umschalten des Blockers:", chrome.runtime.lastError.message);
             statusElement.textContent = 'Fehler';
             statusElement.className = 'error';
             return;
         }
         
         if (response && response.success) {
-            console.log("Toggle successful, enabled:", response.enabled);
+            console.log("Umschaltung erfolgreich, aktiviert:", response.enabled);
             updateStatusDisplay(response.enabled);
         } else {
-            console.error("Toggle failed or invalid response:", response);
+            console.error("Umschaltung fehlgeschlagen oder ungültige Antwort:", response);
             statusElement.textContent = 'Fehler';
             statusElement.className = 'error';
         }
@@ -118,7 +134,7 @@ function toggleBlocker() {
 
 function reloadRules() {
     if (isUpdating) {
-        console.log("Reload already in progress, skipping");
+        console.log("Neuladen bereits im Gange, überspringe");
         return;
     }
     
@@ -142,7 +158,7 @@ function reloadRules() {
         isUpdating = false;
         
         if (chrome.runtime.lastError) {
-            console.error("Error reloading rules:", chrome.runtime.lastError.message);
+            console.error("Fehler beim Neuladen der Regeln:", chrome.runtime.lastError.message);
             ruleCountElement.textContent = 'Fehler';
             ruleCountElement.className = 'error';
             return;
@@ -161,7 +177,7 @@ function reloadRules() {
             updateStatsDisplay(stats);
             updateStatusDisplay(stats.enabled);
         } else {
-            console.error("Reload failed:", response?.message || 'Unknown error');
+            console.error("Neuladen fehlgeschlagen:", response?.message || 'Unbekannter Fehler');
             ruleCountElement.textContent = 'Fehler';
             ruleCountElement.className = 'error';
             statusElement.textContent = 'Fehler';
@@ -172,21 +188,23 @@ function reloadRules() {
 
 function fetchStats() {
     if (isUpdating) {
-        console.log("Update already in progress, skipping stats fetch");
+        console.log("Aktualisierung bereits im Gange, überspringe Statistik-Abruf");
         return;
     }
     
     const now = Date.now();
     if (cachedStats && (now - cacheTimestamp) < POPUP_CACHE_DURATION) {
-        console.log("Using cached stats");
+        console.log("Verwende gecachte Statistiken");
         updateStatsDisplay(cachedStats);
+        updateStatusDisplay(cachedStats.enabled !== false);
         return;
     }
     
     isUpdating = true;
-    ruleCountElement.textContent = 'Lädt...';
+    ruleCountElement.textContent = 'Loading...';
     ruleCountElement.className = 'loading';
     
+    // Schnellerer Fallback mit reduziertem Timeout
     const timeoutId = setTimeout(() => {
         if (isUpdating) {
             isUpdating = false;
@@ -194,12 +212,20 @@ function fetchStats() {
         }
     }, MESSAGE_TIMEOUT);
     
+    // Prüfe ob Runtime verfügbar ist bevor Nachricht gesendet wird
+    if (!chrome.runtime || !chrome.runtime.sendMessage) {
+        clearTimeout(timeoutId);
+        isUpdating = false;
+        tryStorageFallback();
+        return;
+    }
+    
     chrome.runtime.sendMessage({ action: "getStats", domain: currentDomain }, (response) => {
         clearTimeout(timeoutId);
         isUpdating = false;
         
         if (chrome.runtime.lastError) {
-            console.error("Error fetching stats:", chrome.runtime.lastError.message);
+            console.error("Fehler beim Abrufen der Statistiken:", chrome.runtime.lastError.message);
             tryStorageFallback();
             return;
         }
@@ -216,6 +242,14 @@ function fetchStats() {
 }
 
 function tryStorageFallback() {
+    if (!chrome.storage || !chrome.storage.local) {
+        console.warn("chrome.storage.local nicht verfügbar");
+        ruleCountElement.textContent = 'Error';
+        ruleCountElement.className = 'error';
+        statusElement.textContent = 'Error';
+        return;
+    }
+    
     chrome.storage.local.get(['ruleCount', 'ruleStats', 'disabledWebsites']).then(stats => {
         if (stats.ruleCount !== undefined) {
             const disabledWebsites = stats.disabledWebsites || [];
@@ -231,31 +265,41 @@ function tryStorageFallback() {
         } else {
             ruleCountElement.textContent = 'N/A';
             ruleCountElement.className = 'error';
-            statusElement.textContent = 'Unbekannt';
-            console.warn("No rule count found in storage fallback");
+            statusElement.textContent = 'Unknown';
+            console.warn("Keine Regel-Anzahl im Speicher-Fallback gefunden");
         }
     }).catch(err => {
-        console.error("Storage fallback failed:", err);
-        ruleCountElement.textContent = 'Fehler';
+        console.error("Speicher-Fallback fehlgeschlagen:", err);
+        ruleCountElement.textContent = 'Error';
         ruleCountElement.className = 'error';
-        statusElement.textContent = 'Fehler';
+        statusElement.textContent = 'Error';
     });
 }
 
 async function initializePopup() {
     try {
-        ruleCountElement = document.getElementById('rule-count');
-        refreshButton = document.getElementById('refresh-button');
-        toggleButton = document.getElementById('toggle-button');
-        statusElement = document.getElementById('blocker-status');
-        domainElement = document.getElementById('current-domain'); // Optional element
+        // Schnelle DOM-Element-Abfrage
+        const elements = {
+            ruleCount: document.getElementById('rule-count'),
+            refresh: document.getElementById('refresh-button'),
+            toggle: document.getElementById('toggle-button'),
+            status: document.getElementById('blocker-status'),
+            domain: document.getElementById('current-domain')
+        };
+        
+        ruleCountElement = elements.ruleCount;
+        refreshButton = elements.refresh;
+        toggleButton = elements.toggle;
+        statusElement = elements.status;
+        domainElement = elements.domain;
         
         if (!ruleCountElement || !refreshButton || !toggleButton || !statusElement) {
-            throw new Error('Required DOM elements not found');
+            throw new Error('Erforderliche DOM-Elemente nicht gefunden');
         }
         
+        // Schnelle parallele Domain-Abfrage und Event-Setup
         currentDomain = await getCurrentTabDomain();
-        console.log("Current domain:", currentDomain);
+        console.log("Domain:", currentDomain);
         
         if (!currentDomain) {
             statusElement.textContent = 'Nicht auf einer Website';
@@ -266,21 +310,23 @@ async function initializePopup() {
             return;
         }
         
+        // Schnelle Event-Listener mit passiver Option wo möglich
         refreshButton.addEventListener('click', (e) => {
             e.preventDefault();
             reloadRules();
-        });
+        }, { passive: false });
         
         toggleButton.addEventListener('click', (e) => {
             e.preventDefault();
             toggleBlocker();
-        });
+        }, { passive: false });
         
+        // Sofortige Statistik-Abfrage
         fetchStats();
         
     } catch (error) {
-        console.error("Failed to initialize popup:", error);
-        document.body.innerHTML = '<div style="padding: 10px; color: red;">Initialization Error</div>';
+        console.error("Fehler beim Initialisieren des Popups:", error);
+        document.body.innerHTML = '<div style="padding: 10px; color: red;">Initialisierungs-Fehler</div>';
     }
 }
 

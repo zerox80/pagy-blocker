@@ -151,7 +151,6 @@
 ||thetradedesk.com^
 ||xandr.com^
 ||ttd.com^
-||amazon-dsp.com^
 ||yahoo.com/ssp^
 ||verizonmedia.com/ssp^
 ||adobe.com/audience-manager^
@@ -169,7 +168,6 @@
 ||rfihub.com^
 ||bkrtx.com^
 ||bidswitch.net^
-||adsystem.turn.com^
 
 # === DEVICE FINGERPRINTING & BROWSER PROFILING ===
 ||fingerprint.com^
@@ -286,10 +284,6 @@
 # ==========================================
 # RETARGETING & REMARKETING PLATFORMS
 # ==========================================
-||rfihub.com^
-||bkrtx.com^
-||rlcdn.com^
-||bidswitch.net^
 ||adroll.com^
 ||perfectaudience.com^
 ||retargeter.com^
@@ -348,7 +342,6 @@
 # ==========================================
 # REGIONAL AD NETWORKS (GERMANY)
 # ==========================================
-||adsystem.yieldlab.net^
 ||glomex.com^
 ||smartstream.tv^
 ||stroeer.de^
@@ -381,12 +374,8 @@
 # ==========================================
 # DATA BROKERS & ANALYTICS PLATFORMS
 # ==========================================
-||google-analytics.com^
-||googleanalytics.com^
 ||analytics.yahoo.com^
 ||analytics.bing.com^
-||mixpanel.com^
-||segment.com^
 ||adobe.com/analytics^
 ||omniture.com^
 ||comscore.com^
@@ -487,8 +476,6 @@
 # ==========================================
 # EMAIL TRACKING & NEWSLETTERS
 # ==========================================
-||mailchimp.com/analytics^
-||constantcontact.com/analytics^
 ||campaignmonitor.com/analytics^
 ||aweber.com/analytics^
 ||getresponse.com/analytics^
@@ -501,7 +488,6 @@
 # ==========================================
 # CHAT WIDGETS & SUPPORT TRACKING
 # ==========================================
-||intercom.io^
 ||freshchat.com^
 ||drift.com^
 ||crisp.chat^
@@ -521,7 +507,6 @@
 ||magento.com/analytics^
 ||prestashop.com/analytics^
 ||opencart.com/analytics^
-||amazon.com/gp/aw/cr^
 ||ebay.com/analytics^
 ||aliexpress.com/analytics^
 ||etsy.com/analytics^
@@ -529,8 +514,6 @@
 # ==========================================
 # STREAMING & ENTERTAINMENT ADS
 # ==========================================
-||youtube.com/api/stats/ads^
-||googlevideo.com/generate_204^
 ||netflix.com/ads^
 ||hulu.com/ads^
 ||disney.com/ads^
@@ -552,7 +535,6 @@
 ||battle.net/ads^
 ||gog.com/ads^
 ||itch.io/ads^
-||twitch.tv/analytics^
 ||discord.com/analytics^
 ||roblox.com/ads^
 ||minecraft.net/ads^
@@ -560,17 +542,6 @@
 # ==========================================
 # NEWS & MEDIA TRACKING
 # ==========================================
-||outbrain.com^
-||taboola.com^
-||revcontent.com^
-||content.ad^
-||mgid.com^
-||adblade.com^
-||sharethrough.com^
-||nativo.com^
-||gravity.com^
-||zemanta.com^
-||ligatus.com^
 
 # ==========================================
 # SEARCH ENGINE ALTERNATIVES TRACKING
@@ -585,10 +556,6 @@
 # ==========================================
 # PERFORMANCE & ERROR TRACKING
 # ==========================================
-||newrelic.com^
-||bugsnag.com^
-||sentry.io^
-||rollbar.com^
 ||airbrake.io^
 ||honeybadger.io^
 ||raygun.com^
@@ -605,12 +572,6 @@
 ||sovrn.com^
 ||lijit.com^
 ||advertising.com^
-||adsystem.aol.com^
-||nexage.com^
-||millennialmedia.com^
-||mobfox.com^
-||inmobi.com^
-||adsystem.yandex.ru^
 
 # ==========================================
 # AI & MACHINE LEARNING TRACKING (2025)
@@ -834,7 +795,6 @@
 ||cardano.org/analytics^
 
 # Electric Vehicle & Clean Tech
-||tesla.com/analytics^
 ||rivian.com/analytics^
 ||lucidmotors.com/analytics^
 ||nio.com/analytics^
@@ -934,9 +894,6 @@
 # ==========================================
 # ADDITIONAL CDN & INFRASTRUCTURE ANALYTICS
 # ==========================================
-||jsdelivr.com/analytics^
-||unpkg.com/analytics^
-||cdnjs.com/analytics^
 ||stackpath.com/analytics^
 ||keycdn.com/analytics^
 ||bunnycdn.com/analytics^

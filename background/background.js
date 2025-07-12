@@ -7,10 +7,10 @@ const BADGE_ERROR_COLOR = '#FF0000';
 
 let filterListCache = null;
 let lastFilterFetch = 0;
-let cachedFilterHash = null;
-const FILTER_CACHE_DURATION = 60 * 60 * 1000;
+let cachedFilterLines = null; // Vorverarbeitete Zeilen für schnellen Zugriff
+const FILTER_CACHE_DURATION = 3 * 60 * 1000; // 3 Minuten Cache für optimale Performance
 
-const WASM_THRESHOLD = 1200;
+const WASM_THRESHOLD = 1500; // Schwellenwert für WASM-Aktivierung
 let wasmModule = null;
 
 let initializationPromise = null;
@@ -20,7 +20,7 @@ function extractDomain(url) {
     const urlObj = new URL(url);
     return urlObj.hostname.toLowerCase();
   } catch (error) {
-    console.warn(`${LOG_PREFIX} Invalid URL:`, url);
+    console.warn(`${LOG_PREFIX} Ungültige URL:`, url);
     return null;
   }
 }
@@ -30,7 +30,7 @@ async function getDisabledWebsites() {
     const result = await chrome.storage.local.get(['disabledWebsites']);
     return result.disabledWebsites || [];
   } catch (error) {
-    console.warn(`${LOG_PREFIX} Failed to get disabled websites:`, error);
+    console.warn(`${LOG_PREFIX} Fehler beim Laden deaktivierter Websites:`, error);
     return [];
   }
 }
@@ -41,10 +41,10 @@ async function addDisabledWebsite(domain) {
     if (!disabledWebsites.includes(domain)) {
       disabledWebsites.push(domain);
       await chrome.storage.local.set({ disabledWebsites });
-      console.log(`${LOG_PREFIX} Added ${domain} to disabled websites`);
+      console.log(`${LOG_PREFIX} ${domain} zu deaktivierten Websites hinzugefügt`);
     }
   } catch (error) {
-    console.error(`${LOG_PREFIX} Failed to add disabled website:`, error);
+    console.error(`${LOG_PREFIX} Fehler beim Hinzufügen deaktivierter Website:`, error);
     throw error;
   }
 }
@@ -54,9 +54,9 @@ async function removeDisabledWebsite(domain) {
     const disabledWebsites = await getDisabledWebsites();
     const filteredWebsites = disabledWebsites.filter(site => site !== domain);
     await chrome.storage.local.set({ disabledWebsites: filteredWebsites });
-    console.log(`${LOG_PREFIX} Removed ${domain} from disabled websites`);
+    console.log(`${LOG_PREFIX} ${domain} von deaktivierten Websites entfernt`);
   } catch (error) {
-    console.error(`${LOG_PREFIX} Failed to remove disabled website:`, error);
+    console.error(`${LOG_PREFIX} Fehler beim Entfernen deaktivierter Website:`, error);
     throw error;
   }
 }
@@ -73,7 +73,7 @@ async function applyWebsiteExclusions(rules) {
     return rules;
   }
   
-  console.log(`${LOG_PREFIX} Applying exclusions for ${disabledWebsites.length} disabled websites:`, disabledWebsites);
+  console.log(`${LOG_PREFIX} Wende Ausschlüsse für ${disabledWebsites.length} deaktivierte Websites an:`, disabledWebsites);
   
   return rules.map(rule => {
     const modifiedRule = { ...rule };
@@ -93,7 +93,7 @@ async function clearBadge() {
       await chrome.action.setBadgeText({ text: '' });
     }
   } catch (e) {
-    console.warn(`${LOG_PREFIX} Could not clear badge:`, e.message);
+    console.warn(`${LOG_PREFIX} Badge konnte nicht gelöscht werden:`, e.message);
   }
 }
 
@@ -106,7 +106,7 @@ async function setErrorBadge(text = 'ERR') {
       ]);
     }
   } catch (e) {
-    console.warn(`${LOG_PREFIX} Could not set error badge:`, e.message);
+    console.warn(`${LOG_PREFIX} Fehler-Badge konnte nicht gesetzt werden:`, e.message);
   }
 }
 
@@ -116,14 +116,28 @@ async function loadWasmIfNeeded(lineCount) {
   }
   
   if (!wasmModule) {
-    console.log(`${LOG_PREFIX} Loading WASM for ${lineCount} lines...`);
+    console.log(`${LOG_PREFIX} Lade WASM für ${lineCount} Zeilen...`);
+    
+    // Timeout für WASM-Laden
+    const loadTimeout = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('WASM Timeout')), 3000)
+    );
+    
     try {
-      wasmModule = await createFilterParserModule();
-      if (typeof wasmModule.parseFilterListWasm !== 'function') {
-        throw new Error("WASM function not found");
+      // Paralleles Vorladen mit schnellem Timeout
+      wasmModule = await Promise.race([
+        createFilterParserModule(),
+        loadTimeout
+      ]);
+      
+      // Schnelle Validierung
+      if (!wasmModule || typeof wasmModule.parseFilterListWasm !== 'function') {
+        throw new Error("WASM Funktionsvalidierung fehlgeschlagen");
       }
+      
+      console.log(`${LOG_PREFIX} WASM erfolgreich geladen`);
     } catch (error) {
-      console.warn(`${LOG_PREFIX} WASM load failed, using JS parser:`, error);
+      console.warn(`${LOG_PREFIX} WASM-Laden fehlgeschlagen, verwende JS:`, error);
       wasmModule = null;
       return null;
     }
@@ -135,12 +149,13 @@ async function loadWasmIfNeeded(lineCount) {
 function cleanupWasm() {
   if (wasmModule) {
     try {
-      console.log(`${LOG_PREFIX} Cleaning up WASM module`);
+      console.log(`${LOG_PREFIX} Bereinige WASM-Modul`);
       if (typeof wasmModule._free === 'function') {
+        wasmModule._free();
       }
       wasmModule = null;
     } catch (error) {
-      console.warn(`${LOG_PREFIX} WASM cleanup warning:`, error);
+      console.warn(`${LOG_PREFIX} WASM-Bereinigung Warnung:`, error);
       wasmModule = null;
     }
   }
@@ -151,20 +166,46 @@ async function toggleWebsiteBlocking(domain) {
     const isCurrentlyDisabled = await isWebsiteDisabled(domain);
     
     if (isCurrentlyDisabled) {
-      console.log(`${LOG_PREFIX} Enabling blocker for ${domain}...`);
+      console.log(`${LOG_PREFIX} Aktiviere Blocker für ${domain}...`);
       await removeDisabledWebsite(domain);
     } else {
-      console.log(`${LOG_PREFIX} Disabling blocker for ${domain}...`);
+      console.log(`${LOG_PREFIX} Deaktiviere Blocker für ${domain}...`);
       await addDisabledWebsite(domain);
     }
     
-    await initialize();
+    // Website-Ausschlüsse auf bestehende Regeln anwenden statt komplett neu laden
+    try {
+      const data = await chrome.storage.local.get(['ruleCount']);
+      if (data.ruleCount > 0) {
+        // Aktuelle Regeln holen und Ausschlüsse erneut anwenden
+        const existingRules = await chrome.declarativeNetRequest.getDynamicRules();
+        if (existingRules.length > 0) {
+          // Aktuelle Ausschlüsse entfernen und neu anwenden
+          const baseRules = existingRules.map(rule => {
+            const modifiedRule = { ...rule };
+            if (modifiedRule.condition && modifiedRule.condition.excludedInitiatorDomains) {
+              delete modifiedRule.condition.excludedInitiatorDomains;
+            }
+            return modifiedRule;
+          });
+          const rulesWithExclusions = await applyWebsiteExclusions(baseRules);
+          await updateRules(rulesWithExclusions);
+        } else {
+          await initialize();
+        }
+      } else {
+        await initialize();
+      }
+    } catch (error) {
+      console.warn(`${LOG_PREFIX} Schnelle Ausschluss-Aktualisierung fehlgeschlagen, vollständiger Neustart:`, error);
+      await initialize();
+    }
     
     const newStatus = !isCurrentlyDisabled;
-    console.log(`${LOG_PREFIX} Blocker ${newStatus ? 'enabled' : 'disabled'} for ${domain}`);
+    console.log(`${LOG_PREFIX} Blocker ${newStatus ? 'aktiviert' : 'deaktiviert'} für ${domain}`);
     return newStatus;
   } catch (error) {
-    console.error(`${LOG_PREFIX} Failed to toggle blocker for ${domain}:`, error);
+    console.error(`${LOG_PREFIX} Fehler beim Umschalten des Blockers für ${domain}:`, error);
     await setErrorBadge('ERR');
     throw error;
   }
@@ -179,7 +220,7 @@ async function getBlockerStatus(domain = null) {
       return true;
     }
   } catch (error) {
-    console.warn(`${LOG_PREFIX} Failed to get blocker status:`, error);
+    console.warn(`${LOG_PREFIX} Fehler beim Abrufen des Blocker-Status:`, error);
     return true;
   }
 }
@@ -188,7 +229,7 @@ async function fetchFilterList() {
   const now = Date.now();
   
   if (filterListCache && (now - lastFilterFetch) < FILTER_CACHE_DURATION) {
-    console.log(`${LOG_PREFIX} Using cached filter list`);
+    console.log(`${LOG_PREFIX} Verwende Cache-Filterliste`);
     return filterListCache;
   }
   
@@ -197,26 +238,33 @@ async function fetchFilterList() {
     const resp = await fetch(url);
     
     if (!resp.ok) {
-      throw new Error(`Fetch failed: ${resp.status}`);
+      throw new Error(`Abruf fehlgeschlagen: ${resp.status}`);
     }
     
     const text = await resp.text();
     
+    // Speicher-Optimierung: Text und vorverarbeitete Zeilen cachen
     filterListCache = text;
+    cachedFilterLines = null; // Wird bei Bedarf lazy geladen
     lastFilterFetch = now;
     
-    const lineCount = text.split('\n').length;
-    console.log(`${LOG_PREFIX} Fetched ${lineCount} lines`);
+    // Zeilen schätzen ohne vollständige Aufteilung für besseren Speicherverbrauch
+    let lineCount = 1;
+    for (let i = 0; i < text.length; i++) {
+      if (text[i] === '\n') lineCount++;
+    }
+    
+    console.log(`${LOG_PREFIX} ~${lineCount} Zeilen abgerufen`);
     return text;
   } catch (error) {
-    console.error(`${LOG_PREFIX} Fetch error:`, error);
+    console.error(`${LOG_PREFIX} Abruf-Fehler:`, error);
     
     if (filterListCache) {
-      console.warn(`${LOG_PREFIX} Using cached fallback`);
+      console.warn(`${LOG_PREFIX} Verwende Cache-Fallback`);
       return filterListCache;
     }
     
-    throw new Error(`Fetch Error: ${error.message}`);
+    throw new Error(`Abruf-Fehler: ${error.message}`);
   }
 }
 
@@ -225,49 +273,82 @@ async function parseListWithJS(filterListText) {
     throw new Error('Invalid filter list text provided');
   }
 
-  console.log(`${LOG_PREFIX} Starting JS parsing...`);
+  console.log(`${LOG_PREFIX} Starte optimiertes JS-Parsing...`);
   console.time(`${LOG_PREFIX} JS Parsing`);
   
   try {
-    const lines = filterListText.split(/\r?\n/);
+    // Schnelle Zeilen-Aufteilung mit indexOf-Schleife statt Regex
+    const lines = [];
+    let start = 0;
+    let pos = 0;
+    while ((pos = filterListText.indexOf('\n', start)) !== -1) {
+      const line = filterListText.slice(start, pos).trim();
+      if (line) lines.push(line);
+      start = pos + 1;
+    }
+    if (start < filterListText.length) {
+      const line = filterListText.slice(start).trim();
+      if (line) lines.push(line);
+    }
+    
     const rules = [];
     let ruleId = 1;
     const stats = { totalLines: lines.length, processedRules: 0, skippedLines: 0, errors: 0 };
     
+    // Optimierte Whitelist als Objekt für O(1)-Lookup
+    const whitelist = {
+      'fonts.gstatic.com': true, 
+      'fonts.googleapis.com': true, 
+      'cdnjs.cloudflare.com': true, 
+      'code.jquery.com': true, 
+      'maxcdn.bootstrapcdn.com': true
+    };
+    
+    // ResourceTypes-Array vorab allokieren um wiederholte Allokierung zu vermeiden
+    const resourceTypes = ["script", "image", "xmlhttprequest", "other"];
+    
+    // Schnelle Verarbeitung ohne Batch-Overhead
     for (let i = 0; i < lines.length; i++) {
-      try {
-        const line = lines[i];
-        const trimmed = line.trim();
+      const line = lines[i];
+      
+      // Schnelle zeichenbasierte Filterung
+      const firstChar = line[0];
+      if (!line || firstChar === '#' || firstChar === '!' || firstChar === '[') {
+        stats.skippedLines++;
+        continue;
+      }
+      
+      // Schnelle Präfix/Suffix-Prüfung mit charAt und slice
+      if (line.length > 4 && line[0] === '|' && line[1] === '|' && line[line.length - 1] === '^') {
+        const domain = line.slice(2, -1);
         
-        if (!trimmed || trimmed.startsWith('#') || trimmed.startsWith('!') || trimmed.startsWith('[')) {
+        // Schnelle Whitelist-Prüfung
+        if (whitelist[domain]) {
           stats.skippedLines++;
           continue;
         }
         
-        if (trimmed.startsWith('||') && trimmed.endsWith('^')) {
-          const domain = trimmed.slice(2, -1);
-          
-          const whitelist = ['fonts.gstatic.com', 'fonts.googleapis.com', 'cdnjs.cloudflare.com', 'code.jquery.com', 'maxcdn.bootstrapcdn.com'];
-          if (whitelist.includes(domain)) {
-            stats.skippedLines++;
-            continue;
+        // Schnelle Validierung mit Zeichen-Prüfung
+        if (domain.length > 0 && domain.length < 200) {
+          let isValid = true;
+          for (let j = 0; j < domain.length; j++) {
+            const char = domain[j];
+            if (char === '*' || char === ' ') {
+              isValid = false;
+              break;
+            }
           }
           
-          if (domain.length > 0 && domain.length < 200 && 
-              !domain.includes('*') && !domain.includes(' ') && 
-              /^[a-zA-Z0-9._/-]+(\?[a-zA-Z0-9=&_-]*)?$/.test(domain)) {
-            
-            const rule = {
+          if (isValid) {
+            rules.push({
               id: ruleId++,
               priority: 1,
               action: { type: 'block' },
               condition: {
-                urlFilter: trimmed,
-                resourceTypes: ["script", "image", "xmlhttprequest", "other"]
+                urlFilter: line,
+                resourceTypes: resourceTypes
               }
-            };
-            
-            rules.push(rule);
+            });
             stats.processedRules++;
           } else {
             stats.skippedLines++;
@@ -275,102 +356,126 @@ async function parseListWithJS(filterListText) {
         } else {
           stats.skippedLines++;
         }
-      } catch (lineError) {
-        console.warn(`${LOG_PREFIX} Error parsing line ${i + 1}:`, lineError);
-        stats.errors++;
+      } else {
         stats.skippedLines++;
       }
     }
     
     console.timeEnd(`${LOG_PREFIX} JS Parsing`);
-    console.log(`${LOG_PREFIX} Parsed ${rules.length} rules from ${lines.length} lines (${stats.errors} errors)`);
+    console.log(`${LOG_PREFIX} ${rules.length} Regeln aus ${lines.length} Zeilen geparst`);
     
     if (rules.length === 0) {
-      throw new Error('No valid rules found in filter list');
+      throw new Error('Keine gültigen Regeln in Filterliste gefunden');
     }
     
     return { rules, stats };
   } catch (error) {
     console.timeEnd(`${LOG_PREFIX} JS Parsing`);
-    console.error(`${LOG_PREFIX} JS parsing failed:`, error);
+    console.error(`${LOG_PREFIX} Parsing fehlgeschlagen:`, error);
     throw error;
   }
 }
 
 function parseListWithWasm(module, filterListText) {
-  console.log(`${LOG_PREFIX} Starting WASM parsing...`);
-  console.time(`${LOG_PREFIX} WASM Parsing`);
+  console.log(`${LOG_PREFIX} Starte WASM-Parsing...`);
+  console.time(`${LOG_PREFIX} Ultra-WASM Parsing`);
   
   try {
+    // Schnelle WASM-Ausführung mit minimalem Overhead
     const jsonString = module.parseFilterListWasm(filterListText);
-    console.timeEnd(`${LOG_PREFIX} WASM Parsing`);
+    console.timeEnd(`${LOG_PREFIX} Ultra-WASM Parsing`);
     
     if (!jsonString) {
       return { rules: [], stats: { totalLines: 0, processedRules: 0, skippedLines: 0 } };
     }
     
+    // Schnelle JSON-Verarbeitung
     const result = JSON.parse(jsonString);
-    console.log(`${LOG_PREFIX} WASM parsed ${result.rules.length} rules`);
+    console.log(`${LOG_PREFIX} WASM hat ${result.rules.length} Regeln geparst`);
     return result;
   } catch (error) {
-    console.timeEnd(`${LOG_PREFIX} WASM Parsing`);
-    console.error(`${LOG_PREFIX} WASM parsing failed:`, error);
-    throw new Error(`WASM parsing failed: ${error.message}`);
+    console.timeEnd(`${LOG_PREFIX} Ultra-WASM Parsing`);
+    console.error(`${LOG_PREFIX} WASM-Parsing fehlgeschlagen:`, error);
+    throw new Error(`WASM-Parsing fehlgeschlagen: ${error.message}`);
   }
 }
 
 async function initialize() {
   if (initializationPromise) {
-    console.log(`${LOG_PREFIX} Initialization already in progress, waiting...`);
+    console.log(`${LOG_PREFIX} Initialisierung bereits im Gange...`);
     return initializationPromise;
   }
   
   initializationPromise = (async () => {
     try {
-      console.log(`${LOG_PREFIX} Starting initialization...`);
+      console.log(`${LOG_PREFIX} Starte Initialisierung...`);
       
-      await clearBadge();
+      // Schnelle parallele Operationen
+      const [, listText] = await Promise.all([
+        clearBadge(),
+        fetchFilterList()
+      ]);
 
-      const listText = await fetchFilterList();
-      const lineCount = listText.split('\n').filter(line => {
-        const trimmed = line.trim();
-        return trimmed && !trimmed.startsWith('#') && !trimmed.startsWith('!') && !trimmed.startsWith('[');
-      }).length;
+      // Schnelle Zeilen-Zählung ohne vollständige Array-Erstellung
+      let validLineCount = 0;
+      let inComment = false;
+      let start = 0;
+      
+      for (let i = 0; i < listText.length; i++) {
+        if (listText[i] === '\n' || i === listText.length - 1) {
+          const lineEnd = i === listText.length - 1 ? i + 1 : i;
+          const line = listText.slice(start, lineEnd).trim();
+          
+          if (line && !inComment) {
+            const firstChar = line[0];
+            if (firstChar !== '#' && firstChar !== '!' && firstChar !== '[') {
+              if (line.length > 4 && line[0] === '|' && line[1] === '|' && line[line.length-1] === '^') {
+                validLineCount++;
+              }
+            }
+          }
+          start = i + 1;
+        }
+      }
 
-      console.log(`${LOG_PREFIX} Processing ${lineCount} rules (threshold: ${WASM_THRESHOLD})`);
+      console.log(`${LOG_PREFIX} Verarbeite ${validLineCount} Regeln (Schwellenwert: ${WASM_THRESHOLD})`);
 
       let parseResult;
-      const shouldUseWasm = lineCount > WASM_THRESHOLD;
+      const shouldUseWasm = validLineCount > WASM_THRESHOLD;
       
       if (shouldUseWasm) {
-        console.log(`${LOG_PREFIX} Using WASM parser for large list`);
-        const wasmModule = await loadWasmIfNeeded(lineCount);
+        console.log(`${LOG_PREFIX} Verwende WASM-Parser für große Liste`);
+        const wasmModule = await loadWasmIfNeeded(validLineCount);
         if (wasmModule) {
           parseResult = parseListWithWasm(wasmModule, listText);
         } else {
-          console.log(`${LOG_PREFIX} WASM failed, falling back to JS`);
+          console.log(`${LOG_PREFIX} WASM fehlgeschlagen, verwende JS`);
           parseResult = await parseListWithJS(listText);
         }
       } else {
-        console.log(`${LOG_PREFIX} Using optimized JS parser for small list`);
+        console.log(`${LOG_PREFIX} Verwende JS-Parser für kleine Liste`);
         parseResult = await parseListWithJS(listText);
       }
 
-      const rulesWithExclusions = await applyWebsiteExclusions(parseResult.rules);
+      // Schneller paralleler Abschluss
+      const [rulesWithExclusions] = await Promise.all([
+        applyWebsiteExclusions(parseResult.rules),
+        chrome.storage.local.set({ 
+          ruleCount: parseResult.rules.length, 
+          ruleStats: parseResult.stats,
+          lastUpdate: Date.now()
+        }).catch(() => {}) // Nicht-blockierender Speicher
+      ]);
+      
       await updateRules(rulesWithExclusions);
-      await chrome.storage.local.set({ 
-        ruleCount: parseResult.rules.length, 
-        ruleStats: parseResult.stats,
-        lastUpdate: Date.now()
-      });
-
       await clearBadge();
-      console.log(`${LOG_PREFIX} Initialization complete - ${parseResult.rules.length} rules loaded`);
+      
+      console.log(`${LOG_PREFIX} Initialisierung abgeschlossen - ${parseResult.rules.length} Regeln geladen`);
       return parseResult;
 
     } catch (error) {
-      console.error(`${LOG_PREFIX} Initialization failed:`, error);
-      await setErrorBadge('ERR');
+      console.error(`${LOG_PREFIX} Initialisierung fehlgeschlagen:`, error);
+      setErrorBadge('ERR').catch(() => {}); // Nicht-blockierendes Fehler-Badge
       throw error;
     }
   })();
@@ -389,12 +494,13 @@ chrome.runtime.onInstalled.addListener((details) => {
 });
 
 chrome.runtime.onStartup.addListener(() => {
-  console.log(`${LOG_PREFIX} Browser startup detected`);
+  console.log(`${LOG_PREFIX} Browser-Start erkannt`);
   initialize();
 });
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  console.log(`${LOG_PREFIX} Received message:`, request);
+  // Schnelle Nachrichten-Verarbeitung
+  console.log(`${LOG_PREFIX} Nachricht:`, request.action);
 
   if (request.action === "getStats") {
     (async () => {
@@ -410,15 +516,15 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           domain: domain
         });
       } catch (err) {
-        console.error(`${LOG_PREFIX} Error getting stats:`, err);
-        sendResponse({ ruleCount: 'Fehler', ruleStats: {}, enabled: false });
+        console.error(`${LOG_PREFIX} Fehler beim Abrufen der Statistiken:`, err);
+        sendResponse({ ruleCount: 'Error', ruleStats: {}, enabled: false });
       }
     })();
     return true;
   }
 
   if (request.action === "reloadRules") {
-    console.log(`${LOG_PREFIX} Reloading rules...`);
+    console.log(`${LOG_PREFIX} Lade Regeln neu...`);
     initialize()
       .then(async () => {
         const data = await chrome.storage.local.get(['ruleCount', 'ruleStats']);
@@ -427,7 +533,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         
         sendResponse({
           success: true,
-          message: "Rules reloaded successfully",
+          message: "Regeln erfolgreich neu geladen",
           ruleCount: data.ruleCount ?? 'N/A',
           ruleStats: data.ruleStats ?? {},
           enabled: enabled,
@@ -435,11 +541,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         });
       })
       .catch(err => {
-        console.error(`${LOG_PREFIX} Reload failed:`, err);
+        console.error(`${LOG_PREFIX} Neuladen fehlgeschlagen:`, err);
         sendResponse({
           success: false,
-          message: `Failed to reload: ${err.message}`,
-          ruleCount: 'Fehler',
+          message: `Neuladen fehlgeschlagen: ${err.message}`,
+          ruleCount: 'Error',
           enabled: false
         });
       });
@@ -447,12 +553,12 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   }
 
   if (request.action === "toggleBlocker") {
-    console.log(`${LOG_PREFIX} Toggling blocker...`);
+    console.log(`${LOG_PREFIX} Schalte Blocker um...`);
     (async () => {
       try {
         const domain = request.domain;
         if (!domain) {
-          throw new Error("Domain is required for toggling blocker");
+          throw new Error("Domain für Blocker-Umschaltung erforderlich");
         }
         
         const newStatus = await toggleWebsiteBlocking(domain);
@@ -463,25 +569,25 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             const activeTab = tabs[0];
             if (activeTab.url && (activeTab.url.startsWith('http://') || activeTab.url.startsWith('https://'))) {
               await chrome.tabs.reload(activeTab.id);
-              console.log(`${LOG_PREFIX} Reloaded active tab: ${activeTab.id}`);
+              console.log(`${LOG_PREFIX} Aktiven Tab neu geladen: ${activeTab.id}`);
             }
           }
         } catch (err) {
-          console.warn(`${LOG_PREFIX} Tab reload error:`, err);
+          console.warn(`${LOG_PREFIX} Tab-Neuladen Fehler:`, err);
         }
         
         sendResponse({
           success: true,
           enabled: newStatus,
           domain: domain,
-          message: newStatus ? `Blocker enabled for ${domain}` : `Blocker disabled for ${domain}`
+          message: newStatus ? `Blocker aktiviert für ${domain}` : `Blocker deaktiviert für ${domain}`
         });
       } catch (err) {
-        console.error(`${LOG_PREFIX} Toggle failed:`, err);
+        console.error(`${LOG_PREFIX} Umschaltung fehlgeschlagen:`, err);
         sendResponse({
           success: false,
           enabled: false,
-          message: `Failed to toggle: ${err.message}`
+          message: `Umschaltung fehlgeschlagen: ${err.message}`
         });
       }
     })();
@@ -492,11 +598,14 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 });
 
 chrome.runtime.onSuspend?.addListener(() => {
-  console.log(`${LOG_PREFIX} Extension suspending, cleaning up...`);
+  console.log(`${LOG_PREFIX} Extension wird suspendiert, bereinige...`);
   cleanupWasm();
   filterListCache = null;
+  cachedFilterLines = null;
   initializationPromise = null;
+  // Garbage Collection Hinweise forcieren
+  if (global && global.gc) global.gc();
 });
 
-console.log(`${LOG_PREFIX} Background script loaded`);
+console.log(`${LOG_PREFIX} Background-Script geladen`);
 initialize();

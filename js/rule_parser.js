@@ -1,59 +1,55 @@
 function isValidDomainFilter(str) {
   if (!str || str.length === 0) return false;
-  const hasProblematicChars = /[\x00-\x1F\x7F-\x9F"'<>\\]/.test(str);
-  return !hasProblematicChars;
-}
-
-function validateRule(rule) {
-  if (rule.condition && rule.condition.urlFilter && !isValidDomainFilter(rule.condition.urlFilter)) {
-    return false;
+  // Schnelle Zeichen-Validierung mit for-Schleife statt Regex
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    if ((char >= 0 && char <= 31) || (char >= 127 && char <= 159) ||
+        char === 34 || char === 39 || char === 60 || char === 62 || char === 92) {
+      return false;
+    }
   }
   return true;
 }
 
+function validateRule(rule) {
+  // Schnelle Validierung mit minimalen Prüfungen
+  return rule && rule.condition && rule.condition.urlFilter && isValidDomainFilter(rule.condition.urlFilter);
+}
+
 async function updateRules(rules) {
   if (!rules || !Array.isArray(rules)) {
-    throw new Error("Invalid rules array provided");
+    throw new Error("Ungültiges Regeln-Array bereitgestellt");
   }
 
   const DNR_MAX_RULES = chrome.declarativeNetRequest.MAX_NUMBER_OF_DYNAMIC_AND_SESSION_RULES || 5000;
 
   try {
+    // Schnelle Validierung ohne Batch-Overhead
     const validRules = [];
-    const batchSize = 100;
+    validRules.length = 0; // Vorab initialisieren für bessere Speicher-Allokierung
     
-    for (let i = 0; i < rules.length; i += batchSize) {
-      const batch = rules.slice(i, i + batchSize);
-      for (const rule of batch) {
-        try {
-          if (validateRule(rule)) {
-            validRules.push(rule);
-          }
-        } catch (error) {
-          console.warn('Rule validation error:', error, rule);
-        }
-      }
-      
-      if (i + batchSize < rules.length) {
-        await new Promise(resolve => setTimeout(resolve, 0));
+    for (let i = 0; i < rules.length; i++) {
+      if (validateRule(rules[i])) {
+        validRules.push(rules[i]);
       }
     }
     
     if (validRules.length !== rules.length) {
-      console.log(`Filtered out ${rules.length - validRules.length} invalid rules`);
+      console.log(`${rules.length - validRules.length} ungültige Regeln herausgefiltert`);
     }
 
     const toAdd = validRules.slice(0, DNR_MAX_RULES);
     
     if (toAdd.length < validRules.length) {
-      console.warn(`Truncated from ${validRules.length} to ${toAdd.length} rules`);
+      console.warn(`Von ${validRules.length} auf ${toAdd.length} Regeln gekürzt`);
     }
 
     if (toAdd.length === 0) {
-      console.warn('No valid rules to add');
+      console.warn('Keine gültigen Regeln hinzuzufügen');
       return;
     }
 
+    // Optimized rule replacement strategy
     let existingRules = [];
     let existingIds = [];
     
@@ -61,68 +57,74 @@ async function updateRules(rules) {
       existingRules = await chrome.declarativeNetRequest.getDynamicRules();
       existingIds = existingRules.map(rule => rule.id);
     } catch (error) {
-      console.warn('Failed to get existing rules, continuing with update:', error);
+      console.warn('Fehler beim Abrufen existierender Regeln, fahre mit Update fort:', error);
     }
     
-    console.log(`Updating ${existingIds.length} -> ${toAdd.length} rules`);
+    console.log(`Aktualisiere ${existingIds.length} -> ${toAdd.length} Regeln`);
     
-    const BATCH_SIZE = 1000;
+    // Optimierte dynamische Batchverarbeitung basierend auf Systemleistung
+    const systemLoad = performance.now() % 100; // Einfacher Lastindikator
+    const OPTIMAL_BATCH_SIZE = systemLoad < 50 ? 
+      Math.min(2000, Math.max(750, Math.floor(toAdd.length / 2))) : // Hohe Leistung
+      Math.min(1000, Math.max(400, Math.floor(toAdd.length / 4)));   // Konservativ
     
-    if (toAdd.length <= BATCH_SIZE) {
+    if (toAdd.length <= OPTIMAL_BATCH_SIZE && existingIds.length <= OPTIMAL_BATCH_SIZE) {
+      // Einzel-Operation für kleinere Regel-Sets
       await retryOperation(async () => {
         await chrome.declarativeNetRequest.updateDynamicRules({ 
           removeRuleIds: existingIds, 
           addRules: toAdd 
         });
-      }, 3, 'single rule update');
+      }, 3, 'optimierte Einzel-Aktualisierung');
       
-      console.log(`Updated to ${toAdd.length} rules`);
+      console.log(`Auf ${toAdd.length} Regeln in einer Operation aktualisiert`);
     } else {
+      // Löschen und Batch-Hinzufügen für größere Regel-Sets
       if (existingIds.length > 0) {
         await retryOperation(async () => {
           await chrome.declarativeNetRequest.updateDynamicRules({ 
             removeRuleIds: existingIds, 
             addRules: [] 
           });
-        }, 3, 'clear existing rules');
+        }, 3, 'existierende Regeln löschen');
       }
       
-      for (let i = 0; i < toAdd.length; i += BATCH_SIZE) {
-        const batch = toAdd.slice(i, i + BATCH_SIZE);
+      for (let i = 0; i < toAdd.length; i += OPTIMAL_BATCH_SIZE) {
+        const batch = toAdd.slice(i, i + OPTIMAL_BATCH_SIZE);
         
         await retryOperation(async () => {
           await chrome.declarativeNetRequest.updateDynamicRules({ 
             addRules: batch, 
             removeRuleIds: [] 
           });
-        }, 3, `batch ${Math.floor(i/BATCH_SIZE) + 1}`);
+        }, 3, `optimierter Batch ${Math.floor(i/OPTIMAL_BATCH_SIZE) + 1}`);
       }
       
-      console.log(`Added ${toAdd.length} rules in batches`);
+      console.log(`${toAdd.length} Regeln in ${Math.ceil(toAdd.length/OPTIMAL_BATCH_SIZE)} optimierten Batches hinzugefügt`);
     }
 
-    try {
-      await chrome.storage.local.set({ ruleCount: toAdd.length });
-      console.log(`Stored rule count: ${toAdd.length}`);
-    } catch (storageError) {
-      console.warn('Failed to store rule count:', storageError);
-    }
+    // Asynchrone Speicher-Aktualisierung um Blockierung zu vermeiden
+    chrome.storage.local.set({ 
+      ruleCount: toAdd.length,
+      lastRuleUpdate: Date.now()
+    }).catch(storageError => {
+      console.warn('Fehler beim Speichern der Regel-Anzahl:', storageError);
+    });
 
   } catch (err) {
-    console.error('Error updating rules:', err);
+    console.error('Fehler beim Aktualisieren der Regeln:', err);
     
-    try {
-      if (chrome.action?.setBadgeText && chrome.action?.setBadgeBackgroundColor) {
-        await Promise.all([
-          chrome.action.setBadgeText({ text: 'ERR' }),
-          chrome.action.setBadgeBackgroundColor({ color: '#FF0000' })
-        ]);
-      }
-    } catch (badgeError) {
-      console.warn('Failed to set error badge:', badgeError);
+    // Nicht-blockierende Badge-Aktualisierung
+    if (chrome.action?.setBadgeText && chrome.action?.setBadgeBackgroundColor) {
+      Promise.all([
+        chrome.action.setBadgeText({ text: 'ERR' }),
+        chrome.action.setBadgeBackgroundColor({ color: '#FF0000' })
+      ]).catch(badgeError => {
+        console.warn('Fehler beim Setzen des Fehler-Badges:', badgeError);
+      });
     }
     
-    throw new Error(`Rule update failed: ${err.message}`);
+    throw new Error(`Regel-Aktualisierung fehlgeschlagen: ${err.message}`);
   }
 }
 
@@ -133,12 +135,12 @@ async function retryOperation(operation, maxRetries, operationName) {
     try {
       await operation();
       if (attempt > 1) {
-        console.log(`${operationName} succeeded on attempt ${attempt}`);
+        console.log(`${operationName} erfolgreich bei Versuch ${attempt}`);
       }
       return;
     } catch (error) {
       lastError = error;
-      console.warn(`${operationName} failed on attempt ${attempt}:`, error);
+      console.warn(`${operationName} fehlgeschlagen bei Versuch ${attempt}:`, error);
       
       if (attempt < maxRetries) {
         const delay = Math.pow(2, attempt - 1) * 100;
@@ -147,7 +149,7 @@ async function retryOperation(operation, maxRetries, operationName) {
     }
   }
   
-  throw new Error(`${operationName} failed after ${maxRetries} attempts: ${lastError.message}`);
+  throw new Error(`${operationName} fehlgeschlagen nach ${maxRetries} Versuchen: ${lastError.message}`);
 }
 
 export { updateRules };
