@@ -95,6 +95,76 @@ function cleanupWasm() {
 }
 
 /**
+ * Enable the ad blocker by reloading rules
+ */
+async function enableBlocker() {
+  try {
+    console.log(`${LOG_PREFIX} Enabling blocker...`);
+    
+    // Set enabled status first
+    await chrome.storage.local.set({ blockerEnabled: true });
+    
+    // Reinitialize to load rules
+    await initialize();
+    
+    await clearBadge();
+    console.log(`${LOG_PREFIX} Blocker enabled`);
+    return true;
+  } catch (error) {
+    console.error(`${LOG_PREFIX} Failed to enable blocker:`, error);
+    await setErrorBadge('ERR');
+    throw error;
+  }
+}
+
+/**
+ * Disable the ad blocker by removing all dynamic rules
+ */
+async function disableBlocker() {
+  try {
+    console.log(`${LOG_PREFIX} Disabling blocker...`);
+    
+    // Get all existing dynamic rules
+    const existingRules = await chrome.declarativeNetRequest.getDynamicRules();
+    const existingIds = existingRules.map(rule => rule.id);
+    
+    // Remove all rules
+    if (existingIds.length > 0) {
+      await chrome.declarativeNetRequest.updateDynamicRules({
+        removeRuleIds: existingIds,
+        addRules: []
+      });
+    }
+    
+    await chrome.storage.local.set({ 
+      blockerEnabled: false,
+      ruleCount: 0
+    });
+    await chrome.action.setBadgeText({ text: 'OFF' });
+    await chrome.action.setBadgeBackgroundColor({ color: '#888888' });
+    console.log(`${LOG_PREFIX} Blocker disabled - removed ${existingIds.length} rules`);
+    return true;
+  } catch (error) {
+    console.error(`${LOG_PREFIX} Failed to disable blocker:`, error);
+    await setErrorBadge('ERR');
+    throw error;
+  }
+}
+
+/**
+ * Get current blocker status
+ */
+async function getBlockerStatus() {
+  try {
+    const result = await chrome.storage.local.get(['blockerEnabled']);
+    return result.blockerEnabled !== false; // Default to enabled
+  } catch (error) {
+    console.warn(`${LOG_PREFIX} Failed to get blocker status:`, error);
+    return true; // Default to enabled on error
+  }
+}
+
+/**
  * Enhanced filter list fetching with hash-based caching
  */
 async function fetchFilterList() {
@@ -259,6 +329,16 @@ async function initialize() {
   initializationPromise = (async () => {
     try {
       console.log(`${LOG_PREFIX} Starting initialization...`);
+      
+      // Check if blocker is disabled
+      const isEnabled = await getBlockerStatus();
+      if (!isEnabled) {
+        console.log(`${LOG_PREFIX} Blocker is disabled, skipping rule loading`);
+        await chrome.action.setBadgeText({ text: 'OFF' });
+        await chrome.action.setBadgeBackgroundColor({ color: '#888888' });
+        return { rules: [], stats: { totalLines: 0, processedRules: 0, skippedLines: 0 } };
+      }
+      
       await clearBadge();
 
       // 1. Fetch filter list
@@ -293,7 +373,8 @@ async function initialize() {
       await chrome.storage.local.set({ 
         ruleCount: parseResult.rules.length, 
         ruleStats: parseResult.stats,
-        lastUpdate: Date.now()
+        lastUpdate: Date.now(),
+        blockerEnabled: true // Set enabled on initialization
       });
 
       // 4. Success
@@ -337,14 +418,15 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     // Simple async storage access
     (async () => {
       try {
-        const data = await chrome.storage.local.get(['ruleCount', 'ruleStats']);
+        const data = await chrome.storage.local.get(['ruleCount', 'ruleStats', 'blockerEnabled']);
         sendResponse({
           ruleCount: data.ruleCount ?? 'N/A',
-          ruleStats: data.ruleStats ?? {}
+          ruleStats: data.ruleStats ?? {},
+          enabled: data.blockerEnabled !== false // Default to enabled
         });
       } catch (err) {
         console.error(`${LOG_PREFIX} Error getting stats:`, err);
-        sendResponse({ ruleCount: 'Fehler', ruleStats: {} });
+        sendResponse({ ruleCount: 'Fehler', ruleStats: {}, enabled: false });
       }
     })();
     return true;
@@ -354,12 +436,13 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     console.log(`${LOG_PREFIX} Reloading rules...`);
     initialize()
       .then(async () => {
-        const data = await chrome.storage.local.get(['ruleCount', 'ruleStats']);
+        const data = await chrome.storage.local.get(['ruleCount', 'ruleStats', 'blockerEnabled']);
         sendResponse({
           success: true,
           message: "Rules reloaded successfully",
           ruleCount: data.ruleCount ?? 'N/A',
-          ruleStats: data.ruleStats ?? {}
+          ruleStats: data.ruleStats ?? {},
+          enabled: data.blockerEnabled !== false
         });
       })
       .catch(err => {
@@ -367,9 +450,58 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         sendResponse({
           success: false,
           message: `Failed to reload: ${err.message}`,
-          ruleCount: 'Fehler'
+          ruleCount: 'Fehler',
+          enabled: false
         });
       });
+    return true;
+  }
+
+  if (request.action === "toggleBlocker") {
+    console.log(`${LOG_PREFIX} Toggling blocker...`);
+    (async () => {
+      try {
+        const currentStatus = await getBlockerStatus();
+        const newStatus = !currentStatus;
+        
+        if (newStatus) {
+          await enableBlocker();
+        } else {
+          await disableBlocker();
+        }
+        
+        // Reload all active tabs
+        try {
+          const tabs = await chrome.tabs.query({});
+          const reloadPromises = tabs.map(tab => {
+            // Only reload http/https tabs, skip chrome:// pages and extensions
+            if (tab.url && (tab.url.startsWith('http://') || tab.url.startsWith('https://'))) {
+              return chrome.tabs.reload(tab.id).catch(err => {
+                console.warn(`${LOG_PREFIX} Could not reload tab ${tab.id}:`, err);
+              });
+            }
+          }).filter(Boolean);
+          
+          await Promise.allSettled(reloadPromises);
+          console.log(`${LOG_PREFIX} Reloaded ${reloadPromises.length} tabs`);
+        } catch (err) {
+          console.warn(`${LOG_PREFIX} Tab reload error:`, err);
+        }
+        
+        sendResponse({
+          success: true,
+          enabled: newStatus,
+          message: newStatus ? "Blocker enabled" : "Blocker disabled"
+        });
+      } catch (err) {
+        console.error(`${LOG_PREFIX} Toggle failed:`, err);
+        sendResponse({
+          success: false,
+          enabled: await getBlockerStatus(),
+          message: `Failed to toggle: ${err.message}`
+        });
+      }
+    })();
     return true;
   }
 

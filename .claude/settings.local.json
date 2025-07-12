@@ -3,7 +3,10 @@
     "allow": [
       "Bash(node:*)",
       "Bash(del debug_filter.js)",
-      "Bash(rm:*)"
+      "Bash(rm:*)",
+      "Bash(ls:*)",
+      "Bash(mv:*)",
+      "Bash(wc:*)"
     ],
     "deny": []
   }

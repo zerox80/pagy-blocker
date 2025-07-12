@@ -3,6 +3,8 @@
 
 let ruleCountElement;
 let refreshButton;
+let toggleButton;
+let statusElement;
 let isUpdating = false;
 
 // Local cache for faster popup loading
@@ -26,6 +28,54 @@ function updateStatsDisplay(stats) {
     
     isUpdating = false;
     console.log("Popup updated:", stats);
+}
+
+// Update blocker status display
+function updateStatusDisplay(enabled) {
+    if (statusElement) {
+        statusElement.textContent = enabled ? 'Aktiviert' : 'Deaktiviert';
+        statusElement.className = enabled ? 'enabled' : 'disabled';
+    }
+    
+    if (toggleButton) {
+        toggleButton.textContent = enabled ? 'Deaktivieren' : 'Aktivieren';
+        toggleButton.className = enabled ? 'enabled' : 'disabled';
+    }
+}
+
+// Toggle blocker on/off
+function toggleBlocker() {
+    if (isUpdating) {
+        console.log("Update in progress, skipping toggle");
+        return;
+    }
+    
+    console.log("Starting toggle...");
+    isUpdating = true;
+    toggleButton.disabled = true;
+    statusElement.textContent = 'Wird geändert...';
+    
+    chrome.runtime.sendMessage({ action: "toggleBlocker" }, (response) => {
+        console.log("Toggle response:", response);
+        isUpdating = false;
+        toggleButton.disabled = false;
+        
+        if (chrome.runtime.lastError) {
+            console.error("Error toggling blocker:", chrome.runtime.lastError.message);
+            statusElement.textContent = 'Fehler';
+            statusElement.className = 'error';
+            return;
+        }
+        
+        if (response && response.success) {
+            console.log("Toggle successful, enabled:", response.enabled);
+            updateStatusDisplay(response.enabled);
+        } else {
+            console.error("Toggle failed or invalid response:", response);
+            statusElement.textContent = 'Fehler';
+            statusElement.className = 'error';
+        }
+    });
 }
 
 // Optimized reload function with timeout
@@ -65,7 +115,8 @@ function reloadRules() {
         if (response && response.success) {
             const stats = {
                 ruleCount: response.ruleCount,
-                ruleStats: response.ruleStats
+                ruleStats: response.ruleStats,
+                enabled: response.enabled !== false
             };
             
             // Update cache
@@ -73,10 +124,13 @@ function reloadRules() {
             cacheTimestamp = Date.now();
             
             updateStatsDisplay(stats);
+            updateStatusDisplay(stats.enabled);
         } else {
             console.error("Reload failed:", response?.message || 'Unknown error');
             ruleCountElement.textContent = 'Fehler';
             ruleCountElement.className = 'error';
+            statusElement.textContent = 'Fehler';
+            statusElement.className = 'error';
         }
     });
 }
@@ -123,6 +177,7 @@ function fetchStats() {
             cachedStats = response;
             cacheTimestamp = now;
             updateStatsDisplay(response);
+            updateStatusDisplay(response.enabled !== false); // Default to enabled
         } else {
             tryStorageFallback();
         }
@@ -131,22 +186,26 @@ function fetchStats() {
 
 // Optimized storage fallback
 function tryStorageFallback() {
-    chrome.storage.local.get(['ruleCount', 'ruleStats']).then(stats => {
+    chrome.storage.local.get(['ruleCount', 'ruleStats', 'blockerEnabled']).then(stats => {
         if (stats.ruleCount !== undefined) {
             const fallbackStats = {
                 ruleCount: stats.ruleCount,
-                ruleStats: stats.ruleStats || {}
+                ruleStats: stats.ruleStats || {},
+                enabled: stats.blockerEnabled !== false // Default to enabled
             };
             updateStatsDisplay(fallbackStats);
+            updateStatusDisplay(fallbackStats.enabled);
         } else {
             ruleCountElement.textContent = 'N/A';
             ruleCountElement.className = 'error';
+            statusElement.textContent = 'Unbekannt';
             console.warn("No rule count found in storage fallback");
         }
     }).catch(err => {
         console.error("Storage fallback failed:", err);
         ruleCountElement.textContent = 'Fehler';
         ruleCountElement.className = 'error';
+        statusElement.textContent = 'Fehler';
     });
 }
 
@@ -156,15 +215,22 @@ function initializePopup() {
         // Get DOM elements
         ruleCountElement = document.getElementById('rule-count');
         refreshButton = document.getElementById('refresh-button');
+        toggleButton = document.getElementById('toggle-button');
+        statusElement = document.getElementById('blocker-status');
         
-        if (!ruleCountElement || !refreshButton) {
+        if (!ruleCountElement || !refreshButton || !toggleButton || !statusElement) {
             throw new Error('Required DOM elements not found');
         }
         
-        // Add click handler
+        // Add click handlers
         refreshButton.addEventListener('click', (e) => {
             e.preventDefault();
             reloadRules();
+        });
+        
+        toggleButton.addEventListener('click', (e) => {
+            e.preventDefault();
+            toggleBlocker();
         });
         
         // Load initial stats

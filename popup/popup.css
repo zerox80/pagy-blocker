@@ -47,8 +47,14 @@ h1 {
     transition: opacity 0.15s ease;
 }
 
-button {
+.controls {
     margin-top: 15px;
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+}
+
+button {
     padding: 8px 15px;
     font-size: 0.9em;
     cursor: pointer;
@@ -57,10 +63,49 @@ button {
     border: none;
     border-radius: 3px;
     transition: background-color 0.2s ease;
+    flex: 1;
+    max-width: 110px;
 }
 
 button:hover {
     background-color: #0056b3;
+}
+
+button:disabled {
+    background-color: #6c757d;
+    cursor: not-allowed;
+}
+
+button.disabled {
+    background-color: #dc3545 !important;
+    color: white !important;
+    font-weight: bold !important;
+}
+
+button.disabled:hover {
+    background-color: #c82333 !important;
+    color: white !important;
+}
+
+button.enabled {
+    background-color: #28a745 !important;
+    color: white !important;
+    font-weight: bold !important;
+}
+
+button.enabled:hover {
+    background-color: #218838 !important;
+    color: white !important;
+}
+
+span.enabled {
+    color: #28a745 !important;
+    font-weight: bold;
+}
+
+span.disabled {
+    color: #dc3545 !important;
+    font-weight: bold;
 }
 
 .note {
