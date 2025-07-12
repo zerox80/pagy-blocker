@@ -2,12 +2,40 @@ let ruleCountElement;
 let refreshButton;
 let toggleButton;
 let statusElement;
+let domainElement;
 let isUpdating = false;
 
 let cachedStats = null;
 let cacheTimestamp = 0;
+let currentDomain = null;
 const POPUP_CACHE_DURATION = 5000;
 const MESSAGE_TIMEOUT = 3000;
+
+function extractDomain(url) {
+    try {
+        const urlObj = new URL(url);
+        return urlObj.hostname.toLowerCase();
+    } catch (error) {
+        console.warn("Invalid URL:", url);
+        return null;
+    }
+}
+
+async function getCurrentTabDomain() {
+    try {
+        const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (tabs.length > 0) {
+            const activeTab = tabs[0];
+            if (activeTab.url && (activeTab.url.startsWith('http://') || activeTab.url.startsWith('https://'))) {
+                return extractDomain(activeTab.url);
+            }
+        }
+        return null;
+    } catch (error) {
+        console.error("Failed to get current tab domain:", error);
+        return null;
+    }
+}
 
 function updateStatsDisplay(stats) {
     if (isUpdating) return;
@@ -27,13 +55,23 @@ function updateStatsDisplay(stats) {
 
 function updateStatusDisplay(enabled) {
     if (statusElement) {
-        statusElement.textContent = enabled ? 'Aktiviert' : 'Deaktiviert';
+        const domainText = currentDomain ? ` für ${currentDomain}` : '';
+        statusElement.textContent = (enabled ? 'Aktiviert' : 'Deaktiviert') + domainText;
         statusElement.className = enabled ? 'enabled' : 'disabled';
     }
     
     if (toggleButton) {
-        toggleButton.textContent = enabled ? 'Deaktivieren' : 'Aktivieren';
+        const actionText = enabled ? 'Deaktivieren' : 'Aktivieren';
+        const domainText = currentDomain ? ` für ${currentDomain}` : '';
+        toggleButton.textContent = actionText + domainText;
         toggleButton.className = enabled ? 'enabled' : 'disabled';
+    }
+    
+    if (domainElement && currentDomain) {
+        domainElement.textContent = currentDomain;
+        domainElement.style.display = 'block';
+    } else if (domainElement) {
+        domainElement.style.display = 'none';
     }
 }
 
@@ -43,12 +81,19 @@ function toggleBlocker() {
         return;
     }
     
-    console.log("Starting toggle...");
+    if (!currentDomain) {
+        console.error("No domain available for toggle");
+        statusElement.textContent = 'Fehler: Keine Domain';
+        statusElement.className = 'error';
+        return;
+    }
+    
+    console.log("Starting toggle for domain:", currentDomain);
     isUpdating = true;
     toggleButton.disabled = true;
     statusElement.textContent = 'Wird geändert...';
     
-    chrome.runtime.sendMessage({ action: "toggleBlocker" }, (response) => {
+    chrome.runtime.sendMessage({ action: "toggleBlocker", domain: currentDomain }, (response) => {
         console.log("Toggle response:", response);
         isUpdating = false;
         toggleButton.disabled = false;
@@ -92,7 +137,7 @@ function reloadRules() {
         }
     }, MESSAGE_TIMEOUT);
     
-    chrome.runtime.sendMessage({ action: "reloadRules" }, (response) => {
+    chrome.runtime.sendMessage({ action: "reloadRules", domain: currentDomain }, (response) => {
         clearTimeout(timeoutId);
         isUpdating = false;
         
@@ -149,7 +194,7 @@ function fetchStats() {
         }
     }, MESSAGE_TIMEOUT);
     
-    chrome.runtime.sendMessage({ action: "getStats" }, (response) => {
+    chrome.runtime.sendMessage({ action: "getStats", domain: currentDomain }, (response) => {
         clearTimeout(timeoutId);
         isUpdating = false;
         
@@ -171,12 +216,15 @@ function fetchStats() {
 }
 
 function tryStorageFallback() {
-    chrome.storage.local.get(['ruleCount', 'ruleStats', 'blockerEnabled']).then(stats => {
+    chrome.storage.local.get(['ruleCount', 'ruleStats', 'disabledWebsites']).then(stats => {
         if (stats.ruleCount !== undefined) {
+            const disabledWebsites = stats.disabledWebsites || [];
+            const enabled = currentDomain ? !disabledWebsites.includes(currentDomain) : true;
+            
             const fallbackStats = {
                 ruleCount: stats.ruleCount,
                 ruleStats: stats.ruleStats || {},
-                enabled: stats.blockerEnabled !== false
+                enabled: enabled
             };
             updateStatsDisplay(fallbackStats);
             updateStatusDisplay(fallbackStats.enabled);
@@ -194,15 +242,28 @@ function tryStorageFallback() {
     });
 }
 
-function initializePopup() {
+async function initializePopup() {
     try {
         ruleCountElement = document.getElementById('rule-count');
         refreshButton = document.getElementById('refresh-button');
         toggleButton = document.getElementById('toggle-button');
         statusElement = document.getElementById('blocker-status');
+        domainElement = document.getElementById('current-domain'); // Optional element
         
         if (!ruleCountElement || !refreshButton || !toggleButton || !statusElement) {
             throw new Error('Required DOM elements not found');
+        }
+        
+        currentDomain = await getCurrentTabDomain();
+        console.log("Current domain:", currentDomain);
+        
+        if (!currentDomain) {
+            statusElement.textContent = 'Nicht auf einer Website';
+            statusElement.className = 'disabled';
+            toggleButton.textContent = 'Nicht verfügbar';
+            toggleButton.disabled = true;
+            ruleCountElement.textContent = 'N/A';
+            return;
         }
         
         refreshButton.addEventListener('click', (e) => {

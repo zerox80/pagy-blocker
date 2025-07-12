@@ -15,6 +15,78 @@ let wasmModule = null;
 
 let initializationPromise = null;
 
+function extractDomain(url) {
+  try {
+    const urlObj = new URL(url);
+    return urlObj.hostname.toLowerCase();
+  } catch (error) {
+    console.warn(`${LOG_PREFIX} Invalid URL:`, url);
+    return null;
+  }
+}
+
+async function getDisabledWebsites() {
+  try {
+    const result = await chrome.storage.local.get(['disabledWebsites']);
+    return result.disabledWebsites || [];
+  } catch (error) {
+    console.warn(`${LOG_PREFIX} Failed to get disabled websites:`, error);
+    return [];
+  }
+}
+
+async function addDisabledWebsite(domain) {
+  try {
+    const disabledWebsites = await getDisabledWebsites();
+    if (!disabledWebsites.includes(domain)) {
+      disabledWebsites.push(domain);
+      await chrome.storage.local.set({ disabledWebsites });
+      console.log(`${LOG_PREFIX} Added ${domain} to disabled websites`);
+    }
+  } catch (error) {
+    console.error(`${LOG_PREFIX} Failed to add disabled website:`, error);
+    throw error;
+  }
+}
+
+async function removeDisabledWebsite(domain) {
+  try {
+    const disabledWebsites = await getDisabledWebsites();
+    const filteredWebsites = disabledWebsites.filter(site => site !== domain);
+    await chrome.storage.local.set({ disabledWebsites: filteredWebsites });
+    console.log(`${LOG_PREFIX} Removed ${domain} from disabled websites`);
+  } catch (error) {
+    console.error(`${LOG_PREFIX} Failed to remove disabled website:`, error);
+    throw error;
+  }
+}
+
+async function isWebsiteDisabled(domain) {
+  const disabledWebsites = await getDisabledWebsites();
+  return disabledWebsites.includes(domain);
+}
+
+async function applyWebsiteExclusions(rules) {
+  const disabledWebsites = await getDisabledWebsites();
+  
+  if (disabledWebsites.length === 0) {
+    return rules;
+  }
+  
+  console.log(`${LOG_PREFIX} Applying exclusions for ${disabledWebsites.length} disabled websites:`, disabledWebsites);
+  
+  return rules.map(rule => {
+    const modifiedRule = { ...rule };
+    if (modifiedRule.condition) {
+      modifiedRule.condition = { 
+        ...modifiedRule.condition,
+        excludedInitiatorDomains: disabledWebsites
+      };
+    }
+    return modifiedRule;
+  });
+}
+
 async function clearBadge() {
   try {
     if (chrome.action?.setBadgeText) {
@@ -74,60 +146,38 @@ function cleanupWasm() {
   }
 }
 
-async function enableBlocker() {
+async function toggleWebsiteBlocking(domain) {
   try {
-    console.log(`${LOG_PREFIX} Enabling blocker...`);
+    const isCurrentlyDisabled = await isWebsiteDisabled(domain);
     
-    await chrome.storage.local.set({ blockerEnabled: true });
+    if (isCurrentlyDisabled) {
+      console.log(`${LOG_PREFIX} Enabling blocker for ${domain}...`);
+      await removeDisabledWebsite(domain);
+    } else {
+      console.log(`${LOG_PREFIX} Disabling blocker for ${domain}...`);
+      await addDisabledWebsite(domain);
+    }
     
     await initialize();
     
-    await clearBadge();
-    console.log(`${LOG_PREFIX} Blocker enabled`);
-    return true;
+    const newStatus = !isCurrentlyDisabled;
+    console.log(`${LOG_PREFIX} Blocker ${newStatus ? 'enabled' : 'disabled'} for ${domain}`);
+    return newStatus;
   } catch (error) {
-    console.error(`${LOG_PREFIX} Failed to enable blocker:`, error);
+    console.error(`${LOG_PREFIX} Failed to toggle blocker for ${domain}:`, error);
     await setErrorBadge('ERR');
     throw error;
   }
 }
 
-async function disableBlocker() {
+async function getBlockerStatus(domain = null) {
   try {
-    console.log(`${LOG_PREFIX} Disabling blocker...`);
-    
-    const existingRules = await chrome.declarativeNetRequest.getDynamicRules();
-    const existingIds = existingRules.map(rule => rule.id);
-    
-    console.log(`${LOG_PREFIX} Found ${existingIds.length} existing rules with IDs:`, existingIds.slice(0, 5));
-    
-    if (existingIds.length > 0) {
-      console.log(`${LOG_PREFIX} Calling updateDynamicRules with removeRuleIds:`, existingIds.slice(0, 5));
-      await chrome.declarativeNetRequest.updateDynamicRules({
-        removeRuleIds: existingIds,
-        addRules: []
-      });
+    if (domain) {
+      const isDisabled = await isWebsiteDisabled(domain);
+      return !isDisabled;
+    } else {
+      return true;
     }
-    
-    await chrome.storage.local.set({ 
-      blockerEnabled: false,
-      ruleCount: 0
-    });
-    await chrome.action.setBadgeText({ text: 'OFF' });
-    await chrome.action.setBadgeBackgroundColor({ color: '#888888' });
-    console.log(`${LOG_PREFIX} Blocker disabled - removed ${existingIds.length} rules`);
-    return true;
-  } catch (error) {
-    console.error(`${LOG_PREFIX} Failed to disable blocker:`, error);
-    await setErrorBadge('ERR');
-    throw error;
-  }
-}
-
-async function getBlockerStatus() {
-  try {
-    const result = await chrome.storage.local.get(['blockerEnabled']);
-    return result.blockerEnabled !== false;
   } catch (error) {
     console.warn(`${LOG_PREFIX} Failed to get blocker status:`, error);
     return true;
@@ -207,7 +257,7 @@ async function parseListWithJS(filterListText) {
               !domain.includes('*') && !domain.includes(' ') && 
               /^[a-zA-Z0-9._-]+$/.test(domain)) {
             
-            rules.push({
+            const rule = {
               id: ruleId++,
               priority: 1,
               action: { type: 'block' },
@@ -215,7 +265,9 @@ async function parseListWithJS(filterListText) {
                 urlFilter: trimmed,
                 resourceTypes: ["script", "image", "xmlhttprequest", "other"]
               }
-            });
+            };
+            
+            rules.push(rule);
             stats.processedRules++;
           } else {
             stats.skippedLines++;
@@ -277,14 +329,6 @@ async function initialize() {
     try {
       console.log(`${LOG_PREFIX} Starting initialization...`);
       
-      const isEnabled = await getBlockerStatus();
-      if (!isEnabled) {
-        console.log(`${LOG_PREFIX} Blocker is disabled, skipping rule loading`);
-        await chrome.action.setBadgeText({ text: 'OFF' });
-        await chrome.action.setBadgeBackgroundColor({ color: '#888888' });
-        return { rules: [], stats: { totalLines: 0, processedRules: 0, skippedLines: 0 } };
-      }
-      
       await clearBadge();
 
       const listText = await fetchFilterList();
@@ -312,12 +356,12 @@ async function initialize() {
         parseResult = await parseListWithJS(listText);
       }
 
-      await updateRules(parseResult.rules);
+      const rulesWithExclusions = await applyWebsiteExclusions(parseResult.rules);
+      await updateRules(rulesWithExclusions);
       await chrome.storage.local.set({ 
         ruleCount: parseResult.rules.length, 
         ruleStats: parseResult.stats,
-        lastUpdate: Date.now(),
-        blockerEnabled: true
+        lastUpdate: Date.now()
       });
 
       await clearBadge();
@@ -355,11 +399,15 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === "getStats") {
     (async () => {
       try {
-        const data = await chrome.storage.local.get(['ruleCount', 'ruleStats', 'blockerEnabled']);
+        const data = await chrome.storage.local.get(['ruleCount', 'ruleStats']);
+        const domain = request.domain;
+        const enabled = domain ? await getBlockerStatus(domain) : true;
+        
         sendResponse({
           ruleCount: data.ruleCount ?? 'N/A',
           ruleStats: data.ruleStats ?? {},
-          enabled: data.blockerEnabled !== false
+          enabled: enabled,
+          domain: domain
         });
       } catch (err) {
         console.error(`${LOG_PREFIX} Error getting stats:`, err);
@@ -373,13 +421,17 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     console.log(`${LOG_PREFIX} Reloading rules...`);
     initialize()
       .then(async () => {
-        const data = await chrome.storage.local.get(['ruleCount', 'ruleStats', 'blockerEnabled']);
+        const data = await chrome.storage.local.get(['ruleCount', 'ruleStats']);
+        const domain = request.domain;
+        const enabled = domain ? await getBlockerStatus(domain) : true;
+        
         sendResponse({
           success: true,
           message: "Rules reloaded successfully",
           ruleCount: data.ruleCount ?? 'N/A',
           ruleStats: data.ruleStats ?? {},
-          enabled: data.blockerEnabled !== false
+          enabled: enabled,
+          domain: domain
         });
       })
       .catch(err => {
@@ -398,14 +450,12 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     console.log(`${LOG_PREFIX} Toggling blocker...`);
     (async () => {
       try {
-        const currentStatus = await getBlockerStatus();
-        const newStatus = !currentStatus;
-        
-        if (newStatus) {
-          await enableBlocker();
-        } else {
-          await disableBlocker();
+        const domain = request.domain;
+        if (!domain) {
+          throw new Error("Domain is required for toggling blocker");
         }
+        
+        const newStatus = await toggleWebsiteBlocking(domain);
         
         try {
           const tabs = await chrome.tabs.query({active: true, currentWindow: true});
@@ -423,13 +473,14 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         sendResponse({
           success: true,
           enabled: newStatus,
-          message: newStatus ? "Blocker enabled" : "Blocker disabled"
+          domain: domain,
+          message: newStatus ? `Blocker enabled for ${domain}` : `Blocker disabled for ${domain}`
         });
       } catch (err) {
         console.error(`${LOG_PREFIX} Toggle failed:`, err);
         sendResponse({
           success: false,
-          enabled: await getBlockerStatus(),
+          enabled: false,
           message: `Failed to toggle: ${err.message}`
         });
       }
