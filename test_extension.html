@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Extension Test</title>
+</head>
+<body>
+    <h1>Chrome Extension Test</h1>
+    <p>This page can be used to test if the extension loads properly.</p>
+    <ol>
+        <li>Open Chrome</li>
+        <li>Go to chrome://extensions/</li>
+        <li>Enable "Developer mode" (top right)</li>
+        <li>Click "Load unpacked"</li>
+        <li>Select this directory: /root/pagy-blocker</li>
+        <li>The extension should load without errors</li>
+    </ol>
+    
+    <h2>Expected Results:</h2>
+    <ul>
+        <li>Extension appears in the extensions list</li>
+        <li>No red error badges</li>
+        <li>Service worker shows as "running" or "inactive" (not "error")</li>
+        <li>Extension icon appears in toolbar</li>
+        <li>Clicking the icon opens the popup</li>
+    </ul>
+
+    <script>
+        console.log('Test page loaded successfully');
+    </script>
+</body>
+</html>
