@@ -2,44 +2,25 @@
 <html lang="de">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'none'; object-src 'none'; frame-src 'none';">
-    <!-- SECURITY: Removed 'unsafe-inline' from CSP to prevent XSS attacks. All styles are now in external CSS files. -->
     <title>Pagy Blocker</title>
     <link rel="stylesheet" href="popup.css">
 </head>
 <body>
-    <div class="container">
-        <header class="header">
-            <img src="../icons/icon48.png" alt="Pagy Blocker Logo" class="logo" width="32" height="32">
-            <h1>Pagy Blocker</h1>
-        </header>
-
-        <div class="toggle-container">
-            <span id="status-text">Aktiviert</span>
-            <label class="switch">
-                <input type="checkbox" id="enable-switch" checked aria-label="Toggle ad blocker">
-                <span class="slider round"></span>
-            </label>
-        </div>
-
-        <div class="blocked-container">
-            <p id="blocked-display">Blockierte Ads: -</p>
-        </div>
-
-        <div class="stats-container">
-            <p id="stats-display">Lade Statistiken...</p>
-        </div>
-
-        <button id="refresh-button" type="button" title="Statistiken und blockierte Ads neu laden">
-            <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16" aria-hidden="true">
-                <path fill-rule="evenodd" d="M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2v1z"/>
-                <path d="M8 4.466V.534a.25.25 0 0 1 .41-.192l2.36 1.966c.12.1.12.284 0 .384L8.41 4.658A.25.25 0 0 1 8 4.466z"/>
-            </svg>
-            Aktualisieren
-        </button>
+    <div class="header">
+        <img src="/icons/icon48.png" alt="Pagy Blocker Logo" class="logo">
+        <h1>Pagy Blocker</h1>
     </div>
-
+    <div class="status-container">
+        <span id="status-text">Aktiviert</span>
+        <label class="switch">
+            <input type="checkbox" id="enable-switch" checked>
+            <span class="slider round"></span>
+        </label>
+    </div>
+    <hr>
+    <div class="stats">
+        <p id="stats-display">Lade Statistiken...</p>
+    </div>
     <script src="popup.js"></script>
 </body>
 </html>

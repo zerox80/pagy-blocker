@@ -6,18 +6,16 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||doubleclick.net^",
+      "urlFilter": "||doubleclick.net",
       "resourceTypes": [
         "main_frame",
         "sub_frame",
-        "stylesheet",
         "script",
         "image",
-        "font",
+        "stylesheet",
         "object",
         "xmlhttprequest",
         "ping",
-        "csp_report",
         "media",
         "websocket",
         "other"
@@ -31,18 +29,16 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||googlesyndication.com^",
+      "urlFilter": "||googlesyndication.com",
       "resourceTypes": [
         "main_frame",
         "sub_frame",
-        "stylesheet",
         "script",
         "image",
-        "font",
+        "stylesheet",
         "object",
         "xmlhttprequest",
         "ping",
-        "csp_report",
         "media",
         "websocket",
         "other"
@@ -56,18 +52,16 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||googleadservices.com^",
+      "urlFilter": "||googleadservices.com",
       "resourceTypes": [
         "main_frame",
         "sub_frame",
-        "stylesheet",
         "script",
         "image",
-        "font",
+        "stylesheet",
         "object",
         "xmlhttprequest",
         "ping",
-        "csp_report",
         "media",
         "websocket",
         "other"
@@ -81,18 +75,16 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||adnxs.com^",
+      "urlFilter": "||adnxs.com",
       "resourceTypes": [
         "main_frame",
         "sub_frame",
-        "stylesheet",
         "script",
         "image",
-        "font",
+        "stylesheet",
         "object",
         "xmlhttprequest",
         "ping",
-        "csp_report",
         "media",
         "websocket",
         "other"
@@ -106,18 +98,16 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||rubiconproject.com^",
+      "urlFilter": "||rubiconproject.com",
       "resourceTypes": [
         "main_frame",
         "sub_frame",
-        "stylesheet",
         "script",
         "image",
-        "font",
+        "stylesheet",
         "object",
         "xmlhttprequest",
         "ping",
-        "csp_report",
         "media",
         "websocket",
         "other"
@@ -131,18 +121,16 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||adform.net^",
+      "urlFilter": "||adform.net",
       "resourceTypes": [
         "main_frame",
         "sub_frame",
-        "stylesheet",
         "script",
         "image",
-        "font",
+        "stylesheet",
         "object",
         "xmlhttprequest",
         "ping",
-        "csp_report",
         "media",
         "websocket",
         "other"
@@ -156,18 +144,16 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||advertising.com^",
+      "urlFilter": "||advertising.com",
       "resourceTypes": [
         "main_frame",
         "sub_frame",
-        "stylesheet",
         "script",
         "image",
-        "font",
+        "stylesheet",
         "object",
         "xmlhttprequest",
         "ping",
-        "csp_report",
         "media",
         "websocket",
         "other"
@@ -181,18 +167,16 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||criteo.com^",
+      "urlFilter": "||criteo.com",
       "resourceTypes": [
         "main_frame",
         "sub_frame",
-        "stylesheet",
         "script",
         "image",
-        "font",
+        "stylesheet",
         "object",
         "xmlhttprequest",
         "ping",
-        "csp_report",
         "media",
         "websocket",
         "other"
@@ -206,18 +190,16 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||criteo.net^",
+      "urlFilter": "||criteo.net",
       "resourceTypes": [
         "main_frame",
         "sub_frame",
-        "stylesheet",
         "script",
         "image",
-        "font",
+        "stylesheet",
         "object",
         "xmlhttprequest",
         "ping",
-        "csp_report",
         "media",
         "websocket",
         "other"
@@ -231,18 +213,16 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||quantserve.com^",
+      "urlFilter": "||quantserve.com",
       "resourceTypes": [
         "main_frame",
         "sub_frame",
-        "stylesheet",
         "script",
         "image",
-        "font",
+        "stylesheet",
         "object",
         "xmlhttprequest",
         "ping",
-        "csp_report",
         "media",
         "websocket",
         "other"
@@ -256,18 +236,16 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||openx.net^",
+      "urlFilter": "||openx.net",
       "resourceTypes": [
         "main_frame",
         "sub_frame",
-        "stylesheet",
         "script",
         "image",
-        "font",
+        "stylesheet",
         "object",
         "xmlhttprequest",
         "ping",
-        "csp_report",
         "media",
         "websocket",
         "other"
@@ -281,18 +259,16 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||pubmatic.com^",
+      "urlFilter": "||pubmatic.com",
       "resourceTypes": [
         "main_frame",
         "sub_frame",
-        "stylesheet",
         "script",
         "image",
-        "font",
+        "stylesheet",
         "object",
         "xmlhttprequest",
         "ping",
-        "csp_report",
         "media",
         "websocket",
         "other"
@@ -306,18 +282,16 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||casalemedia.com^",
+      "urlFilter": "||casalemedia.com",
       "resourceTypes": [
         "main_frame",
         "sub_frame",
-        "stylesheet",
         "script",
         "image",
-        "font",
+        "stylesheet",
         "object",
         "xmlhttprequest",
         "ping",
-        "csp_report",
         "media",
         "websocket",
         "other"
@@ -331,18 +305,16 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||360yield.com^",
+      "urlFilter": "||360yield.com",
       "resourceTypes": [
         "main_frame",
         "sub_frame",
-        "stylesheet",
         "script",
         "image",
-        "font",
+        "stylesheet",
         "object",
         "xmlhttprequest",
         "ping",
-        "csp_report",
         "media",
         "websocket",
         "other"
@@ -356,18 +328,16 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||media.net^",
+      "urlFilter": "||media.net",
       "resourceTypes": [
         "main_frame",
         "sub_frame",
-        "stylesheet",
         "script",
         "image",
-        "font",
+        "stylesheet",
         "object",
         "xmlhttprequest",
         "ping",
-        "csp_report",
         "media",
         "websocket",
         "other"
@@ -381,18 +351,16 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||yieldlab.net^",
+      "urlFilter": "||yieldlab.net",
       "resourceTypes": [
         "main_frame",
         "sub_frame",
-        "stylesheet",
         "script",
         "image",
-        "font",
+        "stylesheet",
         "object",
         "xmlhttprequest",
         "ping",
-        "csp_report",
         "media",
         "websocket",
         "other"
@@ -406,18 +374,16 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||bluekai.com^",
+      "urlFilter": "||bluekai.com",
       "resourceTypes": [
         "main_frame",
         "sub_frame",
-        "stylesheet",
         "script",
         "image",
-        "font",
+        "stylesheet",
         "object",
         "xmlhttprequest",
         "ping",
-        "csp_report",
         "media",
         "websocket",
         "other"
@@ -431,18 +397,16 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||demdex.net^",
+      "urlFilter": "||demdex.net",
       "resourceTypes": [
         "main_frame",
         "sub_frame",
-        "stylesheet",
         "script",
         "image",
-        "font",
+        "stylesheet",
         "object",
         "xmlhttprequest",
         "ping",
-        "csp_report",
         "media",
         "websocket",
         "other"
@@ -456,18 +420,16 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||serving-sys.com^",
+      "urlFilter": "||serving-sys.com",
       "resourceTypes": [
         "main_frame",
         "sub_frame",
-        "stylesheet",
         "script",
         "image",
-        "font",
+        "stylesheet",
         "object",
         "xmlhttprequest",
         "ping",
-        "csp_report",
         "media",
         "websocket",
         "other"
@@ -481,18 +443,16 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||moatads.com^",
+      "urlFilter": "||moatads.com",
       "resourceTypes": [
         "main_frame",
         "sub_frame",
-        "stylesheet",
         "script",
         "image",
-        "font",
+        "stylesheet",
         "object",
         "xmlhttprequest",
         "ping",
-        "csp_report",
         "media",
         "websocket",
         "other"
@@ -506,18 +466,16 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||taboola.com^",
+      "urlFilter": "||taboola.com",
       "resourceTypes": [
         "main_frame",
         "sub_frame",
-        "stylesheet",
         "script",
         "image",
-        "font",
+        "stylesheet",
         "object",
         "xmlhttprequest",
         "ping",
-        "csp_report",
         "media",
         "websocket",
         "other"
@@ -531,18 +489,16 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||outbrain.com^",
+      "urlFilter": "||outbrain.com",
       "resourceTypes": [
         "main_frame",
         "sub_frame",
-        "stylesheet",
         "script",
         "image",
-        "font",
+        "stylesheet",
         "object",
         "xmlhttprequest",
         "ping",
-        "csp_report",
         "media",
         "websocket",
         "other"
@@ -556,18 +512,16 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||scorecardresearch.com^",
+      "urlFilter": "||scorecardresearch.com",
       "resourceTypes": [
         "main_frame",
         "sub_frame",
-        "stylesheet",
         "script",
         "image",
-        "font",
+        "stylesheet",
         "object",
         "xmlhttprequest",
         "ping",
-        "csp_report",
         "media",
         "websocket",
         "other"
@@ -581,18 +535,16 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||flashtalking.com^",
+      "urlFilter": "||flashtalking.com",
       "resourceTypes": [
         "main_frame",
         "sub_frame",
-        "stylesheet",
         "script",
         "image",
-        "font",
+        "stylesheet",
         "object",
         "xmlhttprequest",
         "ping",
-        "csp_report",
         "media",
         "websocket",
         "other"
@@ -606,18 +558,16 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||lijit.com^",
+      "urlFilter": "||lijit.com",
       "resourceTypes": [
         "main_frame",
         "sub_frame",
-        "stylesheet",
         "script",
         "image",
-        "font",
+        "stylesheet",
         "object",
         "xmlhttprequest",
         "ping",
-        "csp_report",
         "media",
         "websocket",
         "other"
@@ -631,18 +581,16 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||smartadserver.com^",
+      "urlFilter": "||smartadserver.com",
       "resourceTypes": [
         "main_frame",
         "sub_frame",
-        "stylesheet",
         "script",
         "image",
-        "font",
+        "stylesheet",
         "object",
         "xmlhttprequest",
         "ping",
-        "csp_report",
         "media",
         "websocket",
         "other"
@@ -656,18 +604,16 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||dotomi.com^",
+      "urlFilter": "||dotomi.com",
       "resourceTypes": [
         "main_frame",
         "sub_frame",
-        "stylesheet",
         "script",
         "image",
-        "font",
+        "stylesheet",
         "object",
         "xmlhttprequest",
         "ping",
-        "csp_report",
         "media",
         "websocket",
         "other"
@@ -681,18 +627,16 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||zedo.com^",
+      "urlFilter": "||zedo.com",
       "resourceTypes": [
         "main_frame",
         "sub_frame",
-        "stylesheet",
         "script",
         "image",
-        "font",
+        "stylesheet",
         "object",
         "xmlhttprequest",
         "ping",
-        "csp_report",
         "media",
         "websocket",
         "other"
@@ -706,18 +650,16 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||tribalfusion.com^",
+      "urlFilter": "||tribalfusion.com",
       "resourceTypes": [
         "main_frame",
         "sub_frame",
-        "stylesheet",
         "script",
         "image",
-        "font",
+        "stylesheet",
         "object",
         "xmlhttprequest",
         "ping",
-        "csp_report",
         "media",
         "websocket",
         "other"
@@ -731,18 +673,16 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||tapad.com^",
+      "urlFilter": "||tapad.com",
       "resourceTypes": [
         "main_frame",
         "sub_frame",
-        "stylesheet",
         "script",
         "image",
-        "font",
+        "stylesheet",
         "object",
         "xmlhttprequest",
         "ping",
-        "csp_report",
         "media",
         "websocket",
         "other"
@@ -756,18 +696,16 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||gumgum.com^",
+      "urlFilter": "||gumgum.com",
       "resourceTypes": [
         "main_frame",
         "sub_frame",
-        "stylesheet",
         "script",
         "image",
-        "font",
+        "stylesheet",
         "object",
         "xmlhttprequest",
         "ping",
-        "csp_report",
         "media",
         "websocket",
         "other"
@@ -781,18 +719,16 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||spotxchange.com^",
+      "urlFilter": "||spotxchange.com",
       "resourceTypes": [
         "main_frame",
         "sub_frame",
-        "stylesheet",
         "script",
         "image",
-        "font",
+        "stylesheet",
         "object",
         "xmlhttprequest",
         "ping",
-        "csp_report",
         "media",
         "websocket",
         "other"
@@ -806,18 +742,16 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||bttrack.com^",
+      "urlFilter": "||bttrack.com",
       "resourceTypes": [
         "main_frame",
         "sub_frame",
-        "stylesheet",
         "script",
         "image",
-        "font",
+        "stylesheet",
         "object",
         "xmlhttprequest",
         "ping",
-        "csp_report",
         "media",
         "websocket",
         "other"
@@ -831,18 +765,16 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||avocet.io^",
+      "urlFilter": "||avocet.io",
       "resourceTypes": [
         "main_frame",
         "sub_frame",
-        "stylesheet",
         "script",
         "image",
-        "font",
+        "stylesheet",
         "object",
         "xmlhttprequest",
         "ping",
-        "csp_report",
         "media",
         "websocket",
         "other"
@@ -856,18 +788,16 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||kargo.com^",
+      "urlFilter": "||kargo.com",
       "resourceTypes": [
         "main_frame",
         "sub_frame",
-        "stylesheet",
         "script",
         "image",
-        "font",
+        "stylesheet",
         "object",
         "xmlhttprequest",
         "ping",
-        "csp_report",
         "media",
         "websocket",
         "other"
@@ -881,18 +811,16 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||adcolony.com^",
+      "urlFilter": "||adcolony.com",
       "resourceTypes": [
         "main_frame",
         "sub_frame",
-        "stylesheet",
         "script",
         "image",
-        "font",
+        "stylesheet",
         "object",
         "xmlhttprequest",
         "ping",
-        "csp_report",
         "media",
         "websocket",
         "other"
@@ -906,18 +834,16 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||fyber.com^",
+      "urlFilter": "||fyber.com",
       "resourceTypes": [
         "main_frame",
         "sub_frame",
-        "stylesheet",
         "script",
         "image",
-        "font",
+        "stylesheet",
         "object",
         "xmlhttprequest",
         "ping",
-        "csp_report",
         "media",
         "websocket",
         "other"
@@ -931,18 +857,16 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||appnexus.com^",
+      "urlFilter": "||appnexus.com",
       "resourceTypes": [
         "main_frame",
         "sub_frame",
-        "stylesheet",
         "script",
         "image",
-        "font",
+        "stylesheet",
         "object",
         "xmlhttprequest",
         "ping",
-        "csp_report",
         "media",
         "websocket",
         "other"
@@ -956,18 +880,16 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||indexexchange.com^",
+      "urlFilter": "||indexexchange.com",
       "resourceTypes": [
         "main_frame",
         "sub_frame",
-        "stylesheet",
         "script",
         "image",
-        "font",
+        "stylesheet",
         "object",
         "xmlhttprequest",
         "ping",
-        "csp_report",
         "media",
         "websocket",
         "other"
@@ -981,18 +903,16 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||imrworldwide.com^",
+      "urlFilter": "||imrworldwide.com",
       "resourceTypes": [
         "main_frame",
         "sub_frame",
-        "stylesheet",
         "script",
         "image",
-        "font",
+        "stylesheet",
         "object",
         "xmlhttprequest",
         "ping",
-        "csp_report",
         "media",
         "websocket",
         "other"
@@ -1006,18 +926,16 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||triplelift.com^",
+      "urlFilter": "||triplelift.com",
       "resourceTypes": [
         "main_frame",
         "sub_frame",
-        "stylesheet",
         "script",
         "image",
-        "font",
+        "stylesheet",
         "object",
         "xmlhttprequest",
         "ping",
-        "csp_report",
         "media",
         "websocket",
         "other"
@@ -1031,18 +949,16 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||sonobi.com^",
+      "urlFilter": "||sonobi.com",
       "resourceTypes": [
         "main_frame",
         "sub_frame",
-        "stylesheet",
         "script",
         "image",
-        "font",
+        "stylesheet",
         "object",
         "xmlhttprequest",
         "ping",
-        "csp_report",
         "media",
         "websocket",
         "other"
@@ -1056,18 +972,16 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||bidswitch.net^",
+      "urlFilter": "||bidswitch.net",
       "resourceTypes": [
         "main_frame",
         "sub_frame",
-        "stylesheet",
         "script",
         "image",
-        "font",
+        "stylesheet",
         "object",
         "xmlhttprequest",
         "ping",
-        "csp_report",
         "media",
         "websocket",
         "other"
@@ -1081,18 +995,16 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||bannerflow.com^",
+      "urlFilter": "||bannerflow.com",
       "resourceTypes": [
         "main_frame",
         "sub_frame",
-        "stylesheet",
         "script",
         "image",
-        "font",
+        "stylesheet",
         "object",
         "xmlhttprequest",
         "ping",
-        "csp_report",
         "media",
         "websocket",
         "other"
@@ -1106,18 +1018,16 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||revcontent.com^",
+      "urlFilter": "||revcontent.com",
       "resourceTypes": [
         "main_frame",
         "sub_frame",
-        "stylesheet",
         "script",
         "image",
-        "font",
+        "stylesheet",
         "object",
         "xmlhttprequest",
         "ping",
-        "csp_report",
         "media",
         "websocket",
         "other"
@@ -1131,18 +1041,16 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||mediamath.com^",
+      "urlFilter": "||mediamath.com",
       "resourceTypes": [
         "main_frame",
         "sub_frame",
-        "stylesheet",
         "script",
         "image",
-        "font",
+        "stylesheet",
         "object",
         "xmlhttprequest",
         "ping",
-        "csp_report",
         "media",
         "websocket",
         "other"
@@ -1156,18 +1064,16 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||semasio.net^",
+      "urlFilter": "||semasio.net",
       "resourceTypes": [
         "main_frame",
         "sub_frame",
-        "stylesheet",
         "script",
         "image",
-        "font",
+        "stylesheet",
         "object",
         "xmlhttprequest",
         "ping",
-        "csp_report",
         "media",
         "websocket",
         "other"
@@ -1181,18 +1087,16 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||everesttech.net^",
+      "urlFilter": "||everesttech.net",
       "resourceTypes": [
         "main_frame",
         "sub_frame",
-        "stylesheet",
         "script",
         "image",
-        "font",
+        "stylesheet",
         "object",
         "xmlhttprequest",
         "ping",
-        "csp_report",
         "media",
         "websocket",
         "other"
@@ -1206,18 +1110,16 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||adroll.com^",
+      "urlFilter": "||adroll.com",
       "resourceTypes": [
         "main_frame",
         "sub_frame",
-        "stylesheet",
         "script",
         "image",
-        "font",
+        "stylesheet",
         "object",
         "xmlhttprequest",
         "ping",
-        "csp_report",
         "media",
         "websocket",
         "other"
@@ -1231,18 +1133,16 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||adservicemedia.com^",
+      "urlFilter": "||adservicemedia.com",
       "resourceTypes": [
         "main_frame",
         "sub_frame",
-        "stylesheet",
         "script",
         "image",
-        "font",
+        "stylesheet",
         "object",
         "xmlhttprequest",
         "ping",
-        "csp_report",
         "media",
         "websocket",
         "other"
@@ -1256,18 +1156,16 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||adblade.com^",
+      "urlFilter": "||adblade.com",
       "resourceTypes": [
         "main_frame",
         "sub_frame",
-        "stylesheet",
         "script",
         "image",
-        "font",
+        "stylesheet",
         "object",
         "xmlhttprequest",
         "ping",
-        "csp_report",
         "media",
         "websocket",
         "other"
@@ -1281,18 +1179,16 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||undertone.com^",
+      "urlFilter": "||undertone.com",
       "resourceTypes": [
         "main_frame",
         "sub_frame",
-        "stylesheet",
         "script",
         "image",
-        "font",
+        "stylesheet",
         "object",
         "xmlhttprequest",
         "ping",
-        "csp_report",
         "media",
         "websocket",
         "other"
@@ -1306,18 +1202,16 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||amazon.advertising.com^",
+      "urlFilter": "||amazon.advertising.com",
       "resourceTypes": [
         "main_frame",
         "sub_frame",
-        "stylesheet",
         "script",
         "image",
-        "font",
+        "stylesheet",
         "object",
         "xmlhttprequest",
         "ping",
-        "csp_report",
         "media",
         "websocket",
         "other"
@@ -1331,18 +1225,16 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||ads.facebook.com^",
+      "urlFilter": "||ads.facebook.com",
       "resourceTypes": [
         "main_frame",
         "sub_frame",
-        "stylesheet",
         "script",
         "image",
-        "font",
+        "stylesheet",
         "object",
         "xmlhttprequest",
         "ping",
-        "csp_report",
         "media",
         "websocket",
         "other"
@@ -1356,18 +1248,16 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||ads.twitter.com^",
+      "urlFilter": "||ads.twitter.com",
       "resourceTypes": [
         "main_frame",
         "sub_frame",
-        "stylesheet",
         "script",
         "image",
-        "font",
+        "stylesheet",
         "object",
         "xmlhttprequest",
         "ping",
-        "csp_report",
         "media",
         "websocket",
         "other"
@@ -1381,18 +1271,16 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||ads.linkedin.com^",
+      "urlFilter": "||ads.linkedin.com",
       "resourceTypes": [
         "main_frame",
         "sub_frame",
-        "stylesheet",
         "script",
         "image",
-        "font",
+        "stylesheet",
         "object",
         "xmlhttprequest",
         "ping",
-        "csp_report",
         "media",
         "websocket",
         "other"
@@ -1406,18 +1294,16 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||ads.pinterest.com^",
+      "urlFilter": "||ads.pinterest.com",
       "resourceTypes": [
         "main_frame",
         "sub_frame",
-        "stylesheet",
         "script",
         "image",
-        "font",
+        "stylesheet",
         "object",
         "xmlhttprequest",
         "ping",
-        "csp_report",
         "media",
         "websocket",
         "other"
@@ -1431,18 +1317,16 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||ads.tiktok.com^",
+      "urlFilter": "||ads.tiktok.com",
       "resourceTypes": [
         "main_frame",
         "sub_frame",
-        "stylesheet",
         "script",
         "image",
-        "font",
+        "stylesheet",
         "object",
         "xmlhttprequest",
         "ping",
-        "csp_report",
         "media",
         "websocket",
         "other"
@@ -1456,18 +1340,16 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||ads.reddit.com^",
+      "urlFilter": "||ads.reddit.com",
       "resourceTypes": [
         "main_frame",
         "sub_frame",
-        "stylesheet",
         "script",
         "image",
-        "font",
+        "stylesheet",
         "object",
         "xmlhttprequest",
         "ping",
-        "csp_report",
         "media",
         "websocket",
         "other"
@@ -1481,18 +1363,16 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||ads.snapchat.com^",
+      "urlFilter": "||ads.snapchat.com",
       "resourceTypes": [
         "main_frame",
         "sub_frame",
-        "stylesheet",
         "script",
         "image",
-        "font",
+        "stylesheet",
         "object",
         "xmlhttprequest",
         "ping",
-        "csp_report",
         "media",
         "websocket",
         "other"
@@ -1506,18 +1386,16 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||ads.yahoo.com^",
+      "urlFilter": "||ads.yahoo.com",
       "resourceTypes": [
         "main_frame",
         "sub_frame",
-        "stylesheet",
         "script",
         "image",
-        "font",
+        "stylesheet",
         "object",
         "xmlhttprequest",
         "ping",
-        "csp_report",
         "media",
         "websocket",
         "other"
@@ -1531,18 +1409,16 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||adsapi.twitter.com^",
+      "urlFilter": "||adsapi.twitter.com",
       "resourceTypes": [
         "main_frame",
         "sub_frame",
-        "stylesheet",
         "script",
         "image",
-        "font",
+        "stylesheet",
         "object",
         "xmlhttprequest",
         "ping",
-        "csp_report",
         "media",
         "websocket",
         "other"
@@ -1556,18 +1432,16 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||adsystem.apple.com^",
+      "urlFilter": "||adsystem.apple.com",
       "resourceTypes": [
         "main_frame",
         "sub_frame",
-        "stylesheet",
         "script",
         "image",
-        "font",
+        "stylesheet",
         "object",
         "xmlhttprequest",
         "ping",
-        "csp_report",
         "media",
         "websocket",
         "other"
@@ -1581,18 +1455,16 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||ads.microsoft.com^",
+      "urlFilter": "||ads.microsoft.com",
       "resourceTypes": [
         "main_frame",
         "sub_frame",
-        "stylesheet",
         "script",
         "image",
-        "font",
+        "stylesheet",
         "object",
         "xmlhttprequest",
         "ping",
-        "csp_report",
         "media",
         "websocket",
         "other"
@@ -1606,18 +1478,16 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||googletag.com^",
+      "urlFilter": "||googletag.com",
       "resourceTypes": [
         "main_frame",
         "sub_frame",
-        "stylesheet",
         "script",
         "image",
-        "font",
+        "stylesheet",
         "object",
         "xmlhttprequest",
         "ping",
-        "csp_report",
         "media",
         "websocket",
         "other"
@@ -1631,18 +1501,16 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||googletagservices.com^",
+      "urlFilter": "||googletagservices.com",
       "resourceTypes": [
         "main_frame",
         "sub_frame",
-        "stylesheet",
         "script",
         "image",
-        "font",
+        "stylesheet",
         "object",
         "xmlhttprequest",
         "ping",
-        "csp_report",
         "media",
         "websocket",
         "other"
@@ -1656,18 +1524,16 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||youtube.com/api/ads^",
+      "urlFilter": "||youtube.com/api/ads",
       "resourceTypes": [
         "main_frame",
         "sub_frame",
-        "stylesheet",
         "script",
         "image",
-        "font",
+        "stylesheet",
         "object",
         "xmlhttprequest",
         "ping",
-        "csp_report",
         "media",
         "websocket",
         "other"
@@ -1681,18 +1547,16 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||facebook.com/ads^",
+      "urlFilter": "||facebook.com/ads",
       "resourceTypes": [
         "main_frame",
         "sub_frame",
-        "stylesheet",
         "script",
         "image",
-        "font",
+        "stylesheet",
         "object",
         "xmlhttprequest",
         "ping",
-        "csp_report",
         "media",
         "websocket",
         "other"
@@ -1706,18 +1570,16 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||facebook.com/tr^",
+      "urlFilter": "||facebook.com/tr",
       "resourceTypes": [
         "main_frame",
         "sub_frame",
-        "stylesheet",
         "script",
         "image",
-        "font",
+        "stylesheet",
         "object",
         "xmlhttprequest",
         "ping",
-        "csp_report",
         "media",
         "websocket",
         "other"
@@ -1731,18 +1593,16 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||twitter.com/ads^",
+      "urlFilter": "||twitter.com/ads",
       "resourceTypes": [
         "main_frame",
         "sub_frame",
-        "stylesheet",
         "script",
         "image",
-        "font",
+        "stylesheet",
         "object",
         "xmlhttprequest",
         "ping",
-        "csp_report",
         "media",
         "websocket",
         "other"
@@ -1756,18 +1616,16 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||twitter.com/i/ads^",
+      "urlFilter": "||twitter.com/i/ads",
       "resourceTypes": [
         "main_frame",
         "sub_frame",
-        "stylesheet",
         "script",
         "image",
-        "font",
+        "stylesheet",
         "object",
         "xmlhttprequest",
         "ping",
-        "csp_report",
         "media",
         "websocket",
         "other"
@@ -1781,18 +1639,16 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||x.com/ads^",
+      "urlFilter": "||x.com/ads",
       "resourceTypes": [
         "main_frame",
         "sub_frame",
-        "stylesheet",
         "script",
         "image",
-        "font",
+        "stylesheet",
         "object",
         "xmlhttprequest",
         "ping",
-        "csp_report",
         "media",
         "websocket",
         "other"
@@ -1806,18 +1662,16 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||x.com/i/ads^",
+      "urlFilter": "||x.com/i/ads",
       "resourceTypes": [
         "main_frame",
         "sub_frame",
-        "stylesheet",
         "script",
         "image",
-        "font",
+        "stylesheet",
         "object",
         "xmlhttprequest",
         "ping",
-        "csp_report",
         "media",
         "websocket",
         "other"
@@ -1831,18 +1685,16 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||reddit.com/api/promoted^",
+      "urlFilter": "||reddit.com/api/promoted",
       "resourceTypes": [
         "main_frame",
         "sub_frame",
-        "stylesheet",
         "script",
         "image",
-        "font",
+        "stylesheet",
         "object",
         "xmlhttprequest",
         "ping",
-        "csp_report",
         "media",
         "websocket",
         "other"
@@ -1856,18 +1708,16 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||redditads.com^",
+      "urlFilter": "||redditads.com",
       "resourceTypes": [
         "main_frame",
         "sub_frame",
-        "stylesheet",
         "script",
         "image",
-        "font",
+        "stylesheet",
         "object",
         "xmlhttprequest",
         "ping",
-        "csp_report",
         "media",
         "websocket",
         "other"
@@ -1881,18 +1731,16 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||linkedin.com/ads^",
+      "urlFilter": "||linkedin.com/ads",
       "resourceTypes": [
         "main_frame",
         "sub_frame",
-        "stylesheet",
         "script",
         "image",
-        "font",
+        "stylesheet",
         "object",
         "xmlhttprequest",
         "ping",
-        "csp_report",
         "media",
         "websocket",
         "other"
@@ -1906,18 +1754,16 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||licdn.com/ads^",
+      "urlFilter": "||licdn.com/ads",
       "resourceTypes": [
         "main_frame",
         "sub_frame",
-        "stylesheet",
         "script",
         "image",
-        "font",
+        "stylesheet",
         "object",
         "xmlhttprequest",
         "ping",
-        "csp_report",
         "media",
         "websocket",
         "other"
@@ -1931,18 +1777,16 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||adssettings.google.com^",
+      "urlFilter": "||adssettings.google.com",
       "resourceTypes": [
         "main_frame",
         "sub_frame",
-        "stylesheet",
         "script",
         "image",
-        "font",
+        "stylesheet",
         "object",
         "xmlhttprequest",
         "ping",
-        "csp_report",
         "media",
         "websocket",
         "other"
@@ -1956,18 +1800,16 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||adsense.google.com^",
+      "urlFilter": "||adsense.google.com",
       "resourceTypes": [
         "main_frame",
         "sub_frame",
-        "stylesheet",
         "script",
         "image",
-        "font",
+        "stylesheet",
         "object",
         "xmlhttprequest",
         "ping",
-        "csp_report",
         "media",
         "websocket",
         "other"
@@ -1981,18 +1823,16 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||adservice.google.com^",
+      "urlFilter": "||adservice.google.com",
       "resourceTypes": [
         "main_frame",
         "sub_frame",
-        "stylesheet",
         "script",
         "image",
-        "font",
+        "stylesheet",
         "object",
         "xmlhttprequest",
         "ping",
-        "csp_report",
         "media",
         "websocket",
         "other"
@@ -2006,18 +1846,16 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||afs.googleapis.com^",
+      "urlFilter": "||afs.googleapis.com",
       "resourceTypes": [
         "main_frame",
         "sub_frame",
-        "stylesheet",
         "script",
         "image",
-        "font",
+        "stylesheet",
         "object",
         "xmlhttprequest",
         "ping",
-        "csp_report",
         "media",
         "websocket",
         "other"
@@ -2031,18 +1869,16 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||clickserve.dartsearch.net^",
+      "urlFilter": "||clickserve.dartsearch.net",
       "resourceTypes": [
         "main_frame",
         "sub_frame",
-        "stylesheet",
         "script",
         "image",
-        "font",
+        "stylesheet",
         "object",
         "xmlhttprequest",
         "ping",
-        "csp_report",
         "media",
         "websocket",
         "other"
@@ -2056,18 +1892,16 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||2mdn.net^",
+      "urlFilter": "||2mdn.net",
       "resourceTypes": [
         "main_frame",
         "sub_frame",
-        "stylesheet",
         "script",
         "image",
-        "font",
+        "stylesheet",
         "object",
         "xmlhttprequest",
         "ping",
-        "csp_report",
         "media",
         "websocket",
         "other"
@@ -2081,18 +1915,16 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||googleadservices.com/pagead^",
+      "urlFilter": "||googleadservices.com/pagead",
       "resourceTypes": [
         "main_frame",
         "sub_frame",
-        "stylesheet",
         "script",
         "image",
-        "font",
+        "stylesheet",
         "object",
         "xmlhttprequest",
         "ping",
-        "csp_report",
         "media",
         "websocket",
         "other"
@@ -2106,18 +1938,16 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||adsystem.pinterest.com^",
+      "urlFilter": "||adsystem.pinterest.com",
       "resourceTypes": [
         "main_frame",
         "sub_frame",
-        "stylesheet",
         "script",
         "image",
-        "font",
+        "stylesheet",
         "object",
         "xmlhttprequest",
         "ping",
-        "csp_report",
         "media",
         "websocket",
         "other"
@@ -2131,18 +1961,16 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||tiktokv.com/ads^",
+      "urlFilter": "||tiktokv.com/ads",
       "resourceTypes": [
         "main_frame",
         "sub_frame",
-        "stylesheet",
         "script",
         "image",
-        "font",
+        "stylesheet",
         "object",
         "xmlhttprequest",
         "ping",
-        "csp_report",
         "media",
         "websocket",
         "other"
@@ -2156,18 +1984,16 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||musical.ly/ads^",
+      "urlFilter": "||musical.ly/ads",
       "resourceTypes": [
         "main_frame",
         "sub_frame",
-        "stylesheet",
         "script",
         "image",
-        "font",
+        "stylesheet",
         "object",
         "xmlhttprequest",
         "ping",
-        "csp_report",
         "media",
         "websocket",
         "other"
@@ -2181,18 +2007,16 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||snapads.com^",
+      "urlFilter": "||snapads.com",
       "resourceTypes": [
         "main_frame",
         "sub_frame",
-        "stylesheet",
         "script",
         "image",
-        "font",
+        "stylesheet",
         "object",
         "xmlhttprequest",
         "ping",
-        "csp_report",
         "media",
         "websocket",
         "other"
@@ -2206,18 +2030,16 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||snap.com/ads^",
+      "urlFilter": "||snap.com/ads",
       "resourceTypes": [
         "main_frame",
         "sub_frame",
-        "stylesheet",
         "script",
         "image",
-        "font",
+        "stylesheet",
         "object",
         "xmlhttprequest",
         "ping",
-        "csp_report",
         "media",
         "websocket",
         "other"
@@ -2231,18 +2053,16 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||bing.com/ads^",
+      "urlFilter": "||bing.com/ads",
       "resourceTypes": [
         "main_frame",
         "sub_frame",
-        "stylesheet",
         "script",
         "image",
-        "font",
+        "stylesheet",
         "object",
         "xmlhttprequest",
         "ping",
-        "csp_report",
         "media",
         "websocket",
         "other"
@@ -2256,18 +2076,16 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||microsoft.com/ads^",
+      "urlFilter": "||microsoft.com/ads",
       "resourceTypes": [
         "main_frame",
         "sub_frame",
-        "stylesheet",
         "script",
         "image",
-        "font",
+        "stylesheet",
         "object",
         "xmlhttprequest",
         "ping",
-        "csp_report",
         "media",
         "websocket",
         "other"
@@ -2281,18 +2099,16 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||live.com/ads^",
+      "urlFilter": "||live.com/ads",
       "resourceTypes": [
         "main_frame",
         "sub_frame",
-        "stylesheet",
         "script",
         "image",
-        "font",
+        "stylesheet",
         "object",
         "xmlhttprequest",
         "ping",
-        "csp_report",
         "media",
         "websocket",
         "other"
@@ -2306,18 +2122,16 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||outlook.com/ads^",
+      "urlFilter": "||outlook.com/ads",
       "resourceTypes": [
         "main_frame",
         "sub_frame",
-        "stylesheet",
         "script",
         "image",
-        "font",
+        "stylesheet",
         "object",
         "xmlhttprequest",
         "ping",
-        "csp_report",
         "media",
         "websocket",
         "other"
