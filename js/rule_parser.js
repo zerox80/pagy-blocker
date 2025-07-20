@@ -387,8 +387,6 @@ async function validateURLPattern(pattern) {
     }
     
     return { isValid: true, type: patternResult.type };
-
-    return { isValid: false, error: 'Unrecognized pattern format' };
 }
 
 /**

@@ -1,6 +1,6 @@
 {
   "name": "pagy-blocker",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "description": "Ultra-fast ad blocker with advanced performance optimizations",
   "type": "module",
   "scripts": {

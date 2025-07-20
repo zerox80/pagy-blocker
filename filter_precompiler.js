@@ -83,137 +83,35 @@ function createRuleObject(line, id) {
 
 
 /**
- * PERFORMANCE OPTIMIZED: Multi-threaded filter compilation with parallel processing
- * Supports large filter lists with minimal blocking and efficient memory usage
+ * SIMPLIFIED: Efficient single-threaded filter compilation
+ * Optimized for Node.js environment with fast processing
  */
 export async function precompileFilterList(filterText) {
-    console.time('Parallel-Precompilation');
+    console.time('Filter-Precompilation');
 
     const lines = filterText.split(/\r?\n/);
     const totalLines = lines.length;
     
-    // Performance optimization: Use parallel processing for large filter lists
-    const CHUNK_SIZE = Math.max(1000, Math.ceil(totalLines / (navigator.hardwareConcurrency || 4)));
-    const MAX_WORKERS = Math.min(4, navigator.hardwareConcurrency || 2);
+    console.log(`📊 Processing ${totalLines} lines with optimized single-threaded approach`);
     
-    console.log(`📊 Processing ${totalLines} lines in ${MAX_WORKERS} parallel workers with chunk size ${CHUNK_SIZE}`);
+    const result = processSingleThreaded(lines);
     
-    if (totalLines < 5000) {
-        // Use single-threaded processing for small lists to avoid overhead
-        return processSingleThreaded(lines);
-    }
+    console.timeEnd('Filter-Precompilation');
     
-    // Split lines into chunks for parallel processing
-    const chunks = [];
-    for (let i = 0; i < lines.length; i += CHUNK_SIZE) {
-        chunks.push({
-            lines: lines.slice(i, i + CHUNK_SIZE),
-            startIndex: i
-        });
-    }
-    
-    // Process chunks in parallel batches
-    const allResults = [];
-    const globalSeenRules = new Set();
-    
-    for (let batchStart = 0; batchStart < chunks.length; batchStart += MAX_WORKERS) {
-        const batch = chunks.slice(batchStart, batchStart + MAX_WORKERS);
-        
-        // Process batch in parallel
-        const batchPromises = batch.map(chunk => processChunkParallel(chunk, globalSeenRules));
-        const batchResults = await Promise.all(batchPromises);
-        
-        allResults.push(...batchResults);
-        
-        // Yield control between batches to prevent blocking
-        if (batchStart + MAX_WORKERS < chunks.length) {
-            await new Promise(resolve => setImmediate ? setImmediate(resolve) : setTimeout(resolve, 0));
-        }
-    }
-    
-    // Merge results from all chunks
-    const mergedResult = mergeChunkResults(allResults, totalLines);
-    
-    console.timeEnd('Parallel-Precompilation');
-    
-    const stats = mergedResult.stats;
-    console.log(`🚀 Parallel compilation completed: ${stats.processedRules} rules processed across ${allResults.length} chunks`);
+    const stats = result.stats;
+    console.log(`🚀 Compilation completed: ${stats.processedRules} rules processed`);
     console.log(`📊 Duplicates removed: ${stats.duplicates}`);
-    console.log(`⚡ Performance gain: ~${Math.round((allResults.length - 1) * 100 / allResults.length)}% faster with parallel processing`);
     
     if (stats.errors > 0) {
         console.log(`⚠️ Fehlerhafte Regeln: ${stats.errors}`);
     }
     
-    return mergedResult;
+    return result;
 }
 
-/**
- * Processes a chunk of lines in a separate thread-like context
- * @param {Object} chunk - Chunk containing lines and start index
- * @param {Set} globalSeenRules - Global set for deduplication
- * @returns {Promise<Object>} Processed chunk results
- */
-async function processChunkParallel(chunk, globalSeenRules) {
-    return new Promise((resolve) => {
-        // Use requestIdleCallback for better performance when available
-        const processFunction = () => {
-            const { lines, startIndex } = chunk;
-            const compiledRules = [];
-            const localSeenRules = new Set();
-            let duplicatesCount = 0;
-            let errorsCount = 0;
-            let ruleId = startIndex + 1;
-            
-            for (let i = 0; i < lines.length; i++) {
-                const trimmedLine = lines[i].trim();
-                
-                if (isValidRuleLine(trimmedLine)) {
-                    // Check both global and local deduplication
-                    if (!globalSeenRules.has(trimmedLine) && !localSeenRules.has(trimmedLine)) {
-                        globalSeenRules.add(trimmedLine);
-                        localSeenRules.add(trimmedLine);
-                        
-                        try {
-                            const ruleObject = createRuleObject(trimmedLine, ruleId++);
-                            compiledRules.push(ruleObject);
-                        } catch (error) {
-                            errorsCount++;
-                            console.warn(`❌ Chunk error for rule "${trimmedLine}": ${error.message}`);
-                        }
-                    } else {
-                        duplicatesCount++;
-                    }
-                }
-                
-                // Yield periodically within chunk to maintain responsiveness
-                if (i > 0 && i % 200 === 0) {
-                    // Break execution to allow other tasks
-                    setTimeout(() => {}, 0);
-                }
-            }
-            
-            resolve({
-                rules: compiledRules,
-                duplicates: duplicatesCount,
-                errors: errorsCount,
-                processed: lines.length
-            });
-        };
-        
-        // Use available scheduling APIs for optimal performance
-        if (typeof window !== 'undefined' && window.requestIdleCallback) {
-            requestIdleCallback(processFunction, { timeout: 100 });
-        } else if (typeof setImmediate !== 'undefined') {
-            setImmediate(processFunction);
-        } else {
-            setTimeout(processFunction, 0);
-        }
-    });
-}
 
 /**
- * Fallback single-threaded processing for small filter lists
+ * Optimized single-threaded processing for all filter lists
  * @param {string[]} lines - Array of filter lines
  * @returns {Object} Processing results
  */
@@ -254,37 +152,6 @@ function processSingleThreaded(lines) {
     };
 }
 
-/**
- * Merges results from multiple parallel chunks
- * @param {Array<Object>} chunkResults - Array of chunk processing results
- * @param {number} totalLines - Total number of input lines
- * @returns {Object} Merged compilation results
- */
-function mergeChunkResults(chunkResults, totalLines) {
-    const allRules = [];
-    let totalDuplicates = 0;
-    let totalErrors = 0;
-    
-    // Flatten and merge all chunk results
-    for (const chunkResult of chunkResults) {
-        allRules.push(...chunkResult.rules);
-        totalDuplicates += chunkResult.duplicates;
-        totalErrors += chunkResult.errors;
-    }
-    
-    // Sort rules by ID to maintain consistent output
-    allRules.sort((a, b) => a.id - b.id);
-    
-    return {
-        rules: allRules,
-        stats: {
-            totalLines,
-            processedRules: allRules.length,
-            duplicates: totalDuplicates,
-            errors: totalErrors
-        }
-    };
-}
 
 
 /**

@@ -7,14 +7,21 @@
       ".ad_cclk",
       "#tads",
       ".ads-ad",
-      ".uEierd"
+      ".uEierd",
+      ".ads-bdr",
+      ".commercial-unit-desktop-rhs",
+      "[data-ved]",
+      ".ads-fr",
+      ".pla-unit-single-clickable-target"
     ]
   },
   "mail.google.com": {
     "selectors": [
       "[data-category='promotion']",
       ".aKB .nH .aKs",
-      ".no .if .aKs"
+      ".no .if .aKs",
+      "[data-thread-id*='promo']",
+      ".zA[data-legacy-thread-id*='promotion']"
     ]
   },
   "youtube.com": {
@@ -24,7 +31,14 @@
       "ytd-companion-slot-renderer",
       "ytd-banner-promo-renderer",
       ".video-ads",
-      ".ytp-ad-module"
+      ".ytp-ad-module",
+      ".ytp-ad-overlay-container",
+      ".ytp-ad-text",
+      "ytd-promoted-video-renderer",
+      ".ytd-display-ad-renderer",
+      "ytd-ad-slot-renderer",
+      ".ytp-ad-skip-button-container",
+      "#masthead-ad"
     ]
   },
   "facebook.com": {
@@ -32,13 +46,21 @@
       "[data-pagelet='RightRail']",
       "[aria-label*='Sponsored']",
       "[data-testid='story-subtitle'] a[href*='/ads/']",
-      "div[data-testid='placeholder-post']"
+      "div[data-testid='placeholder-post']",
+      "[data-pagelet*='ads']",
+      "[data-testid*='sponsored']",
+      ".fbAdvert",
+      "[data-ft*='\"qid\"']",
+      "div[role='article']:has([aria-label*='Sponsored'])"
     ]
   },
   "instagram.com": {
     "selectors": [
       "article:has([data-testid='post_context'])",
-      "[data-testid='post_context']"
+      "[data-testid='post_context']",
+      "div:has([role='button'] [aria-label*='Sponsored'])",
+      "[data-testid='sponsored-label']",
+      "article:has(span:contains('Sponsored'))"
     ]
   },
   "amazon.com": {
@@ -46,28 +68,75 @@
       ".s-sponsored-info-icon",
       "[data-component-type='sp-sponsored-result']",
       ".AdHolder",
-      "[data-cy='title-recipe-card'] [aria-label*='Sponsored']"
+      "[data-cy='title-recipe-card'] [aria-label*='Sponsored']",
+      ".puis-sponsored-label-text",
+      ".s-label-popover-hover",
+      "[data-asin][data-index]:has(.puis-sponsored-label-text)",
+      ".a-section.a-spacing-none:has(.puis-sponsored-label-text)",
+      ".s-result-item:has(.s-sponsored-info-icon)"
     ]
   },
   "twitter.com": {
     "selectors": [
       "[data-testid='placementTracking']",
       "article:has([aria-label*='Promoted'])",
-      "[data-testid='trendItem']:has([aria-label*='Promoted'])"
+      "[data-testid='trendItem']:has([aria-label*='Promoted'])",
+      "[data-testid='trend']:has(span:contains('Promoted'))",
+      "div[data-testid='cellInnerDiv']:has([aria-label*='Promoted'])"
     ]
   },
   "x.com": {
     "selectors": [
       "[data-testid='placementTracking']",
       "article:has([aria-label*='Promoted'])",
-      "[data-testid='trendItem']:has([aria-label*='Promoted'])"
+      "[data-testid='trendItem']:has([aria-label*='Promoted'])",
+      "[data-testid='trend']:has(span:contains('Promoted'))",
+      "div[data-testid='cellInnerDiv']:has([aria-label*='Promoted'])"
     ]
   },
   "reddit.com": {
     "selectors": [
       "[data-testid='post-container']:has([data-testid='post-content'] [data-adclicklocation])",
       ".promotedlink",
-      "[data-promoted='true']"
+      "[data-promoted='true']",
+      "[data-click-id='promoted']",
+      ".promoted-posts",
+      "div:has([data-testid='post-content'] [data-adclicklocation])"
+    ]
+  },
+  "linkedin.com": {
+    "selectors": [
+      ".feed-shared-update-v2:has(.update-components-actor__description:contains('Promoted'))",
+      "[data-urn*='sponsoredUpdate']",
+      ".ad-banner-container",
+      ".scaffold-finite-scroll__content:has(.update-components-actor__description:contains('Promoted'))"
+    ]
+  },
+  "tiktok.com": {
+    "selectors": [
+      "[data-e2e='recommend-card']:has([data-e2e='video-desc']:contains('Sponsored'))",
+      ".video-card:has(.video-meta-info:contains('Sponsored'))",
+      "[data-e2e='browse-video']:has([data-e2e='browse-video-desc']:contains('Ad'))"
+    ]
+  },
+  "twitch.tv": {
+    "selectors": [
+      "[data-target='directory-game-card']:has(.tw-tag:contains('Sponsored'))",
+      ".video-preview-card:has(.tw-tag:contains('Ad'))",
+      ".front-page-carousel__item:has(.tw-tag:contains('Sponsored'))"
+    ]
+  },
+  "pinterest.com": {
+    "selectors": [
+      "[data-test-id='pin']:has([data-test-id='promoted-badge'])",
+      ".Grid__Item:has(.PromotedBadge)",
+      "[data-test-id='closeup']:has([data-test-id='pin-closeup-promoted-badge'])"
+    ]
+  },
+  "snapchat.com": {
+    "selectors": [
+      ".Story:has(.Story__sponsored-label)",
+      "[data-testid='story']:has([data-testid='sponsored-label'])"
     ]
   },
   "generic": {
@@ -85,7 +154,31 @@
       "[data-ad-slot]",
       ".ad-container",
       ".ad-wrapper",
-      ".banner-ad"
+      ".banner-ad",
+      ".ad-placement",
+      ".ad-unit",
+      ".ad-space",
+      ".ad-block",
+      ".adblock",
+      "[data-ad]",
+      "[data-ads]",
+      ".promotional",
+      ".promo",
+      "[class*='promo']",
+      "[id*='promo']",
+      ".marketing",
+      "[class*='marketing']",
+      ".popup-ad",
+      ".display-ad",
+      ".sidebar-ad",
+      ".header-ad",
+      ".footer-ad",
+      ".content-ad",
+      ".inline-ad",
+      ".native-ad",
+      "[aria-label*='advertisement']",
+      "[aria-label*='sponsored']",
+      "[role='complementary']:has([aria-label*='ad'])"
     ]
   }
 }

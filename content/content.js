@@ -18,19 +18,71 @@
     const hostname = window.location.hostname;
 
     /**
+     * ENHANCED: Validates initialization state and prerequisites
+     * Ensures safe initialization environment
+     */
+    function validateInitializationState() {
+        // Check if already cleaned up
+        if (isCleanedUp) {
+            throw new Error('Content script already cleaned up');
+        }
+        
+        // Check if extension context is valid
+        if (!chrome.runtime || !chrome.runtime.sendMessage) {
+            throw new Error('Chrome runtime API not available');
+        }
+        
+        // Check if document is in valid state
+        if (!document || document.readyState === 'unloading') {
+            throw new Error('Document not ready for initialization');
+        }
+        
+        // Check hostname validity
+        if (!hostname || typeof hostname !== 'string') {
+            throw new Error('Invalid hostname detected');
+        }
+        
+        return true;
+    }
+
+    /**
      * Initialisiert den Blocker, indem es den Status von der Erweiterung abruft
      * und den MutationObserver startet.
-     * FIXED: Race condition - proper promise chaining and initialization order
+     * ENHANCED: Improved initialization with state validation and error recovery
      */
     async function initialize() {
         try {
-            // Step 1: Get state from extension (with timeout)
-            const statePromise = chrome.runtime.sendMessage({ command: 'getState' });
-            const timeoutPromise = new Promise((_, reject) => 
-                setTimeout(() => reject(new Error('State fetch timeout')), 5000)
-            );
+            // ENHANCED: Validate initialization prerequisites
+            validateInitializationState();
             
-            const state = await Promise.race([statePromise, timeoutPromise]);
+            // Step 1: Get state from extension (with timeout and retry logic)
+            let retryCount = 0;
+            const maxRetries = 3;
+            let state = null;
+            
+            while (retryCount < maxRetries && !state) {
+                try {
+                    const statePromise = chrome.runtime.sendMessage({ command: 'getState' });
+                    const timeoutPromise = new Promise((_, reject) => 
+                        setTimeout(() => reject(new Error('State fetch timeout')), 5000)
+                    );
+                    
+                    state = await Promise.race([statePromise, timeoutPromise]);
+                    break;
+                } catch (error) {
+                    retryCount++;
+                    if (retryCount >= maxRetries) {
+                        throw error;
+                    }
+                    console.warn(`Pagy-Blocker: State fetch attempt ${retryCount} failed, retrying...`);
+                    await new Promise(resolve => setTimeout(resolve, 1000 * retryCount)); // Exponential backoff
+                }
+            }
+            
+            if (!state) {
+                throw new Error('Failed to get extension state after retries');
+            }
+            
             isPaused = state.isPaused;
             
             if (isPaused) {
@@ -153,10 +205,15 @@
         if (observer) {
             try {
                 observer.disconnect();
+                observer = null; // Explicitly set to null for GC
             } catch (error) {
                 console.warn('Pagy-Blocker: Error disconnecting observer:', error);
             }
-            observer = null;
+        }
+        
+        // Clear selector cache to free memory
+        if (selectorCache && selectorCache.clear) {
+            selectorCache.clear();
         }
     }
     
@@ -183,8 +240,47 @@
      * @param {HTMLElement} element - Das zu durchsuchende Wurzelelement.
      */
         /**
+     * SECURITY: Validates the integrity of loaded filter data
+     * Ensures data structure is safe and expected format
+     */
+    function validateFilterIntegrity(data, fileName) {
+        if (!data || typeof data !== 'object') {
+            throw new Error(`Invalid filter data structure in ${fileName}`);
+        }
+        
+        // Check for reasonable size limits
+        const dataStr = JSON.stringify(data);
+        if (dataStr.length > 50 * 1024 * 1024) { // 50MB limit
+            throw new Error(`Filter file ${fileName} exceeds size limit`);
+        }
+        
+        // Validate structure for cosmetic filters
+        if (typeof data === 'object' && !Array.isArray(data)) {
+            for (const [domain, rules] of Object.entries(data)) {
+                if (typeof domain !== 'string' || domain.length > 253) {
+                    throw new Error(`Invalid domain in ${fileName}: ${domain}`);
+                }
+                
+                if (!rules || typeof rules !== 'object') {
+                    throw new Error(`Invalid rules structure for domain ${domain} in ${fileName}`);
+                }
+                
+                if (rules.selectors && Array.isArray(rules.selectors)) {
+                    for (const selector of rules.selectors) {
+                        if (typeof selector !== 'string' || selector.length > 1000) {
+                            throw new Error(`Invalid selector in ${fileName} for domain ${domain}`);
+                        }
+                    }
+                }
+            }
+        }
+        
+        return true;
+    }
+
+    /**
      * Lädt die Filterregeln für das kosmetische Filtern.
-     * FIXED: Smart domain-based fallback with improved coverage
+     * FIXED: Smart domain-based fallback with improved coverage and integrity validation
      */
     async function loadRules() {
         // Versuche externe Filterregeln zu laden
@@ -203,6 +299,9 @@
                 if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                 
                 const loadedRules = await response.json();
+                
+                // SECURITY: Validate integrity of loaded data
+                validateFilterIntegrity(loadedRules, filterFile);
                 
                 // Prüfe ob es kosmetische Filter-Struktur ist (Hostname -> Selektoren)
                 if (typeof loadedRules === 'object' && loadedRules !== null && !Array.isArray(loadedRules)) {
@@ -466,7 +565,7 @@
     // Performance cache for validated selectors to avoid re-validation
     const selectorCache = new Map();
     const SELECTOR_CACHE_MAX_SIZE = 200;
-    const BATCH_SIZE_LIMIT = 50; // Limit concurrent DOM queries for performance
+    const BATCH_SIZE_LIMIT = 150; // Optimized batch size for better performance on large pages
     
     /**
      * Analyzes selector complexity to optimize query performance
@@ -581,12 +680,16 @@
     /**
      * Durchsucht ein gegebenes Element und seine Kinder nach übereinstimmenden Regeln und versteckt sie.
      * PERFORMANCE OPTIMIZED: Advanced DOM query optimization with complexity analysis and batching
+     * ENHANCED: Added telemetry monitoring for performance optimization
      * @param {HTMLElement} element - Das zu durchsuchende Wurzelelement.
      */
     async function scanAndHideElements(element) {
         if (!rules || typeof rules !== 'object') {
             return;
         }
+
+        // ENHANCED: Performance telemetry
+        const startTime = performance.now();
 
         // Sammle alle anzuwendenden Selektoren
         const allSelectors = [];
@@ -624,9 +727,28 @@
                     });
                 });
                 
-                console.log(`Pagy-Blocker: ${elementsToHide.length} elements hidden on ${hostname} using ${uniqueSelectors.length} optimized rules`);
+                // ENHANCED: Record performance metrics
+                const scanDuration = performance.now() - startTime;
+                if (typeof window.Telemetry !== 'undefined') {
+                    window.Telemetry.telemetry.recordMetric('dom', 'scan_duration', scanDuration, {
+                        elementsHidden: elementsToHide.length,
+                        selectorsUsed: uniqueSelectors.length,
+                        hostname: hostname
+                    });
+                    window.Telemetry.telemetry.recordMetric('blocking', 'elements_hidden', elementsToHide.length);
+                }
+                
+                console.log(`Pagy-Blocker: ${elementsToHide.length} elements hidden on ${hostname} using ${uniqueSelectors.length} optimized rules (${scanDuration.toFixed(2)}ms)`);
             }
         } catch (error) {
+            // ENHANCED: Record error metrics
+            const errorDuration = performance.now() - startTime;
+            if (typeof window.Telemetry !== 'undefined') {
+                window.Telemetry.telemetry.recordMetric('dom', 'scan_error', errorDuration, {
+                    error: error.name,
+                    hostname: hostname
+                });
+            }
             console.error('Pagy-Blocker: Critical error in optimized DOM processing:', error);
             // Emergency fallback to simple processing
             uniqueSelectors.forEach(selector => {
@@ -662,7 +784,15 @@
         }
     }, { passive: true });
 
-    // Startet die Initialisierung.
-    initialize();
+    // ENHANCED: Safe initialization with error boundary
+    (async function safeInitialize() {
+        try {
+            await initialize();
+        } catch (error) {
+            console.error('Pagy-Blocker: Critical initialization failure:', error);
+            // Attempt cleanup in case of failure
+            performCleanup();
+        }
+    })();
 
 })();

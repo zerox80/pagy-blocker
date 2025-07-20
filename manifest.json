@@ -54,6 +54,7 @@
         "<all_urls>"
       ],
       "js": [
+        "js/telemetry.js",
         "content/content.js"
       ],
       "run_at": "document_start"

@@ -8,8 +8,8 @@ body {
     margin: 0;
     background: #f9f9fb;
     color: #333;
-    transition: background-color .2s ease;
-    will-change: background-color;
+    transition: background-color 0.2s ease;
+    will-change: auto;
 }
 
 body.disabled { background: #e0e0e0; }

@@ -14,6 +14,9 @@ const STORAGE_KEYS = {
   WHITELISTED_SITES: 'whitelisted_sites' // Behalten für mögliche zukünftige Verwendung
 };
 
+// FIXED: Development mode detection
+const IS_DEVELOPMENT = !('update_url' in chrome.runtime.getManifest());
+
 // BUGFIX: Die Pfade müssen absolut vom Root-Verzeichnis der Erweiterung sein (beginnend mit /).
 // Relative Pfade wie ../icons/ funktionieren in Service Workern nicht zuverlässig und führen zum Absturz.
 // FIXED: Fallback zu existierenden Icons falls disabled Icons fehlen
@@ -91,7 +94,7 @@ function resetCircuitBreaker() {
 function shouldAttemptRecovery() {
   const now = Date.now();
   return iconUpdateCircuitBreaker.isOpen && 
-         (now - iconUpdateCircuitBreaker.lastFailureTime) > iconUpdateCircuitBreaker.recoveryTimeout;
+         (now - iconUpdateCircuitBreaker.lastFailureTime) >= iconUpdateCircuitBreaker.recoveryTimeout;
 }
 
 /**
@@ -233,12 +236,15 @@ function handleMessages(message, sender, sendResponse) {
           break;
       }
     } catch (error) {
-      // SECURITY: Generic error messages for production to prevent information disclosure
+      // SECURITY: Improved error logging with sanitized output
+      const errorContext = 'Message handling';
       if (IS_DEVELOPMENT) {
-        console.error('Pagy-Blocker: Fehler bei der Nachrichtenverarbeitung.', error);
+        console.error(`Pagy-Blocker ${errorContext}:`, error);
         sendResponse({ success: false, error: error.message });
       } else {
-        console.error('Pagy-Blocker: Nachrichtenverarbeitung fehlgeschlagen.');
+        console.error(`Pagy-Blocker ${errorContext}: Operation failed`);
+        // Log only error type for debugging, not sensitive details
+        console.debug(`Error type: ${error.name}`);
         sendResponse({ success: false, error: 'Operation failed' });
       }
     }
@@ -332,150 +338,65 @@ async function safeStorageUpdate(storageArea, key, updateFunction, maxRetries = 
   }
 }
 
-// PERFORMANCE OPTIMIZED: Event-driven statistics collection with intelligent caching
+// SIMPLIFIED: Lightweight statistics manager with essential functionality only
 class StatisticsManager {
   constructor() {
-    this.isInitialized = false;
-    this.statsCache = {
-      sessionBlockedCount: 0,
-      lastUpdate: Date.now(),
-      updateThreshold: 5000 // Update cache every 5 seconds max
-    };
-    this.pendingUpdates = new Set();
+    this.sessionBlockedCount = 0;
+    this.lastUpdate = Date.now();
     this.debounceTimeout = null;
-    this.IS_DEVELOPMENT = !('update_url' in chrome.runtime.getManifest());
   }
   
-  // Initialize event-driven statistics collection
+  // Simple initialization
   async initialize() {
-    if (this.isInitialized) return;
-    
     try {
-      // Load existing session count
       const { sessionBlockedCount = 0 } = await chrome.storage.session.get('sessionBlockedCount');
-      this.statsCache.sessionBlockedCount = sessionBlockedCount;
-      
-      if (this.IS_DEVELOPMENT && chrome.declarativeNetRequest.onRuleMatchedDebug) {
-        // Use debug listener for development with optimized batching
-        this.setupDevelopmentListener();
-      } else {
-        // Use event-driven approach for production
-        this.setupProductionListener();
-      }
-      
-      this.isInitialized = true;
-      console.log('Pagy-Blocker: Event-driven statistics initialized');
+      this.sessionBlockedCount = sessionBlockedCount;
+      console.log('Pagy-Blocker: Statistics initialized');
     } catch (error) {
       console.error('Pagy-Blocker: Statistics initialization failed:', error);
     }
   }
   
-  // Optimized development listener with batching
-  setupDevelopmentListener() {
-    chrome.declarativeNetRequest.onRuleMatchedDebug.addListener(() => {
-      this.incrementCount();
-    });
-  }
-  
-  // Event-driven production statistics
-  setupProductionListener() {
-    // Listen to tab updates for rule matching activity
-    if (chrome.tabs && chrome.tabs.onUpdated) {
-      chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-        if (changeInfo.status === 'complete' && tab.url) {
-          this.checkRuleMatches(tabId);
-        }
-      });
-    }
+  // Simple count increment with debounced storage
+  incrementCount(amount = 1) {
+    this.sessionBlockedCount += amount;
+    this.lastUpdate = Date.now();
     
-    // Listen to navigation events
-    if (chrome.webNavigation && chrome.webNavigation.onCompleted) {
-      chrome.webNavigation.onCompleted.addListener((details) => {
-        if (details.frameId === 0) { // Main frame only
-          this.checkRuleMatches(details.tabId);
-        }
-      });
-    }
-  }
-  
-  // Optimized count increment with batching
-  incrementCount() {
-    this.statsCache.sessionBlockedCount++;
-    
-    // Debounced update to prevent excessive storage writes
+    // Debounced storage update
     if (this.debounceTimeout) {
       clearTimeout(this.debounceTimeout);
     }
     
     this.debounceTimeout = setTimeout(() => {
-      this.flushToStorage();
-    }, 1000); // Batch updates for 1 second
+      this.saveToStorage();
+    }, 2000); // Save every 2 seconds max
   }
   
-  // Event-driven rule match checking
-  async checkRuleMatches(tabId) {
-    // Avoid duplicate checks
-    if (this.pendingUpdates.has(tabId)) return;
-    this.pendingUpdates.add(tabId);
-    
+  // Save to storage
+  async saveToStorage() {
     try {
-      // Use setTimeout for non-blocking execution
-      await new Promise(resolve => setTimeout(resolve, 0));
-      
-      const matchedRules = await chrome.declarativeNetRequest.getMatchedRules({ tabId });
-      const newMatches = matchedRules.rulesMatchedInfo?.length || 0;
-      
-      if (newMatches > 0) {
-        this.statsCache.sessionBlockedCount += newMatches;
-        this.scheduleStorageUpdate();
-      }
+      await chrome.storage.session.set({
+        sessionBlockedCount: this.sessionBlockedCount
+      });
     } catch (error) {
-      // Silently handle errors to avoid spam
-      if (error.message && !error.message.includes('Invalid tab ID')) {
-        console.warn('Pagy-Blocker: Rule match check failed:', error.message);
-      }
-    } finally {
-      this.pendingUpdates.delete(tabId);
-    }
-  }
-  
-  // Intelligent storage update scheduling
-  scheduleStorageUpdate() {
-    const now = Date.now();
-    if (now - this.statsCache.lastUpdate > this.statsCache.updateThreshold) {
-      this.flushToStorage();
-    }
-  }
-  
-  // Flush cached stats to storage
-  async flushToStorage() {
-    try {
-      await safeStorageUpdate(
-        chrome.storage.session,
-        'sessionBlockedCount',
-        () => this.statsCache.sessionBlockedCount
-      );
-      this.statsCache.lastUpdate = Date.now();
-    } catch (error) {
-      console.error('Pagy-Blocker: Failed to update session storage:', error);
+      console.warn('Pagy-Blocker: Failed to save statistics:', error);
     }
   }
   
   // Get current statistics
   async getStats() {
     return {
-      sessionBlockedCount: this.statsCache.sessionBlockedCount,
-      lastUpdate: this.statsCache.lastUpdate
+      sessionBlockedCount: this.sessionBlockedCount,
+      lastUpdate: this.lastUpdate
     };
   }
   
-  // Cleanup method
+  // Cleanup
   cleanup() {
     if (this.debounceTimeout) {
       clearTimeout(this.debounceTimeout);
-      this.debounceTimeout = null;
+      this.saveToStorage(); // Final save
     }
-    this.flushToStorage(); // Ensure final flush
   }
 }
 
