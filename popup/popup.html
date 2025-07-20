@@ -6,20 +6,25 @@
     <link rel="stylesheet" href="popup.css">
 </head>
 <body>
-    <div class="header">
-        <img src="/icons/icon48.png" alt="Pagy Blocker Logo" class="logo">
-        <h1>Pagy Blocker</h1>
-    </div>
-    <div class="status-container">
-        <span id="status-text">Aktiviert</span>
-        <label class="switch">
-            <input type="checkbox" id="enable-switch" checked>
-            <span class="slider round"></span>
-        </label>
-    </div>
-    <hr>
-    <div class="stats">
-        <p id="stats-display">Lade Statistiken...</p>
+    <div class="container">
+        <header class="header">
+            <img id="logo" src="../icons/icon128.png" alt="Pagy Blocker Logo" width="32" height="32">
+            <h1>Pagy Blocker</h1>
+        </header>
+
+        <div class="toggle-container">
+            <span id="status-text">Lade...</span>
+            <label class="switch">
+                <input type="checkbox" id="enable-switch" checked>
+                <span class="slider round"></span>
+            </label>
+        </div>
+
+        <div class="stats-container">
+            <span class="stat-value" id="filter-count">...</span>
+            <span class="stat-label">Aktive Filterregeln</span>
+        </div>
+
     </div>
     <script src="popup.js"></script>
 </body>

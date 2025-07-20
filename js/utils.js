@@ -37,5 +37,5 @@ export function getDomainFromURL(rawUrl) {
     }
 }
 
-// Default export for convenience
+// Standard-Export für bequemes Importieren
 export default getDomainFromURL;

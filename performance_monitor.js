@@ -10,10 +10,10 @@ const __dirname = path.dirname(__filename);
 console.log('🚀 Pagy Blocker Performance Monitor V2.3');
 console.log('==========================================');
 
-// File cache to avoid multiple reads
+// Dateicache, um mehrfaches Lesen zu vermeiden
 const fileCache = new Map();
 
-// PERFORMANCE OPTIMIZED: Advanced async file processing with streaming and worker threads
+// LEISTUNGSOPTIMIERT: Fortschrittliche asynchrone Dateiverarbeitung mit Streaming und Worker-Threads
 class FileProcessor {
   constructor() {
     this.readQueue = new Map();
@@ -21,23 +21,23 @@ class FileProcessor {
     this.maxConcurrentReads = 3;
     this.readCache = new Map();
     this.CACHE_SIZE_LIMIT = 50;
-    this.CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+    this.CACHE_TTL = 5 * 60 * 1000; // 5 Minuten
   }
   
-  // Non-blocking file read with intelligent queuing
+  // Nicht blockierendes Lesen von Dateien mit intelligenter Warteschlange
   async readFileOptimized(filePath) {
-    // Check cache with TTL
+    // Überprüfen Sie den Cache mit TTL
     const cached = this.readCache.get(filePath);
     if (cached && Date.now() - cached.timestamp < this.CACHE_TTL) {
       return cached.content;
     }
     
-    // Check if file is already being read
+    // Überprüfen, ob die Datei bereits gelesen wird
     if (this.readQueue.has(filePath)) {
       return this.readQueue.get(filePath);
     }
     
-    // Create read promise with advanced timeout and streaming
+    // Erstellen Sie ein Leseversprechen mit erweitertem Timeout und Streaming
     const readPromise = this.performOptimizedRead(filePath);
     this.readQueue.set(filePath, readPromise);
     
@@ -49,10 +49,10 @@ class FileProcessor {
     }
   }
   
-  // Advanced file reading with streaming for large files
+  // Fortschrittliches Lesen von Dateien mit Streaming für große Dateien
   async performOptimizedRead(filePath) {
     return new Promise(async (resolve, reject) => {
-      // Wait for available slot in concurrent reads
+      // Warten Sie auf einen verfügbaren Slot in den gleichzeitigen Lesevorgängen
       while (this.activeReads >= this.maxConcurrentReads) {
         await new Promise(r => setTimeout(r, 10));
       }
@@ -60,31 +60,31 @@ class FileProcessor {
       this.activeReads++;
       
       try {
-        // Use AbortController for proper cancellation
+        // Verwenden Sie AbortController für eine ordnungsgemäße Abbruch
         const abortController = new AbortController();
         const timeoutId = setTimeout(() => {
           abortController.abort();
-          reject(new Error(`File read timeout: ${filePath}`));
-        }, 3000); // Reduced timeout for better responsiveness
+          reject(new Error(`Dateilesen Zeitüberschreitung: ${filePath}`));
+        }, 3000); // Reduzierte Zeitüberschreitung für bessere Reaktionsfähigkeit
         
-        // Check file size first to avoid reading huge files
+        // Überprüfen Sie zuerst die Dateigröße, um das Lesen riesiger Dateien zu vermeiden
         const stats = await fs.stat(filePath);
         
-        if (stats.size > 2 * 1024 * 1024) { // 2MB limit
+        if (stats.size > 2 * 1024 * 1024) { // 2MB Limit
           clearTimeout(timeoutId);
-          console.warn(`⚠️ Large file skipped: ${filePath} (${stats.size} bytes)`);
+          console.warn(`⚠️ Große Datei übersprungen: ${filePath} (${stats.size} Bytes)`);
           resolve('');
           return;
         }
         
-        // Use streaming for better memory efficiency
-        if (stats.size > 100 * 1024) { // 100KB threshold for streaming
+        // Verwenden Sie Streaming für eine bessere Speichereffizienz
+        if (stats.size > 100 * 1024) { // 100KB Schwellenwert für Streaming
           const content = await this.streamFile(filePath, abortController.signal);
           clearTimeout(timeoutId);
           this.updateCache(filePath, content);
           resolve(content);
         } else {
-          // Direct read for small files
+          // Direktes Lesen für kleine Dateien
           const content = await fs.readFile(filePath, { 
             encoding: 'utf8',
             signal: abortController.signal 
@@ -95,10 +95,10 @@ class FileProcessor {
         }
       } catch (error) {
         if (error.name === 'AbortError') {
-          reject(new Error(`File read aborted: ${filePath}`));
+          reject(new Error(`Dateilesen abgebrochen: ${filePath}`));
         } else {
-          console.error(`❌ Optimized read error ${filePath}:`, error.message);
-          resolve(''); // Return empty string instead of throwing
+          console.error(`❌ Optimiertes Lesen Fehler ${filePath}:`, error.message);
+          resolve(''); // Gibt einen leeren String zurück, anstatt eine Ausnahme auszulösen
         }
       } finally {
         this.activeReads--;
@@ -106,7 +106,7 @@ class FileProcessor {
     });
   }
   
-  // Stream file content for memory efficiency
+  // Streamen Sie den Dateiinhalt für Speichereffizienz
   async streamFile(filePath, signal) {
     const { createReadStream } = await import('fs');
     const chunks = [];
@@ -117,7 +117,7 @@ class FileProcessor {
       stream.on('data', chunk => {
         if (signal.aborted) {
           stream.destroy();
-          reject(new Error('Stream aborted'));
+          reject(new Error('Stream abgebrochen'));
           return;
         }
         chunks.push(chunk);
@@ -131,18 +131,18 @@ class FileProcessor {
         reject(error);
       });
       
-      // Handle abort signal
+      // Abbruchsignal behandeln
       signal.addEventListener('abort', () => {
         stream.destroy();
-        reject(new Error('Stream aborted'));
+        reject(new Error('Stream abgebrochen'));
       });
     });
   }
   
-  // Update cache with LRU eviction
+  // Cache mit LRU-Verdrängung aktualisieren
   updateCache(filePath, content) {
     if (this.readCache.size >= this.CACHE_SIZE_LIMIT) {
-      // Remove oldest entry
+      // Ältesten Eintrag entfernen
       const oldestKey = this.readCache.keys().next().value;
       this.readCache.delete(oldestKey);
     }
@@ -153,17 +153,17 @@ class FileProcessor {
     });
   }
   
-  // Cleanup method
+  // Bereinigungsmethode
   clearCache() {
     this.readCache.clear();
     this.readQueue.clear();
   }
 }
 
-// Global file processor instance
+// Globale Instanz des Dateiprocessors
 const fileProcessor = new FileProcessor();
 
-// Optimized file reading function
+// Optimierte Funktion zum Lesen von Dateien
 async function readFileWithCache(filePath) {
   return fileProcessor.readFileOptimized(filePath);
 }
@@ -178,35 +178,35 @@ async function analyzeFiles() {
     'filter_precompiler.js'
   ];
 
-  // PERFORMANCE OPTIMIZED: Advanced concurrent processing with intelligent batching
+  // LEISTUNGSOPTIMIERT: Fortschrittliche gleichzeitige Verarbeitung mit intelligenter Batch-Verarbeitung
   const maxConcurrency = Math.min(4, files.length);
   const results = [];
   
-  // Process files with intelligent batching and error handling
+  // Dateien mit intelligenter Batch-Verarbeitung und Fehlerbehandlung verarbeiten
   const processFile = async (file) => {
     const filePath = path.join(__dirname, file);
     
     try {
-      // Use Promise.allSettled for better error handling
+      // Verwenden Sie Promise.allSettled für eine bessere Fehlerbehandlung
       const [statResult, contentResult] = await Promise.allSettled([
         fs.stat(filePath),
         readFileWithCache(filePath)
       ]);
       
       if (statResult.status === 'rejected' || contentResult.status === 'rejected') {
-        console.log(`⚠️ ${file}: File processing failed`);
+        console.log(`⚠️ ${file}: Datei Verarbeitung fehlgeschlagen`);
         return null;
       }
       
       const stat = statResult.value;
       const content = contentResult.value;
       
-      // Efficient line counting without full split for large files
+      // Effiziente Zeilenanzahl ohne vollständiges Splitten für große Dateien
       let lines = 1;
       if (content.length < 50000) {
         lines = content.split('\n').length;
       } else {
-        // Streaming line count for large files
+        // Streaming-Zeilenanzahl für große Dateien
         lines = (content.match(/\n/g) || []).length + 1;
       }
       
@@ -217,12 +217,12 @@ async function analyzeFiles() {
     }
   };
   
-  // Process files in optimized batches with proper error handling
+  // Dateien in optimierten Batches mit ordnungsgemäßer Fehlerbehandlung verarbeiten
   for (let i = 0; i < files.length; i += maxConcurrency) {
     const batch = files.slice(i, i + maxConcurrency);
     const batchPromises = batch.map(processFile);
     
-    // Use allSettled to handle partial batch failures gracefully
+    // Verwenden Sie allSettled, um partielle Batch-Fehler elegant zu behandeln
     const batchResults = await Promise.allSettled(batchPromises);
     const successfulResults = batchResults
       .filter(result => result.status === 'fulfilled' && result.value !== null)
@@ -230,7 +230,7 @@ async function analyzeFiles() {
     
     results.push(...successfulResults);
     
-    // Non-blocking yield between batches
+    // Nicht blockierendes Yield zwischen den Batches
     if (i + maxConcurrency < files.length) {
       await new Promise(resolve => setImmediate(resolve));
     }
@@ -244,7 +244,7 @@ async function analyzeFiles() {
 
   console.log('\n🚀 Performance-Optimierungen nach Vereinfachung (V2.3):');
   
-  // Create content map for easy access
+  // Erstellen Sie eine Inhaltskarte für den einfachen Zugriff
   const contentMap = {};
   validResults.forEach(result => {
     const key = result.file.replace(/[\/\\]/g, '_').replace('.js', '').replace('.css', '');
@@ -257,7 +257,7 @@ async function analyzeFiles() {
 async function main() {
   const contentMap = await analyzeFiles();
 
-  // Extract content for analysis
+  // Inhalt für die Analyse extrahieren
   const backgroundContent = contentMap.background_background || '';
   const popupContent = contentMap.popup_popup || '';
   const utilsContent = contentMap.js_utils || '';
@@ -341,7 +341,7 @@ async function main() {
   const maxScore = 280;
   const percentage = Math.round((totalScore / maxScore) * 100);
 
-  // Optimized string building
+  // Optimierte Zeichenfolgenbildung
   const scoreDisplay = [
     `\n📊 Async Performance-Score V2.3: ${totalScore}/${maxScore} Punkte (${percentage}%)`,
     '┌─────────────────────────────────────────┐',
@@ -370,9 +370,9 @@ async function main() {
   console.log('🔸 Popup: 6.6KB (vorher 8.1KB) - 19% kleiner');
   console.log('🔸 Monitor: Async File-I/O + intelligentes Caching');
   console.log('🔸 Cache: 5min statt 30min (Service Worker optimal)');
-  console.log('🔸 No DOM-Caching (direkter Zugriff ist schneller)');
-  console.log('🔸 No Debouncing (sofortige UI-Reaktion)');
-  console.log('🔸 No Memory Pools (V8 ist besser optimiert)');
+  console.log('🔸 Kein DOM-Caching (direkter Zugriff ist schneller)');
+  console.log('🔸 Kein Debouncing (sofortige UI-Reaktion)');
+  console.log('🔸 Keine Memory Pools (V8 ist besser optimiert)');
   console.log('🔸 Behaltene gute Optimierungen: Hash, rAF, Number-Format');
 
   if (percentage >= 90) {
@@ -389,7 +389,7 @@ async function main() {
     console.log('\n⚠️  Weitere Optimierungen möglich');
   }
 
-  // Calculate bundle size from contentMap
+  // Berechnen Sie die Bundle-Größe aus der Inhaltskarte
   const totalSize = Object.values(contentMap).reduce((total, content) => {
     return total + Buffer.byteLength(content, 'utf8');
   }, 0);
@@ -398,8 +398,8 @@ async function main() {
   console.log(`💡 Performance-Gewinn: Async Code + Caching = Bessere UX`);
 }
 
-// Run the optimized monitor
+// Führen Sie den optimierten Monitor aus
 main().catch(error => {
-  console.error('❌ Monitor failed:', error.message);
+  console.error('❌ Monitor fehlgeschlagen:', error.message);
   process.exit(1);
 });

@@ -1,31 +1,31 @@
 /**
- * JSON Rule Validation Module for Pagy Blocker
+ * JSON-Regelvalidierungsmodul für Pagy Blocker
  * 
- * Provides comprehensive validation for precompiled JSON rule structures
- * Ensures rule integrity, validates required fields, and checks for compliance
- * with Chrome's declarativeNetRequest API requirements.
+ * Bietet umfassende Validierung für vorkompilierte JSON-Regelstrukturen
+ * Stellt die Regelintegrität sicher, validiert erforderliche Felder und überprüft die
+ * Konformität mit den Anforderungen der declarativeNetRequest-API von Chrome.
  * 
- * Features:
- * - Rule structure validation
- * - ID uniqueness and sequential numbering validation
- * - urlFilter pattern validation
- * - Resource type validation
- * - JSON schema validation
- * - Performance optimized validation functions
+ * Funktionen:
+ * - Regelstrukturvalidierung
+ * - Validierung der ID-Eindeutigkeit und der sequenziellen Nummerierung
+ * - Validierung des urlFilter-Musters
+ * - Validierung des Ressourcentyps
+ * - JSON-Schema-Validierung
+ * - Leistungsoptimierte Validierungsfunktionen
  */
 
-// Validation configuration constants
+// Validierungskonstanten
 const VALIDATION_CONFIG = {
-    // Maximum rule ID allowed by Chrome declarativeNetRequest API
+    // Maximale Regel-ID, die von der Chrome declarativeNetRequest-API erlaubt ist
     MAX_RULE_ID: 300000,
     
-    // Maximum priority value
+    // Maximaler Prioritätswert
     MAX_PRIORITY: 2147483647,
     
-    // Valid action types
+    // Gültige Aktionstypen
     VALID_ACTION_TYPES: ['block', 'allow', 'redirect', 'upgradeScheme', 'modifyHeaders'],
     
-    // Valid resource types according to Chrome declarativeNetRequest API
+    // Gültige Ressourcentypen gemäß der Chrome declarativeNetRequest-API
     VALID_RESOURCE_TYPES: [
         'main_frame',
         'sub_frame', 
@@ -44,16 +44,16 @@ const VALIDATION_CONFIG = {
         'other'
     ],
     
-    // Maximum length for URL filters
+    // Maximale Länge für URL-Filter
     MAX_URL_FILTER_LENGTH: 2000,
     
-    // Validation performance limits
+    // Leistungsgrenzen für die Validierung
     MAX_RULES_COUNT: 30000,
     VALIDATION_TIMEOUT_MS: 10000
 };
 
 /**
- * Validation error class for better error handling
+ * Validierungsfehlerklasse für eine bessere Fehlerbehandlung
  */
 class RuleValidationError extends Error {
     constructor(message, ruleIndex = null, ruleId = null, errorCode = null) {
@@ -66,56 +66,56 @@ class RuleValidationError extends Error {
 }
 
 /**
- * Validates the basic structure of a single rule
- * @param {Object} rule - The rule object to validate
- * @param {number} index - The index of the rule in the array
- * @returns {Object} Validation result with isValid and errors
+ * Validiert die grundlegende Struktur einer einzelnen Regel
+ * @param {Object} rule - Das zu validierende Regelobjekt
+ * @param {number} index - Der Index der Regel im Array
+ * @returns {Object} Validierungsergebnis mit isValid und errors
  */
 function validateRuleStructure(rule, index) {
     const errors = [];
     
-    // Check if rule is an object
+    // Überprüfen, ob die Regel ein Objekt ist
     if (!rule || typeof rule !== 'object' || Array.isArray(rule)) {
         return {
             isValid: false,
-            errors: [`Rule at index ${index} must be an object`]
+            errors: [`Regel an Index ${index} muss ein Objekt sein`]
         };
     }
     
-    // Validate required fields exist
+    // Überprüfen, ob erforderliche Felder vorhanden sind
     const requiredFields = ['id', 'priority', 'action', 'condition'];
     for (const field of requiredFields) {
         if (!(field in rule)) {
-            errors.push(`Rule at index ${index} missing required field: ${field}`);
+            errors.push(`Regel an Index ${index} fehlt das erforderliche Feld: ${field}`);
         }
     }
     
-    // Validate rule ID
+    // Regel-ID validieren
     if ('id' in rule) {
         if (!Number.isInteger(rule.id) || rule.id < 1 || rule.id > VALIDATION_CONFIG.MAX_RULE_ID) {
-            errors.push(`Rule at index ${index} has invalid ID: ${rule.id}. Must be integer between 1 and ${VALIDATION_CONFIG.MAX_RULE_ID}`);
+            errors.push(`Regel an Index ${index} hat eine ungültige ID: ${rule.id}. Muss eine ganze Zahl zwischen 1 und ${VALIDATION_CONFIG.MAX_RULE_ID} sein`);
         }
     }
     
-    // Validate priority
+    // Priorität validieren
     if ('priority' in rule) {
         if (!Number.isInteger(rule.priority) || rule.priority < 1 || rule.priority > VALIDATION_CONFIG.MAX_PRIORITY) {
-            errors.push(`Rule at index ${index} has invalid priority: ${rule.priority}. Must be integer between 1 and ${VALIDATION_CONFIG.MAX_PRIORITY}`);
+            errors.push(`Regel an Index ${index} hat eine ungültige Priorität: ${rule.priority}. Muss eine ganze Zahl zwischen 1 und ${VALIDATION_CONFIG.MAX_PRIORITY} sein`);
         }
     }
     
-    // Validate action object
+    // Aktionsobjekt validieren
     if ('action' in rule) {
         if (!rule.action || typeof rule.action !== 'object') {
-            errors.push(`Rule at index ${index} action must be an object`);
+            errors.push(`Regel an Index ${index} Aktion muss ein Objekt sein`);
         } else {
             if (!rule.action.type || !VALIDATION_CONFIG.VALID_ACTION_TYPES.includes(rule.action.type)) {
-                errors.push(`Rule at index ${index} has invalid action type: ${rule.action.type}. Must be one of: ${VALIDATION_CONFIG.VALID_ACTION_TYPES.join(', ')}`);
+                errors.push(`Regel an Index ${index} hat einen ungültigen Aktionstyp: ${rule.action.type}. Muss einer von folgenden sein: ${VALIDATION_CONFIG.VALID_ACTION_TYPES.join(', ')}`);
             }
         }
     }
     
-    // Validate condition object
+    // Bedingungsobjekt validieren
     if ('condition' in rule) {
         const conditionValidation = validateRuleCondition(rule.condition, index);
         errors.push(...conditionValidation.errors);
@@ -128,10 +128,10 @@ function validateRuleStructure(rule, index) {
 }
 
 /**
- * Validates rule condition object
- * @param {Object} condition - The condition object to validate
- * @param {number} ruleIndex - The index of the rule
- * @returns {Object} Validation result
+ * Validiert das Bedingungsobjekt einer Regel
+ * @param {Object} condition - Das zu validierende Bedingungsobjekt
+ * @param {number} ruleIndex - Der Index der Regel
+ * @returns {Object} Validierungsergebnis
  */
 function validateRuleCondition(condition, ruleIndex) {
     const errors = [];
@@ -139,45 +139,45 @@ function validateRuleCondition(condition, ruleIndex) {
     if (!condition || typeof condition !== 'object') {
         return {
             isValid: false,
-            errors: [`Rule at index ${ruleIndex} condition must be an object`]
+            errors: [`Regel an Index ${ruleIndex} Bedingung muss ein Objekt sein`]
         };
     }
     
-    // Validate urlFilter if present
+    // urlFilter validieren, falls vorhanden
     if ('urlFilter' in condition) {
         const urlFilterValidation = validateUrlFilter(condition.urlFilter, ruleIndex);
         errors.push(...urlFilterValidation.errors);
     }
     
-    // Validate regexFilter if present
+    // regexFilter validieren, falls vorhanden
     if ('regexFilter' in condition) {
         try {
             new RegExp(condition.regexFilter);
         } catch (error) {
-            errors.push(`Rule at index ${ruleIndex} has invalid regexFilter: ${error.message}`);
+            errors.push(`Regel an Index ${ruleIndex} hat einen ungültigen regexFilter: ${error.message}`);
         }
         
         if (condition.regexFilter.length > VALIDATION_CONFIG.MAX_URL_FILTER_LENGTH) {
-            errors.push(`Rule at index ${ruleIndex} regexFilter too long: ${condition.regexFilter.length} chars. Max: ${VALIDATION_CONFIG.MAX_URL_FILTER_LENGTH}`);
+            errors.push(`Regel an Index ${ruleIndex} regexFilter zu lang: ${condition.regexFilter.length} Zeichen. Maximal: ${VALIDATION_CONFIG.MAX_URL_FILTER_LENGTH}`);
         }
     }
     
-    // Validate resourceTypes if present
+    // Ressourcentypen validieren, falls vorhanden
     if ('resourceTypes' in condition) {
         const resourceTypesValidation = validateResourceTypes(condition.resourceTypes, ruleIndex);
         errors.push(...resourceTypesValidation.errors);
     }
     
-    // Validate domains arrays if present
+    // Domains-Arrays validieren, falls vorhanden
     const domainFields = ['domains', 'excludedDomains', 'requestDomains', 'excludedRequestDomains', 'initiatorDomains', 'excludedInitiatorDomains'];
     for (const field of domainFields) {
         if (field in condition) {
             if (!Array.isArray(condition[field])) {
-                errors.push(`Rule at index ${ruleIndex} condition.${field} must be an array`);
+                errors.push(`Regel an Index ${ruleIndex} condition.${field} muss ein Array sein`);
             } else {
                 for (const domain of condition[field]) {
                     if (typeof domain !== 'string' || domain.length === 0) {
-                        errors.push(`Rule at index ${ruleIndex} condition.${field} contains invalid domain: ${domain}`);
+                        errors.push(`Regel an Index ${ruleIndex} condition.${field} enthält eine ungültige Domain: ${domain}`);
                     }
                 }
             }
@@ -191,31 +191,31 @@ function validateRuleCondition(condition, ruleIndex) {
 }
 
 /**
- * Validates URL filter pattern
- * @param {string} urlFilter - The URL filter to validate
- * @param {number} ruleIndex - The index of the rule
- * @returns {Object} Validation result
+ * Validiert das URL-Filtermuster
+ * @param {string} urlFilter - Der zu validierende URL-Filter
+ * @param {number} ruleIndex - Der Index der Regel
+ * @returns {Object} Validierungsergebnis
  */
 function validateUrlFilter(urlFilter, ruleIndex) {
     const errors = [];
     
     if (typeof urlFilter !== 'string') {
-        errors.push(`Rule at index ${ruleIndex} urlFilter must be a string`);
+        errors.push(`Regel an Index ${ruleIndex} urlFilter muss eine Zeichenfolge sein`);
         return { isValid: false, errors };
     }
     
     if (urlFilter.length === 0) {
-        errors.push(`Rule at index ${ruleIndex} urlFilter cannot be empty`);
+        errors.push(`Regel an Index ${ruleIndex} urlFilter darf nicht leer sein`);
     }
     
     if (urlFilter.length > VALIDATION_CONFIG.MAX_URL_FILTER_LENGTH) {
-        errors.push(`Rule at index ${ruleIndex} urlFilter too long: ${urlFilter.length} chars. Max: ${VALIDATION_CONFIG.MAX_URL_FILTER_LENGTH}`);
+        errors.push(`Regel an Index ${ruleIndex} urlFilter zu lang: ${urlFilter.length} Zeichen. Maximal: ${VALIDATION_CONFIG.MAX_URL_FILTER_LENGTH}`);
     }
     
-    // Basic pattern validation for common filter syntax
+    // Grundlegende Mustervalidierung für gängige Filter-Syntax
     const invalidChars = urlFilter.match(/[\x00-\x1F\x7F]/);
     if (invalidChars) {
-        errors.push(`Rule at index ${ruleIndex} urlFilter contains invalid control characters`);
+        errors.push(`Regel an Index ${ruleIndex} urlFilter enthält ungültige Steuerzeichen`);
     }
     
     return {
@@ -225,10 +225,10 @@ function validateUrlFilter(urlFilter, ruleIndex) {
 }
 
 /**
- * Validates resource types array
- * @param {Array} resourceTypes - Array of resource types
- * @param {number} ruleIndex - The index of the rule
- * @returns {Object} Validation result
+ * Validiert das Ressourcentyp-Array
+ * @param {Array} resourceTypes - Array von Ressourcentypen
+ * @param {number} ruleIndex - Der Index der Regel
+ * @returns {Object} Validierungsergebnis
  */
 function validateResourceTypes(resourceTypes, ruleIndex) {
     const errors = [];
@@ -236,19 +236,19 @@ function validateResourceTypes(resourceTypes, ruleIndex) {
     if (!Array.isArray(resourceTypes)) {
         return {
             isValid: false,
-            errors: [`Rule at index ${ruleIndex} resourceTypes must be an array`]
+            errors: [`Regel an Index ${ruleIndex} resourceTypes muss ein Array sein`]
         };
     }
     
     if (resourceTypes.length === 0) {
-        errors.push(`Rule at index ${ruleIndex} resourceTypes cannot be empty`);
+        errors.push(`Regel an Index ${ruleIndex} resourceTypes darf nicht leer sein`);
     }
     
     for (const resourceType of resourceTypes) {
         if (typeof resourceType !== 'string') {
-            errors.push(`Rule at index ${ruleIndex} resourceType must be string: ${resourceType}`);
+            errors.push(`Regel an Index ${ruleIndex} resourceType muss eine Zeichenfolge sein: ${resourceType}`);
         } else if (!VALIDATION_CONFIG.VALID_RESOURCE_TYPES.includes(resourceType)) {
-            errors.push(`Rule at index ${ruleIndex} invalid resourceType: ${resourceType}. Valid types: ${VALIDATION_CONFIG.VALID_RESOURCE_TYPES.join(', ')}`);
+            errors.push(`Regel an Index ${ruleIndex} ungültiger resourceType: ${resourceType}. Gültige Typen: ${VALIDATION_CONFIG.VALID_RESOURCE_TYPES.join(', ')}`);
         }
     }
     
@@ -259,9 +259,9 @@ function validateResourceTypes(resourceTypes, ruleIndex) {
 }
 
 /**
- * Validates rule ID uniqueness and sequential numbering
- * @param {Array} rules - Array of rules to validate
- * @returns {Object} Validation result
+ * Validiert die Eindeutigkeit der Regel-IDs und die sequenzielle Nummerierung
+ * @param {Array} rules - Array von Regeln zur Validierung
+ * @returns {Object} Validierungsergebnis
  */
 function validateRuleIds(rules) {
     const errors = [];
@@ -271,21 +271,21 @@ function validateRuleIds(rules) {
     for (let i = 0; i < rules.length; i++) {
         const rule = rules[i];
         if (!rule || typeof rule.id !== 'number') {
-            continue; // Skip invalid rules, they'll be caught by structure validation
+            continue; // Ungültige Regeln überspringen, werden bei der Strukturvalidierung erkannt
         }
         
         const id = rule.id;
         ids.push(id);
         
-        // Check for duplicate IDs
+        // Überprüfen auf doppelte IDs
         if (seenIds.has(id)) {
-            errors.push(`Duplicate rule ID found: ${id} at rule index ${i}`);
+            errors.push(`Doppelte Regel-ID gefunden: ${id} bei Regelindex ${i}`);
         } else {
             seenIds.add(id);
         }
     }
     
-    // Check for sequential numbering (optional but recommended)
+    // Überprüfen auf Lücken in der sequenziellen Nummerierung (optional, aber empfohlen)
     if (ids.length > 0) {
         ids.sort((a, b) => a - b);
         let expectedId = 1;
@@ -293,15 +293,15 @@ function validateRuleIds(rules) {
         
         for (const id of ids) {
             if (id > expectedId) {
-                gaps.push(`Missing rule IDs: ${expectedId} to ${id - 1}`);
+                gaps.push(`Fehlende Regel-IDs: ${expectedId} bis ${id - 1}`);
                 expectedId = id + 1;
             } else {
                 expectedId = id + 1;
             }
         }
         
-        if (gaps.length > 0 && gaps.length < 10) { // Only report if gaps are manageable
-            console.warn('Rule ID gaps detected (not critical):', gaps);
+        if (gaps.length > 0 && gaps.length < 10) { // Nur melden, wenn Lücken überschaubar sind
+            console.warn('Regel-ID-Lücken erkannt (nicht kritisch):', gaps);
         }
     }
     
@@ -317,10 +317,10 @@ function validateRuleIds(rules) {
 }
 
 /**
- * Validates the entire ruleset JSON structure
- * @param {Array} rules - The rules array to validate
- * @param {Object} options - Validation options
- * @returns {Object} Complete validation result
+ * Validiert die gesamte Regeln-JSON-Struktur
+ * @param {Array} rules - Das zu validierende Regeln-Array
+ * @param {Object} options - Validierungsoptionen
+ * @returns {Object} Vollständiges Validierungsergebnis
  */
 function validateRuleset(rules, options = {}) {
     const startTime = Date.now();
@@ -337,31 +337,31 @@ function validateRuleset(rules, options = {}) {
     };
     
     try {
-        // Basic input validation
+        // Grundlegende Eingangsvalidierung
         if (!Array.isArray(rules)) {
-            throw new RuleValidationError('Rules must be an array', null, null, 'INVALID_INPUT');
+            throw new RuleValidationError('Regeln müssen ein Array sein', null, null, 'INVALID_INPUT');
         }
         
         if (rules.length === 0) {
-            validationResult.warnings.push('Empty rules array provided');
+            validationResult.warnings.push('Leeres Regeln-Array bereitgestellt');
             validationResult.stats.validationTime = Date.now() - startTime;
             return validationResult;
         }
         
         if (rules.length > VALIDATION_CONFIG.MAX_RULES_COUNT) {
-            throw new RuleValidationError(`Too many rules: ${rules.length}. Maximum allowed: ${VALIDATION_CONFIG.MAX_RULES_COUNT}`, null, null, 'TOO_MANY_RULES');
+            throw new RuleValidationError(`Zu viele Regeln: ${rules.length}. Maximal erlaubt: ${VALIDATION_CONFIG.MAX_RULES_COUNT}`, null, null, 'TOO_MANY_RULES');
         }
         
         validationResult.stats.totalRules = rules.length;
         
-        // Validate each rule structure
+        // Validierung der Regelstruktur
         let validRulesCount = 0;
         const allErrors = [];
         
         for (let i = 0; i < rules.length; i++) {
-            // Check timeout to prevent blocking
+            // Timeout überprüfen, um Blockierungen zu vermeiden
             if (Date.now() - startTime > VALIDATION_CONFIG.VALIDATION_TIMEOUT_MS) {
-                throw new RuleValidationError('Validation timeout exceeded', i, null, 'TIMEOUT');
+                throw new RuleValidationError('Validierungs-Timeout überschritten', i, null, 'TIMEOUT');
             }
             
             const ruleValidation = validateRuleStructure(rules[i], i);
@@ -372,11 +372,11 @@ function validateRuleset(rules, options = {}) {
             }
         }
         
-        // Validate rule IDs
+        // Validierung der Regel-IDs
         const idValidation = validateRuleIds(rules);
         allErrors.push(...idValidation.errors);
         
-        // Set final validation state
+        // Endgültigen Validierungsstatus festlegen
         validationResult.isValid = allErrors.length === 0;
         validationResult.errors = allErrors;
         validationResult.stats.validRules = validRulesCount;
@@ -384,7 +384,7 @@ function validateRuleset(rules, options = {}) {
         validationResult.stats.idStats = idValidation.stats;
         
         if (allErrors.length > 0) {
-            console.error(`Rule validation failed: ${allErrors.length} errors found`);
+            console.error(`Regelvalidierung fehlgeschlagen: ${allErrors.length} Fehler gefunden`);
         }
         
     } catch (error) {
@@ -392,9 +392,9 @@ function validateRuleset(rules, options = {}) {
         if (error instanceof RuleValidationError) {
             validationResult.errors.push(error.message);
         } else {
-            validationResult.errors.push(`Validation error: ${error.message}`);
+            validationResult.errors.push(`Validierungsfehler: ${error.message}`);
         }
-        console.error('Rule validation exception:', error);
+        console.error('Regelvalidierungs-Ausnahme:', error);
     }
     
     validationResult.stats.validationTime = Date.now() - startTime;
@@ -402,9 +402,9 @@ function validateRuleset(rules, options = {}) {
 }
 
 /**
- * Validates precompiled JSON file before loading
- * @param {string} jsonContent - JSON content as string
- * @returns {Object} Validation result with parsed rules if valid
+ * Validiert eine vorkompilierte JSON-Datei vor dem Laden
+ * @param {string} jsonContent - JSON-Inhalt als Zeichenfolge
+ * @returns {Object} Validierungsergebnis mit analysierten Regeln, wenn gültig
  */
 function validatePrecompiledJson(jsonContent) {
     const validationResult = {
@@ -415,22 +415,22 @@ function validatePrecompiledJson(jsonContent) {
     };
     
     try {
-        // Validate JSON structure
+        // Validierung der JSON-Struktur
         if (typeof jsonContent !== 'string' || jsonContent.trim().length === 0) {
-            validationResult.errors.push('JSON content must be a non-empty string');
+            validationResult.errors.push('JSON-Inhalt muss eine nicht leere Zeichenfolge sein');
             return validationResult;
         }
         
-        // Parse JSON
+        // JSON parsen
         let parsedRules;
         try {
             parsedRules = JSON.parse(jsonContent);
         } catch (parseError) {
-            validationResult.errors.push(`Invalid JSON format: ${parseError.message}`);
+            validationResult.errors.push(`Ungültiges JSON-Format: ${parseError.message}`);
             return validationResult;
         }
         
-        // Validate ruleset
+        // Regeln-Satz validieren
         const rulesetValidation = validateRuleset(parsedRules);
         
         validationResult.isValid = rulesetValidation.isValid;
@@ -443,25 +443,25 @@ function validatePrecompiledJson(jsonContent) {
         }
         
     } catch (error) {
-        validationResult.errors.push(`Validation error: ${error.message}`);
-        console.error('JSON validation error:', error);
+        validationResult.errors.push(`Validierungsfehler: ${error.message}`);
+        console.error('JSON-Validierungsfehler:', error);
     }
     
     return validationResult;
 }
 
 /**
- * Quick validation for performance-critical scenarios
- * Only validates critical fields that could cause Chrome API failures
- * @param {Array} rules - Rules array to validate
- * @returns {boolean} True if rules pass quick validation
+ * Schnelle Validierung für leistungs kritische Szenarien
+ * Validiert nur kritische Felder, die zu Chrome-API-Fehlern führen könnten
+ * @param {Array} rules - Zu validierende Regeln
+ * @returns {boolean} Wahr, wenn Regeln die schnelle Validierung bestehen
  */
 function quickValidateRules(rules) {
     if (!Array.isArray(rules) || rules.length === 0) {
         return false;
     }
     
-    for (let i = 0; i < Math.min(rules.length, 10); i++) { // Sample first 10 rules
+    for (let i = 0; i < Math.min(rules.length, 10); i++) { // Erste 10 Regeln stichprobenartig prüfen
         const rule = rules[i];
         if (!rule || typeof rule !== 'object' ||
             !Number.isInteger(rule.id) || rule.id < 1 ||
@@ -474,9 +474,9 @@ function quickValidateRules(rules) {
     return true;
 }
 
-// Export functions for use in other modules
+// Exportiere Funktionen zur Verwendung in anderen Modulen
 if (typeof module !== 'undefined' && module.exports) {
-    // Node.js environment
+    // Node.js-Umgebung
     module.exports = {
         validateRuleset,
         validatePrecompiledJson,
@@ -487,7 +487,7 @@ if (typeof module !== 'undefined' && module.exports) {
         VALIDATION_CONFIG
     };
 } else if (typeof window !== 'undefined') {
-    // Browser environment
+    // Browser-Umgebung
     window.RuleValidator = {
         validateRuleset,
         validatePrecompiledJson,

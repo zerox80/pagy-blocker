@@ -1,10 +1,10 @@
 /**
- * Comprehensive rule parser with advanced syntax validation
- * Supports AdBlock Plus filter list format and various rule types
- * Enhanced with proper error handling and validation
+ * Umfassender Regelparser mit erweiterter Syntaxvalidierung
+ * Unterstützt das Filterlistenformat von AdBlock Plus und verschiedene Regeltypen
+ * Verbesserte Fehlerbehandlung und Validierung
  */
 
-// Rule type constants
+// Regeltyp-Konstanten
 const RULE_TYPES = {
     NETWORK: 'network',
     COSMETIC: 'cosmetic',
@@ -13,10 +13,10 @@ const RULE_TYPES = {
     INVALID: 'invalid'
 };
 
-// SECURITY: ReDoS-safe pattern validation using string-based parsing
-// Complex regex patterns replaced with secure parsing functions to prevent ReDoS attacks
+// SICHERHEIT: ReDoS-sichere Mustervalidierung mit zeichenbasierter Analyse
+// Komplexe Regex-Muster wurden durch sichere Analysefunktionen ersetzt, um ReDoS-Angriffe zu verhindern
 const URL_PATTERN_VALIDATORS = {
-    // Safe domain validation using character-by-character parsing
+    // Sichere Domain-Validierung mit zeichenweiser Analyse
     DOMAIN_CHARS: 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.-',
     URL_CHARS: 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.-_~:/?#[]@!$&\'()*+,;=%',
     WILDCARD_CHARS: 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-*/',
@@ -24,22 +24,22 @@ const URL_PATTERN_VALIDATORS = {
 };
 
 /**
- * SECURITY: Safe string validation without regex to prevent ReDoS attacks
- * Uses character-by-character validation instead of complex regex patterns
+ * SICHERHEIT: Sichere Zeichenvalidierung ohne Regex zur Vermeidung von ReDoS-Angriffen
+ * Verwendet zeichenweise Validierung anstelle komplexer Regex-Muster
  */
 function validateStringChars(input, allowedChars, maxLength = 500) {
     if (!input || typeof input !== 'string') {
-        return { success: false, error: 'Input must be a non-empty string' };
+        return { success: false, error: 'Eingabe muss ein nicht leerer String sein' };
     }
     
     if (input.length > maxLength) {
-        return { success: false, error: `Input exceeds maximum length (${maxLength})` };
+        return { success: false, error: `Eingabe überschreitet die maximale Länge (${maxLength})` };
     }
     
-    // Character-by-character validation - prevents ReDoS
+    // Zeichenweise Validierung - verhindert ReDoS
     for (let i = 0; i < input.length; i++) {
         if (!allowedChars.includes(input[i])) {
-            return { success: false, error: `Invalid character at position ${i}: ${input[i]}` };
+            return { success: false, error: `Ungültiges Zeichen an Position ${i}: ${input[i]}` };
         }
     }
     
@@ -47,35 +47,35 @@ function validateStringChars(input, allowedChars, maxLength = 500) {
 }
 
 /**
- * SECURITY: Safe domain validation using string parsing instead of regex
- * Prevents ReDoS attacks by avoiding complex regex patterns
+ * SICHERHEIT: Sichere Domain-Validierung mit zeichenbasierter Analyse anstelle von Regex
+ * Verhindert ReDoS-Angriffe durch Vermeidung komplexer Regex-Muster
  */
 function safeDomainValidation(domain) {
     if (!domain || typeof domain !== 'string') {
-        return { success: false, error: 'Domain must be a non-empty string' };
+        return { success: false, error: 'Domain muss ein nicht leerer String sein' };
     }
     
     if (domain.length > 253) {
-        return { success: false, error: 'Domain exceeds maximum length (253)' };
+        return { success: false, error: 'Domain überschreitet die maximale Länge (253)' };
     }
     
-    // Check for dangerous patterns without regex
+    // Überprüfung auf gefährliche Muster ohne Regex
     if (domain.includes('..') || domain.startsWith('.') || domain.endsWith('.')) {
-        return { success: false, error: 'Invalid domain format' };
+        return { success: false, error: 'Ungültiges Domain-Format' };
     }
     
-    // Split domain into parts and validate each
+    // Aufteilen der Domain in Teile und Validierung jedes Teils
     const parts = domain.split('.');
     if (parts.length < 2) {
-        return { success: false, error: 'Domain must have at least two parts' };
+        return { success: false, error: 'Domain muss aus mindestens zwei Teilen bestehen' };
     }
     
     for (const part of parts) {
         if (part.length === 0 || part.length > 63) {
-            return { success: false, error: 'Invalid domain part length' };
+            return { success: false, error: 'Ungültige Länge des Domain-Teils' };
         }
         
-        // Validate characters in each part
+        // Validierung der Zeichen in jedem Teil
         const validation = validateStringChars(part, URL_PATTERN_VALIDATORS.DOMAIN_CHARS, 63);
         if (!validation.success) {
             return validation;
@@ -86,19 +86,19 @@ function safeDomainValidation(domain) {
 }
 
 /**
- * SECURITY: Safe URL pattern matching without complex regex
- * Prevents ReDoS by using string-based parsing
+ * SICHERHEIT: Sichere URL-Mustererkennung ohne komplexe Regex
+ * Verhindert ReDoS durch zeichenbasierte Analyse
  */
 function safeURLPatternMatch(pattern) {
     if (!pattern || typeof pattern !== 'string') {
-        return { success: false, error: 'Pattern must be a non-empty string' };
+        return { success: false, error: 'Muster muss ein nicht leerer String sein' };
     }
     
     if (pattern.length > 500) {
-        return { success: false, error: 'Pattern exceeds maximum length (500)' };
+        return { success: false, error: 'Muster überschreitet die maximale Länge (500)' };
     }
     
-    // Domain anchor pattern (||domain.com^)
+    // Domain-Anker-Muster (||domain.com^)
     if (pattern.startsWith('||')) {
         const endCaret = pattern.endsWith('^');
         const domain = endCaret ? pattern.slice(2, -1) : pattern.slice(2);
@@ -111,7 +111,7 @@ function safeURLPatternMatch(pattern) {
         return { success: true, result: [pattern, domain], type: 'domain_anchor' };
     }
     
-    // URL anchor pattern (|https://example.com)
+    // URL-Anker-Muster (|https://example.com)
     if (pattern.startsWith('|') && !pattern.startsWith('||')) {
         if (pattern.startsWith('|http://') || pattern.startsWith('|https://')) {
             const validation = validateStringChars(pattern, URL_PATTERN_VALIDATORS.URL_CHARS, 500);
@@ -120,10 +120,10 @@ function safeURLPatternMatch(pattern) {
             }
             return { success: true, result: [pattern], type: 'url_anchor' };
         }
-        return { success: false, error: 'Invalid URL anchor pattern' };
+        return { success: false, error: 'Ungültiges URL-Anker-Muster' };
     }
     
-    // Wildcard pattern validation
+    // Wildcard-Muster-Validierung
     const validation = validateStringChars(pattern, URL_PATTERN_VALIDATORS.WILDCARD_CHARS, 100);
     if (!validation.success) {
         return validation;
@@ -133,18 +133,18 @@ function safeURLPatternMatch(pattern) {
 }
 
 /**
- * SECURITY: Safe cosmetic rule parsing without regex
- * Prevents ReDoS by using string-based parsing
+ * SICHERHEIT: Sichere Parsing von kosmetischen Regeln ohne Regex
+ * Verhindert ReDoS durch zeichenbasierte Analyse
  */
 function safeParseCosmeticRule(rule) {
     if (!rule || typeof rule !== 'string') {
-        return { success: false, error: 'Rule must be a non-empty string' };
+        return { success: false, error: 'Regel muss ein nicht leerer String sein' };
     }
     
     let operator = '';
     let operatorIndex = -1;
     
-    // Find the cosmetic operator
+    // Finden des kosmetischen Operators
     if (rule.includes('#?#')) {
         operator = '#?#';
         operatorIndex = rule.indexOf('#?#');
@@ -155,14 +155,14 @@ function safeParseCosmeticRule(rule) {
         operator = '##';
         operatorIndex = rule.indexOf('##');
     } else {
-        return { success: false, error: 'No cosmetic operator found' };
+        return { success: false, error: 'Kein kosmetischer Operator gefunden' };
     }
     
     const domains = rule.slice(0, operatorIndex);
     const selector = rule.slice(operatorIndex + operator.length);
     
     if (!selector) {
-        return { success: false, error: 'Empty selector' };
+        return { success: false, error: 'Leerer Selektor' };
     }
     
     return {
@@ -172,8 +172,8 @@ function safeParseCosmeticRule(rule) {
 }
 
 /**
- * SECURITY: Detects URL-encoded attack vectors
- * Prevents encoded script injection and other attacks
+ * SICHERHEIT: Erkennt URL-codierte Angriffsvektoren
+ * Verhindert codierte Skripteinschleusungen und andere Angriffe
  */
 function isEncodedAttack(input) {
     const dangerousEncodedPatterns = [
@@ -197,12 +197,12 @@ function isEncodedAttack(input) {
 }
 
 /**
- * SECURITY: Enhanced input sanitization with comprehensive filtering
- * Removes or neutralizes dangerous content while preserving functionality
+ * SICHERHEIT: Verbesserte Eingabesäuberung mit umfassender Filterung
+ * Entfernt oder neutralisiert gefährliche Inhalte und bewahrt gleichzeitig die Funktionalität
  */
 function sanitizeInput(input, options = {}) {
     if (!input || typeof input !== 'string') {
-        return { sanitized: '', wasModified: false, errors: ['Input must be a non-empty string'] };
+        return { sanitized: '', wasModified: false, errors: ['Eingabe muss ein nicht leerer String sein'] };
     }
     
     const maxLength = options.maxLength || 500;
@@ -213,62 +213,62 @@ function sanitizeInput(input, options = {}) {
     let wasModified = false;
     const errors = [];
     
-    // Length check
+    // Längenüberprüfung
     if (sanitized.length > maxLength) {
         sanitized = sanitized.slice(0, maxLength);
         wasModified = true;
-        errors.push(`Input truncated to ${maxLength} characters`);
+        errors.push(`Eingabe auf ${maxLength} Zeichen gekürzt`);
     }
     
-    // Remove null bytes and control characters
+    // Entfernen von Null-Bytes und Steuerzeichen
     const originalLength = sanitized.length;
     sanitized = sanitized.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
     if (sanitized.length !== originalLength) {
         wasModified = true;
-        errors.push('Removed control characters');
+        errors.push('Steuerzeichen entfernt');
     }
     
-    // HTML sanitization if not allowed
+    // HTML-Säuberung, wenn nicht erlaubt
     if (!allowHTML) {
         const htmlPattern = /<[^>]*>/g;
         if (htmlPattern.test(sanitized)) {
             sanitized = sanitized.replace(htmlPattern, '');
             wasModified = true;
-            errors.push('Removed HTML tags');
+            errors.push('HTML-Tags entfernt');
         }
     }
     
-    // Special character filtering if not allowed
+    // Filterung von Sonderzeichen, wenn nicht erlaubt
     if (!allowSpecialChars) {
         const originalSanitized = sanitized;
         sanitized = sanitized.replace(/[<>"'&{}()]/g, '');
         if (sanitized !== originalSanitized) {
             wasModified = true;
-            errors.push('Removed special characters');
+            errors.push('Sonderzeichen entfernt');
         }
     }
     
-    // URL decode check and sanitization
+    // Überprüfung und Säuberung von URL-Decodierungen
     if (sanitized.includes('%')) {
         try {
             const decoded = decodeURIComponent(sanitized);
             if (isEncodedAttack(sanitized)) {
                 sanitized = sanitized.replace(/%[0-9a-fA-F]{2}/g, '');
                 wasModified = true;
-                errors.push('Removed URL-encoded attack vectors');
+                errors.push('Entfernte URL-codierte Angriffsvektoren');
             }
         } catch (e) {
-            // Invalid URL encoding - remove % characters
+            // Ungültige URL-Codierung - % Zeichen entfernen
             sanitized = sanitized.replace(/%/g, '');
             wasModified = true;
-            errors.push('Removed invalid URL encoding');
+            errors.push('Entfernte ungültige URL-Codierung');
         }
     }
     
     return { sanitized, wasModified, errors };
 }
 
-// Filter options validation
+// Filteroptions-Validierung
 const VALID_OPTIONS = new Set([
     'script', 'image', 'stylesheet', 'object', 'xmlhttprequest', 'subdocument',
     'document', 'websocket', 'webrtc', 'popup', 'third-party', 'match-case',
@@ -276,30 +276,30 @@ const VALID_OPTIONS = new Set([
     'generichide', 'elemhide', 'ping', 'font', 'media', 'other', 'beacon'
 ]);
 
-// SECURITY: Domain validation moved to safe string-based validation
-// Removed regex to prevent ReDoS attacks
+// SICHERHEIT: Domain-Validierung auf sichere zeichenbasierte Validierung umgestellt
+// Regex entfernt, um ReDoS-Angriffe zu verhindern
 
 /**
- * Enhanced domain sanitization with stricter validation
- * @param {string} domain - Domain to sanitize
- * @returns {Promise<Object>} Sanitization result
+ * Verbesserte Domain-Säuberung mit strengerer Validierung
+ * @param {string} domain - Zu säubernde Domain
+ * @returns {Promise<Object>} Ergebnis der Säuberung
  */
 async function sanitizeDomain(domain) {
     if (!domain || typeof domain !== 'string') {
-        return { isValid: false, error: 'Domain must be a non-empty string' };
+        return { isValid: false, error: 'Domain muss ein nicht leerer String sein' };
     }
     
-    // Remove potentially dangerous characters
+    // Entfernen potenziell gefährlicher Zeichen
     const cleaned = domain.replace(/[<>'"(){}[\]\\]/g, '').toLowerCase().trim();
     
-    // Check for suspicious patterns
+    // Überprüfung auf verdächtige Muster
     if (cleaned.includes('..') || cleaned.startsWith('.') || cleaned.endsWith('.') ||
         cleaned.includes('localhost') || cleaned.includes('127.0.0.1') ||
         cleaned.includes('0.0.0.0') || cleaned.includes('::1')) {
-        return { isValid: false, error: 'Domain contains suspicious patterns' };
+        return { isValid: false, error: 'Domain enthält verdächtige Muster' };
     }
     
-    // SECURITY: Safe domain validation without regex
+    // SICHERHEIT: Sichere Domain-Validierung ohne Regex
     const testResult = safeDomainValidation(cleaned);
     if (!testResult.success) {
         return { isValid: false, error: testResult.error };
@@ -309,70 +309,70 @@ async function sanitizeDomain(domain) {
 }
 
 /**
- * Enhanced URL filter pattern validation with ReDoS protection
- * @param {string} pattern - The URL pattern to validate
- * @returns {Promise<Object>} Validation result with isValid flag and error message
+ * Verbesserte Validierung von URL-Filtermustern mit ReDoS-Schutz
+ * @param {string} pattern - Das zu validierende URL-Muster
+ * @returns {Promise<Object>} Validierungsergebnis mit isValid-Flag und Fehlermeldung
  */
 async function validateURLPattern(pattern) {
     if (!pattern || typeof pattern !== 'string') {
-        return { isValid: false, error: 'Pattern must be a non-empty string' };
+        return { isValid: false, error: 'Muster muss ein nicht leerer String sein' };
     }
 
-    // SECURITY: Comprehensive dangerous pattern detection
+    // SICHERHEIT: Umfassende Erkennung gefährlicher Muster
     const dangerousPatterns = [
-        // Script injection vectors
+        // Skripteinschleusungsvektoren
         '<script', '</script', 'javascript:', 'data:', 'vbscript:', 'file:', 'ftp:',
-        // Function calls and code execution
+        // Funktionsaufrufe und Codeausführung
         'eval(', 'function(', 'constructor(', 'settimeout(', 'setinterval(',
-        // Event handlers
+        // Ereignis-Handler
         'onclick=', 'onload=', 'onerror=', 'onmouseover=', 'onfocus=', 'onblur=',
         'onchange=', 'onsubmit=', 'onkeydown=', 'onkeyup=', 'onkeypress=',
-        // CSS expressions and imports
+        // CSS-Ausdrücke und -Importe
         'expression(', '@import', 'url(', 'background:url', 'background-image:url',
-        // Module and require patterns
+        // Modul- und Require-Muster
         'import(', 'require(', 'importscripts(', '__import__',
-        // Network requests
+        // Netzwerk-Anfragen
         'fetch(', 'xmlhttprequest', 'websocket', 'eventsource',
-        // File system access
+        // Dateisystemzugriff
         'filesystem:', 'blob:', 'about:',
-        // Dangerous HTML entities
+        // Gefährliche HTML-Entities
         '&#', '&lt;', '&gt;', '&quot;', '&apos;',
-        // SQL injection patterns
+        // SQL-Injektionsmuster
         'union select', 'drop table', 'delete from', 'insert into',
-        // Command injection
+        // Befehlsinjektion
         '$(', '`', 'cmd.exe', '/bin/', 'powershell',
-        // Template injection
+        // Template-Injektion
         '{{', '}}', '<%', '%>', '{%', '%}',
-        // Base64 encoded common attack vectors
+        // Base64-codierte häufige Angriffsvektoren
         'amF2YXNjcmlwdA==', 'ZXZhbA==', 'c2NyaXB0'
     ];
     
     const lowerPattern = pattern.toLowerCase();
     for (const dangerous of dangerousPatterns) {
         if (lowerPattern.includes(dangerous.toLowerCase())) {
-            return { isValid: false, error: `Pattern contains dangerous content: ${dangerous}` };
+            return { isValid: false, error: `Muster enthält gefährlichen Inhalt: ${dangerous}` };
         }
     }
     
-    // SECURITY: Additional character-based validation
+    // SICHERHEIT: Zusätzliche zeichenbasierte Validierung
     const forbiddenChars = ['\0', '\x01', '\x02', '\x03', '\x04', '\x05', '\x06', '\x07', '\x08', '\x0b', '\x0c', '\x0e', '\x0f'];
     for (const char of forbiddenChars) {
         if (pattern.includes(char)) {
-            return { isValid: false, error: `Pattern contains forbidden control character` };
+            return { isValid: false, error: `Muster enthält verbotenes Steuerzeichen` };
         }
     }
     
-    // SECURITY: Check for encoded attack vectors
+    // SICHERHEIT: Überprüfung auf codierte Angriffsvektoren
     if (pattern.includes('%') && isEncodedAttack(pattern)) {
-        return { isValid: false, error: 'Pattern contains encoded attack vector' };
+        return { isValid: false, error: 'Muster enthält codierten Angriffsvektor' };
     }
 
-    // Check maximum length to prevent DoS - reduced from 1000 to 500
+    // Überprüfung der maximalen Länge zur Vermeidung von DoS - reduziert von 1000 auf 500
     if (pattern.length > 500) {
-        return { isValid: false, error: 'Pattern exceeds maximum length (500 characters)' };
+        return { isValid: false, error: 'Muster überschreitet die maximale Länge (500 Zeichen)' };
     }
 
-    // SECURITY: Safe pattern validation without regex to prevent ReDoS
+    // SICHERHEIT: Sichere Mustervalidierung ohne Regex zur Vermeidung von ReDoS
     const patternResult = safeURLPatternMatch(pattern);
     if (!patternResult.success) {
         return { isValid: false, error: patternResult.error };
@@ -390,9 +390,9 @@ async function validateURLPattern(pattern) {
 }
 
 /**
- * Validates filter options (e.g., $script,third-party)
- * @param {string} options - Options string after $ delimiter
- * @returns {Promise<Object>} Validation result
+ * Validiert Filteroptionen (z.B. $script,third-party)
+ * @param {string} options - Options-String nach dem $-Trennzeichen
+ * @returns {Promise<Object>} Validierungsergebnis
  */
 async function validateFilterOptions(options) {
     if (!options) {
@@ -404,20 +404,20 @@ async function validateFilterOptions(options) {
     const errors = [];
 
     for (const option of optionList) {
-        // Handle negated options (e.g., ~script)
+        // Behandlung negierter Optionen (z.B. ~script)
         const isNegated = option.startsWith('~');
         const baseOption = isNegated ? option.slice(1) : option;
 
-        // Handle domain restrictions (e.g., domain=example.com)
+        // Behandlung von Domain-Beschränkungen (z.B. domain=example.com)
         if (baseOption.startsWith('domain=')) {
             const domains = baseOption.slice(7).split('|');
             for (const domain of domains) {
                 const cleanDomain = domain.startsWith('~') ? domain.slice(1) : domain;
                 if (cleanDomain) {
-                    // SECURITY: Use safe domain validation instead of regex
+                    // SICHERHEIT: Verwendung sicherer Domain-Validierung anstelle von Regex
                     const testResult = safeDomainValidation(cleanDomain);
                     if (!testResult.success) {
-                        errors.push(`Invalid domain in options: ${cleanDomain} - ${testResult.error}`);
+                        errors.push(`Ungültige Domain in den Optionen: ${cleanDomain} - ${testResult.error}`);
                     }
                 }
             }
@@ -425,7 +425,7 @@ async function validateFilterOptions(options) {
         } else if (VALID_OPTIONS.has(baseOption)) {
             parsedOptions.push({ type: 'filter', value: baseOption, negated: isNegated });
         } else {
-            errors.push(`Unknown filter option: ${baseOption}`);
+            errors.push(`Unbekannte Filteroption: ${baseOption}`);
         }
     }
 
@@ -437,65 +437,65 @@ async function validateFilterOptions(options) {
 }
 
 /**
- * SECURITY: Enhanced cosmetic rule syntax validation with comprehensive sanitization
- * @param {string} selector - CSS selector part of cosmetic rule
- * @returns {Promise<Object>} Validation result
+ * SICHERHEIT: Verbesserte Validierung der kosmetischen Regel-Syntax mit umfassender Säuberung
+ * @param {string} selector - CSS-Selektor-Teil der kosmetischen Regel
+ * @returns {Promise<Object>} Validierungsergebnis
  */
 async function validateCosmeticSelector(selector) {
     if (!selector || typeof selector !== 'string') {
-        return { isValid: false, error: 'Selector must be a non-empty string' };
+        return { isValid: false, error: 'Selektor muss ein nicht leerer String sein' };
     }
 
-    // SECURITY: Comprehensive input sanitization
+    // SICHERHEIT: Umfassende Eingabesäuberung
     const sanitizationResult = sanitizeInput(selector, {
         maxLength: 1000,
         allowHTML: false,
-        allowSpecialChars: true // CSS selectors need some special chars
+        allowSpecialChars: true // CSS-Selektoren benötigen einige Sonderzeichen
     });
     
     if (sanitizationResult.errors.length > 0) {
-        return { isValid: false, error: `Sanitization failed: ${sanitizationResult.errors.join(', ')}` };
+        return { isValid: false, error: `Säuberung fehlgeschlagen: ${sanitizationResult.errors.join(', ')}` };
     }
     
     const sanitizedSelector = sanitizationResult.sanitized;
 
-    // SECURITY: Enhanced dangerous pattern detection for CSS
+    // SICHERHEIT: Verbesserte Erkennung gefährlicher Muster für CSS
     const dangerousCSSPatterns = [
         'javascript:', 'data:', 'vbscript:', 'file:', 'ftp:',
         '<script', '</script', 'eval(', 'function(', 'constructor(',
         'expression(', '@import', 'url(javascript:', 'url(data:',
         'behavior:', '-moz-binding:', 'binding:', '\\', 'content:',
         'counter(', 'counters(', 'attr(onclick', 'attr(onload',
-        '\\A', '\\D', '\\a', '\\d', // CSS escapes that could be dangerous
+        '\\A', '\\D', '\\a', '\\d', // CSS-Escape-Sequenzen, die gefährlich sein könnten
         '/*', '*/', '//', '--', '\\*', '\\/'
     ];
     
     const lowerSelector = sanitizedSelector.toLowerCase();
     for (const dangerous of dangerousCSSPatterns) {
         if (lowerSelector.includes(dangerous.toLowerCase())) {
-            return { isValid: false, error: `CSS selector contains dangerous pattern: ${dangerous}` };
+            return { isValid: false, error: `CSS-Selektor enthält gefährliches Muster: ${dangerous}` };
         }
     }
 
-    // SECURITY: Validate CSS selector structure
+    // SICHERHEIT: Validierung der CSS-Selektor-Struktur
     if (!isValidCSSSelector(sanitizedSelector)) {
-        return { isValid: false, error: 'Invalid CSS selector structure' };
+        return { isValid: false, error: 'Ungültige CSS-Selektor-Struktur' };
     }
 
     return { isValid: true, sanitizedSelector };
 }
 
 /**
- * SECURITY: Validates CSS selector structure without regex
- * Prevents malformed selectors that could bypass security
+ * SICHERHEIT: Validiert die CSS-Selektor-Struktur ohne Regex
+ * Verhindert fehlerhafte Selektoren, die Sicherheitsüberprüfungen umgehen könnten
  */
 function isValidCSSSelector(selector) {
-    // Basic structural validation
+    // Grundlegende strukturelle Validierung
     if (selector.length === 0 || selector.length > 1000) {
         return false;
     }
     
-    // Check for balanced brackets and parentheses
+    // Überprüfung auf ausgewogene Klammern und Klammeraffen
     let bracketCount = 0;
     let parenCount = 0;
     let inQuotes = false;
@@ -527,24 +527,24 @@ function isValidCSSSelector(selector) {
         }
     }
     
-    // Check if brackets and parentheses are balanced and quotes are closed
+    // Überprüfung, ob Klammern und Klammeraffen ausgewogen und Anführungszeichen geschlossen sind
     return bracketCount === 0 && parenCount === 0 && !inQuotes;
 }
 
 /**
- * Determines the type of rule based on syntax
- * @param {string} rule - The filter rule
- * @returns {string} Rule type constant
+ * Bestimmt den Regeltyp basierend auf der Syntax
+ * @param {string} rule - Die Filterregel
+ * @returns {string} Regeltyp-Konstante
  */
 async function determineRuleType(rule) {
-    // Comment or metadata
+    // Kommentar oder Metadaten
     if (rule.startsWith('!') || rule.startsWith('[')) {
         return RULE_TYPES.COMMENT;
     }
 
-    // SECURITY: Safe cosmetic rule detection without regex
+    // SICHERHEIT: Sichere Erkennung kosmetischer Regeln ohne Regex
     if (rule.includes('##') || rule.includes('#@#') || rule.includes('#?#')) {
-        // Use safe string parsing instead of regex
+        // Verwendung sicherer zeichenbasierter Analyse anstelle von Regex
         if (rule.includes('##') || rule.includes('#@#')) {
             return RULE_TYPES.ELEMENT_HIDE;
         } else if (rule.includes('#?#')) {
@@ -552,30 +552,30 @@ async function determineRuleType(rule) {
         }
     }
 
-    // Network rules (everything else)
+    // Netzwerkregeln (alles andere)
     return RULE_TYPES.NETWORK;
 }
 
 /**
- * Enhanced rule parser with comprehensive validation
- * @param {string} rule - The filter rule to parse
- * @returns {Promise<Object|null>} Parsed rule object or null if invalid
+ * Verbesserter Regelparser mit umfassender Validierung
+ * @param {string} rule - Die zu parsende Filterregel
+ * @returns {Promise<Object|null>} Parsed Regelobjekt oder null, wenn ungültig
  */
 async function parseRule(rule) {
-    // Basic input validation
+    // Grundlegende Eingabevalidierung
     if (!rule || typeof rule !== 'string') {
         return null;
     }
 
-    // Normalize and trim
+    // Normalisieren und Trimmen
     const normalizedRule = rule.trim();
     
-    // Skip empty lines
+    // Leere Zeilen überspringen
     if (normalizedRule.length === 0) {
         return null;
     }
 
-    // Skip comments and metadata (but could be processed differently if needed)
+    // Kommentare und Metadaten überspringen (könnten aber bei Bedarf anders verarbeitet werden)
     if (normalizedRule.startsWith('!') || normalizedRule.startsWith('[')) {
         return null;
     }
@@ -591,22 +591,22 @@ async function parseRule(rule) {
 
         return null;
     } catch (error) {
-        console.warn(`Failed to parse rule: ${normalizedRule}`, error);
+        console.warn(`Fehler beim Parsen der Regel: ${normalizedRule}`, error);
         return null;
     }
 }
 
 /**
- * Parses network filtering rules
- * @param {string} rule - Network rule string
- * @returns {Promise<Object|null>} Parsed network rule
+ * Parst Regeln für die Netzwerkfilterung
+ * @param {string} rule - Netzwerkregel-String
+ * @returns {Promise<Object|null>} Parsed Netzwerkregel
  */
 async function parseNetworkRule(rule) {
-    // Handle exception rules
+    // Behandlung von Ausnahmeregeln
     const isException = rule.startsWith('@@');
     const cleanRule = isException ? rule.slice(2) : rule;
 
-    // Split pattern and options
+    // Aufteilen von Muster und Optionen
     const dollarIndex = cleanRule.lastIndexOf('$');
     let pattern = cleanRule;
     let options = '';
@@ -616,19 +616,19 @@ async function parseNetworkRule(rule) {
         options = cleanRule.slice(dollarIndex + 1);
     }
 
-    // Validate URL pattern
+    // Validierung des URL-Musters
     const patternValidation = await validateURLPattern(pattern);
     if (!patternValidation.isValid) {
-        console.warn(`Invalid URL pattern: ${pattern} - ${patternValidation.error}`);
+        console.warn(`Ungültiges URL-Muster: ${pattern} - ${patternValidation.error}`);
         return null;
     }
 
-    // Validate options if present
+    // Validierung der Optionen, falls vorhanden
     let parsedOptions = null;
     if (options) {
         const optionsValidation = await validateFilterOptions(options);
         if (!optionsValidation.isValid) {
-            console.warn(`Invalid filter options: ${options} - ${optionsValidation.errors.join(', ')}`);
+            console.warn(`Ungültige Filteroptionen: ${options} - ${optionsValidation.errors.join(', ')}`);
             return null;
         }
         parsedOptions = optionsValidation.parsedOptions;
@@ -646,13 +646,13 @@ async function parseNetworkRule(rule) {
 }
 
 /**
- * Parses cosmetic filtering rules (element hiding, CSS injection)
- * @param {string} rule - Cosmetic rule string
- * @param {string} ruleType - Type of cosmetic rule
- * @returns {Object|null} Parsed cosmetic rule
+ * Parst kosmetische Filterregeln (Elementverbergung, CSS-Injektion)
+ * @param {string} rule - Kosmetische Regel als String
+ * @param {string} ruleType - Typ der kosmetischen Regel
+ * @returns {Object|null} Parsed kosmetische Regel
  */
 async function parseCosmeticRule(rule, ruleType) {
-    // SECURITY: Safe cosmetic rule parsing without regex
+    // SICHERHEIT: Sicheres Parsing kosmetischer Regeln ohne Regex
     const cosmeticMatch = safeParseCosmeticRule(rule);
     if (!cosmeticMatch.success) {
         return null;
@@ -660,24 +660,24 @@ async function parseCosmeticRule(rule, ruleType) {
 
     const { domains, operator, selector } = cosmeticMatch.result;
 
-    // Validate selector
+    // Validierung des Selektors
     const selectorValidation = await validateCosmeticSelector(selector);
     if (!selectorValidation.isValid) {
-        console.warn(`Invalid cosmetic selector: ${selector} - ${selectorValidation.error}`);
+        console.warn(`Ungültiger kosmetischer Selektor: ${selector} - ${selectorValidation.error}`);
         return null;
     }
 
-    // Parse domain restrictions
+    // Parsen der Domain-Beschränkungen
     let domainList = null;
     if (domains) {
         domainList = domains.split(',').map(d => d.trim()).filter(d => d.length > 0);
-        // SECURITY: Validate each domain using safe method
+        // SICHERHEIT: Validierung jeder Domain mit sicherer Methode
         for (const domain of domainList) {
             const cleanDomain = domain.startsWith('~') ? domain.slice(1) : domain;
             if (cleanDomain) {
                 const testResult = safeDomainValidation(cleanDomain);
                 if (!testResult.success) {
-                    console.warn(`Invalid domain in cosmetic rule: ${cleanDomain} - ${testResult.error}`);
+                    console.warn(`Ungültige Domain in der kosmetischen Regel: ${cleanDomain} - ${testResult.error}`);
                     return null;
                 }
             }
@@ -696,9 +696,9 @@ async function parseCosmeticRule(rule, ruleType) {
 }
 
 /**
- * Validates rule format compliance with filter list standards
- * @param {string} rule - Rule to validate
- * @returns {Object} Validation result with compliance info
+ * Validiert die Regelkonformität mit den Standards der Filterliste
+ * @param {string} rule - Zu validierende Regel
+ * @returns {Object} Validierungsergebnis mit Konformitätsinformationen
  */
 function validateRuleCompliance(rule) {
     const result = {
@@ -708,35 +708,35 @@ function validateRuleCompliance(rule) {
     };
 
     if (!rule || typeof rule !== 'string') {
-        result.issues.push('Rule must be a non-empty string');
+        result.issues.push('Regel muss ein nicht leerer String sein');
         return result;
     }
 
     const trimmedRule = rule.trim();
     
-    // Check for common issues
+    // Überprüfung auf häufige Probleme
     if (trimmedRule.length === 0) {
-        result.issues.push('Empty rule');
+        result.issues.push('Leere Regel');
         return result;
     }
 
     if (trimmedRule.length > 2000) {
-        result.issues.push('Rule exceeds recommended maximum length (2000 characters)');
+        result.issues.push('Regel überschreitet die empfohlene maximale Länge (2000 Zeichen)');
     }
 
-    // Check for problematic characters
+    // Überprüfung auf problematische Zeichen
     if (trimmedRule.includes('\t')) {
-        result.warnings.push('Rule contains tab characters');
+        result.warnings.push('Regel enthält Tabulatorzeichen');
     }
 
     if (trimmedRule.includes('\n') || trimmedRule.includes('\r')) {
-        result.issues.push('Rule contains line break characters');
+        result.issues.push('Regel enthält Zeilenumbruchzeichen');
     }
 
-    // Additional format checks based on rule type
+    // Zusätzliche Formatüberprüfungen basierend auf dem Regeltyp
     if (trimmedRule.startsWith('@@')) {
         if (trimmedRule.length === 2) {
-            result.issues.push('Exception rule missing pattern');
+            result.issues.push('Ausnahmeregel ohne Muster');
         }
     }
 
@@ -748,14 +748,14 @@ function validateRuleCompliance(rule) {
 }
 
 /**
- * PERFORMANCE OPTIMIZED: Enhanced rule processing with parallel batch processing and Web Worker support
- * Prevents main thread blocking during large filter list processing
- * @param {string[]} rules - Array of rule strings
- * @returns {Promise<Object>} Processing results with parsed rules and statistics
+ * LEISTUNGSOPTIMIERT: Verbesserte Regelverarbeitung mit paralleler Batch-Verarbeitung und Web-Worker-Unterstützung
+ * Verhindert das Blockieren des Hauptthreads während der Verarbeitung großer Filterlisten
+ * @param {string[]} rules - Array von Regel-Strings
+ * @returns {Promise<Object>} Verarbeitungsergebnisse mit geparsten Regeln und Statistiken
  */
 async function updateRules(rules) {
     if (!Array.isArray(rules)) {
-        throw new Error('Rules must be provided as an array');
+        throw new Error('Regeln müssen als Array bereitgestellt werden');
     }
 
     const results = {
@@ -771,34 +771,34 @@ async function updateRules(rules) {
         }
     };
 
-    // Performance optimization: Use batch processing for large rule sets
-    const BATCH_SIZE = 200; // Optimal batch size for performance vs memory
+    // Leistungsoptimierung: Verwendung der Batch-Verarbeitung für große Regelsets
+    const BATCH_SIZE = 200; // Optimale Batch-Größe für Leistung vs. Speicher
     const MAX_CONCURRENT_BATCHES = Math.min(4, navigator.hardwareConcurrency || 2);
     
-    // Process rules in batches to prevent main thread blocking
+    // Verarbeitung der Regeln in Batches, um das Blockieren des Hauptthreads zu verhindern
     for (let batchStart = 0; batchStart < rules.length; batchStart += BATCH_SIZE * MAX_CONCURRENT_BATCHES) {
         const concurrentBatches = [];
         
-        // Create concurrent batches
+        // Erstellung gleichzeitiger Batches
         for (let c = 0; c < MAX_CONCURRENT_BATCHES && batchStart + c * BATCH_SIZE < rules.length; c++) {
             const currentBatchStart = batchStart + c * BATCH_SIZE;
             const currentBatchEnd = Math.min(currentBatchStart + BATCH_SIZE, rules.length);
             const batch = rules.slice(currentBatchStart, currentBatchEnd);
             
-            // Process each batch asynchronously
+            // Verarbeitung jedes Batches asynchron
             const batchPromise = processBatch(batch, currentBatchStart);
             concurrentBatches.push(batchPromise);
         }
         
-        // Wait for all concurrent batches to complete
+        // Warten auf den Abschluss aller gleichzeitigen Batches
         const batchResults = await Promise.all(concurrentBatches);
         
-        // Merge results from all batches
+        // Zusammenführen der Ergebnisse aus allen Batches
         for (const batchResult of batchResults) {
             results.parsed.push(...batchResult.parsed);
             results.errors.push(...batchResult.errors);
             
-            // Update statistics
+            // Aktualisierung der Statistiken
             results.statistics.valid += batchResult.statistics.valid;
             results.statistics.invalid += batchResult.statistics.invalid;
             results.statistics.network += batchResult.statistics.network;
@@ -806,7 +806,7 @@ async function updateRules(rules) {
             results.statistics.comments += batchResult.statistics.comments;
         }
         
-        // Yield control to prevent UI blocking between batch groups
+        // Kontrolle abgeben, um das Blockieren der Benutzeroberfläche zwischen Batch-Gruppen zu verhindern
         if (batchStart + BATCH_SIZE * MAX_CONCURRENT_BATCHES < rules.length) {
             await new Promise(resolve => {
                 if (window.requestIdleCallback) {
@@ -822,10 +822,10 @@ async function updateRules(rules) {
 }
 
 /**
- * Processes a batch of rules asynchronously
- * @param {string[]} batch - Batch of rules to process
- * @param {number} offset - Starting index for error reporting
- * @returns {Promise<Object>} Batch processing results
+ * Verarbeitet ein Batch von Regeln asynchron
+ * @param {string[]} batch - Batch von Regeln zur Verarbeitung
+ * @param {number} offset - Startindex für die Fehlerberichterstattung
+ * @returns {Promise<Object>} Ergebnisse der Batch-Verarbeitung
  */
 async function processBatch(batch, offset) {
     const batchResults = {
@@ -840,13 +840,13 @@ async function processBatch(batch, offset) {
         }
     };
     
-    // Process rules in the batch with yielding to prevent blocking
+    // Verarbeitung der Regeln im Batch mit Kontrolle abgeben, um Blockierungen zu vermeiden
     for (let i = 0; i < batch.length; i++) {
         const rule = batch[i];
         const globalIndex = offset + i;
         
         try {
-            // Quick synchronous compliance check first
+            // Zunächst schnelle synchrone Konformitätsprüfung
             const compliance = validateRuleCompliance(rule);
             if (!compliance.isCompliant) {
                 batchResults.errors.push({
@@ -858,32 +858,32 @@ async function processBatch(batch, offset) {
                 continue;
             }
 
-            // Parse the rule (potentially async)
+            // Regel parsen (möglicherweise asynchron)
             const parsed = await parseRule(rule);
             if (parsed) {
                 batchResults.parsed.push(parsed);
                 batchResults.statistics.valid++;
                 
-                // Update type statistics
+                // Aktualisierung der Typstatistiken
                 if (parsed.type === RULE_TYPES.NETWORK) {
                     batchResults.statistics.network++;
                 } else if (parsed.type === RULE_TYPES.COSMETIC || parsed.type === RULE_TYPES.ELEMENT_HIDE) {
                     batchResults.statistics.cosmetic++;
                 }
             } else {
-                // Rule was skipped (likely comment or empty)
+                // Regel wurde übersprungen (wahrscheinlich Kommentar oder leer)
                 batchResults.statistics.comments++;
             }
         } catch (error) {
             batchResults.errors.push({
                 line: globalIndex + 1,
                 rule: rule,
-                errors: [`Parse error: ${error.message}`]
+                errors: [`Parse-Fehler: ${error.message}`]
             });
             batchResults.statistics.invalid++;
         }
         
-        // Yield periodically within batch to maintain responsiveness
+        // Periodisches Kontrollabgeben innerhalb des Batches, um die Reaktionsfähigkeit aufrechtzuerhalten
         if (i > 0 && i % 50 === 0) {
             await new Promise(resolve => setTimeout(resolve, 0));
         }
@@ -892,7 +892,7 @@ async function processBatch(batch, offset) {
     return batchResults;
 }
 
-// Export functions for both CommonJS and ES modules
+// Exportieren von Funktionen für sowohl CommonJS- als auch ES-Module
 const exports = {
     parseRule,
     updateRules,
@@ -904,12 +904,12 @@ const exports = {
     RULE_TYPES
 };
 
-// CommonJS export
+// CommonJS-Export
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = exports;
 }
 
-// ES module export (for modern environments)
+// ES-Modul-Export (für moderne Umgebungen)
 if (typeof window !== 'undefined') {
     window.RuleParser = exports;
 }

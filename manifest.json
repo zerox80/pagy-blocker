@@ -1,14 +1,14 @@
 {
   "manifest_version": 3,
-  "name": "Pagy Blocker",
-  "version": "3.0.0",
-  "description": "Ein extrem schneller Werbeblocker, der die native declarativeNetRequest API und CSS-Injektion für maximale Leistung nutzt.",
+  "name": "Pagy Blocker (Stabile Version)",
+  "version": "6.1.0",
+  "description": "Stabile Basisversion mit Filterzähler und Tab-Reload.",
   "author": "Pagy Team & Gemini",
   "permissions": [
     "storage",
     "declarativeNetRequest",
     "scripting",
-    "webNavigation"
+    "tabs"
   ],
   "host_permissions": [
     "<all_urls>"
@@ -17,40 +17,27 @@
     "service_worker": "background/background.js"
   },
   "action": {
-    "default_popup": "popup/popup.html",
-    "default_icon": {
-      "16": "icons/icon16.png",
-      "48": "icons/icon48.png",
-      "128": "icons/icon128.png"
-    }
+    "default_popup": "popup/popup.html"
   },
   "declarative_net_request": {
     "rule_resources": [
       {
-        "id": "pagy_ruleset_1",
+        "id": "pagy_ruleset_static",
         "enabled": true,
         "path": "filter_lists/filter_precompiled.json"
       }
     ]
   },
-  "content_scripts": [
+  "web_accessible_resources": [
     {
-      "matches": ["<all_urls>"],
-      "css": ["filter_lists/cosmetic_filters.css"],
-      "run_at": "document_start",
-      "all_frames": true
-    },
-    {
-      "matches": ["<all_urls>"],
-      "js": ["content/content.js"],
-      "run_at": "document_start",
-      "all_frames": true
+      "resources": [ 
+        "filter_lists/cosmetic_filters.css",
+        "filter_lists/filter_precompiled.json"
+       ],
+      "matches": [ "<all_urls>" ]
     }
   ],
   "icons": {
-    "16": "icons/icon16.png",
-    "48": "icons/icon48.png",
     "128": "icons/icon128.png"
-  },
-  "minimum_chrome_version": "101"
+  }
 }

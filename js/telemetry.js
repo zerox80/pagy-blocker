@@ -1,56 +1,56 @@
 /**
  * @file telemetry.js
- * @description Performance monitoring and telemetry system for Pagy Blocker
- * Provides lightweight, privacy-focused performance metrics collection
+ * @description Leistungsüberwachungs- und Telemetriesystem für Pagy Blocker
+ * Bietet eine leichte, datenschutzorientierte Sammlung von Leistungsmetriken
  * 
  * @version 1.0.0
  * @author Pagy Team
  */
 
 /**
- * PRIVACY-FIRST: Lightweight telemetry system with local-only metrics
- * No external data transmission - all metrics stored locally for performance optimization
+ * DATENSCHUTZ-PRIORITÄT: Leichtgewichtiges Telemetriesystem mit nur lokal gespeicherten Metriken
+ * Keine externe Datenübertragung - alle Metriken werden lokal zur Leistungsoptimierung gespeichert
  */
 class TelemetryManager {
     constructor() {
-        // FIXED: Only enable telemetry in development to prevent production memory issues
+        // FIXIERT: Telemetrie nur in der Entwicklung aktivieren, um Speicherprobleme in der Produktion zu vermeiden
         this.isDevelopment = typeof chrome !== 'undefined' && chrome.runtime && !('update_url' in chrome.runtime.getManifest?.() || {});
-        this.isEnabled = this.isDevelopment; // Only enabled in development mode
+        this.isEnabled = this.isDevelopment; // Nur im Entwicklungsmodus aktiviert
         this.metrics = new Map();
         this.sessionId = this.generateSessionId();
         this.startTime = Date.now();
-        this.warningCount = new Map(); // Track warnings to prevent spam
+        this.warningCount = new Map(); // Warnungen verfolgen, um Spam zu vermeiden
         
-        // FIXED: Realistic performance thresholds for modern websites
+        // FIXIERT: Realistische Leistungsgrenzen für moderne Websites
         this.thresholds = {
             ruleProcessingTime: 100, // ms
             domScanTime: 50, // ms
-            memoryUsage: 200 * 1024 * 1024, // 200MB - realistic for modern websites
+            memoryUsage: 200 * 1024 * 1024, // 200MB - realistisch für moderne Websites
             selectorComplexity: 10
         };
         
-        // FIXED: Reduced sampling to prevent memory overflow
+        // FIXIERT: Reduziertes Sampling, um Speicherüberlauf zu verhindern
         this.sampleRates = {
-            domScans: 0.05, // Sample 5% of DOM scans (reduced from 10%)
-            ruleProcessing: 0.5, // Sample 50% of rule processing (reduced from 100%)
-            memoryChecks: 0.01 // Sample 1% of memory checks (reduced from 5%)
+            domScans: 0.05, // 5% der DOM-Scans sampeln (von 10% reduziert)
+            ruleProcessing: 0.5, // 50% der Regelverarbeitung sampeln (von 100% reduziert)
+            memoryChecks: 0.01 // 1% der Speicherüberprüfungen sampeln (von 5% reduziert)
         };
     }
     
     /**
-     * Generates a session-local identifier (no tracking)
-     * @returns {string} Session identifier
+     * Generiert eine sitzungslokale Kennung (kein Tracking)
+     * @returns {string} Sitzungskennung
      */
     generateSessionId() {
         return `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     }
     
     /**
-     * Records a performance metric
-     * @param {string} category - Metric category
-     * @param {string} name - Metric name
-     * @param {number} value - Metric value
-     * @param {Object} metadata - Additional metadata
+     * Protokolliert eine Leistungsmetrik
+     * @param {string} category - Metrik-Kategorie
+     * @param {string} name - Metrik-Name
+     * @param {number} value - Metrik-Wert
+     * @param {Object} metadata - Zusätzliche Metadaten
      */
     recordMetric(category, name, value, metadata = {}) {
         if (!this.isEnabled) return;
@@ -77,26 +77,26 @@ class TelemetryManager {
         metric.min = Math.min(metric.min, value);
         metric.max = Math.max(metric.max, value);
         
-        // Store unique metadata
+        // Einzigartige Metadaten speichern
         if (Object.keys(metadata).length > 0) {
             metric.metadata.add(JSON.stringify(metadata));
         }
         
-        // Trim old values to prevent memory buildup (keep last 100)
+        // Alte Werte trimmen, um Speicheraufbau zu verhindern (letzte 100 behalten)
         if (metric.values.length > 100) {
             metric.values = metric.values.slice(-100);
         }
         
-        // Check for performance issues
+        // Leistungsprobleme überprüfen
         this.checkPerformanceThresholds(category, name, value, metadata);
     }
     
     /**
-     * Records execution time for a function
-     * @param {string} category - Metric category
-     * @param {string} name - Function name
-     * @param {Function} fn - Function to measure
-     * @returns {*} Function result
+     * Protokolliert die Ausführungszeit für eine Funktion
+     * @param {string} category - Metrik-Kategorie
+     * @param {string} name - Funktionsname
+     * @param {Function} fn - Zu messende Funktion
+     * @returns {*} Funktionsergebnis
      */
     async measureAsync(category, name, fn) {
         const startTime = performance.now();
@@ -113,11 +113,11 @@ class TelemetryManager {
     }
     
     /**
-     * Records execution time for a synchronous function
-     * @param {string} category - Metric category
-     * @param {string} name - Function name
-     * @param {Function} fn - Function to measure
-     * @returns {*} Function result
+     * Protokolliert die Ausführungszeit für eine synchrone Funktion
+     * @param {string} category - Metrik-Kategorie
+     * @param {string} name - Funktionsname
+     * @param {Function} fn - Zu messende Funktion
+     * @returns {*} Funktionsergebnis
      */
     measureSync(category, name, fn) {
         const startTime = performance.now();
@@ -134,11 +134,11 @@ class TelemetryManager {
     }
     
     /**
-     * Checks if metric values exceed performance thresholds
-     * @param {string} category - Metric category
-     * @param {string} name - Metric name
-     * @param {number} value - Metric value
-     * @param {Object} metadata - Metric metadata
+     * Überprüft, ob Metrikwerte die Leistungsgrenzen überschreiten
+     * @param {string} category - Metrik-Kategorie
+     * @param {string} name - Metrik-Name
+     * @param {number} value - Metrik-Wert
+     * @param {Object} metadata - Metrik-Metadaten
      */
     checkPerformanceThresholds(category, name, value, metadata) {
         let threshold = null;
@@ -154,12 +154,12 @@ class TelemetryManager {
         }
         
         if (threshold && value > threshold) {
-            // FIXED: Prevent warning spam by limiting warnings per category
+            // FIXIERT: Warnungsspam verhindern, indem die Warnungen pro Kategorie begrenzt werden
             const warningKey = `${category}.${name}`;
             const currentWarnings = this.warningCount.get(warningKey) || 0;
             
-            if (currentWarnings < 3) { // Maximum 3 warnings per category
-                console.warn(`Pagy-Blocker Performance: ${category}.${name} exceeded threshold (${value} > ${threshold})`, metadata);
+            if (currentWarnings < 3) { // Maximal 3 Warnungen pro Kategorie
+                console.warn(`Pagy-Blocker Leistung: ${category}.${name} überschritt die Grenze (${value} > ${threshold})`, metadata);
                 this.warningCount.set(warningKey, currentWarnings + 1);
                 
                 this.recordMetric('performance', 'threshold_exceeded', 1, { 
@@ -169,14 +169,14 @@ class TelemetryManager {
                     threshold 
                 });
             } else if (currentWarnings === 3) {
-                console.warn(`Pagy-Blocker Performance: ${category}.${name} - further warnings suppressed`);
+                console.warn(`Pagy-Blocker Leistung: ${category}.${name} - weitere Warnungen unterdrückt`);
                 this.warningCount.set(warningKey, currentWarnings + 1);
             }
         }
     }
     
     /**
-     * Records memory usage metrics
+     * Protokolliert Metriken zur Speichernutzung
      */
     recordMemoryUsage() {
         if (!this.shouldSample('memoryChecks')) return;
@@ -188,14 +188,14 @@ class TelemetryManager {
                 this.recordMetric('memory', 'heap_limit', performance.memory.jsHeapSizeLimit);
             }
         } catch (error) {
-            // Memory API might not be available
+            // Memory API ist möglicherweise nicht verfügbar
         }
     }
     
     /**
-     * Determines if a metric should be sampled based on sampling rate
-     * @param {string} type - Sampling type
-     * @returns {boolean} Whether to sample
+     * Bestimmt, ob eine Metrik basierend auf der Abtastrate gesampelt werden sollte
+     * @param {string} type - Abtasttyp
+     * @returns {boolean} Ob gesampelt werden soll
      */
     shouldSample(type) {
         const rate = this.sampleRates[type] || 1.0;
@@ -203,9 +203,9 @@ class TelemetryManager {
     }
     
     /**
-     * Gets performance summary for a category
-     * @param {string} category - Metric category
-     * @returns {Object} Performance summary
+     * Gibt die Leistungszusammenfassung für eine Kategorie zurück
+     * @param {string} category - Metrik-Kategorie
+     * @returns {Object} Leistungszusammenfassung
      */
     getPerformanceSummary(category) {
         const summary = {
@@ -231,8 +231,8 @@ class TelemetryManager {
     }
     
     /**
-     * Gets all performance metrics
-     * @returns {Object} All metrics summary
+     * Gibt alle Leistungsmetriken zurück
+     * @returns {Object} Zusammenfassung aller Metriken
      */
     getAllMetrics() {
         const categories = new Set();
@@ -254,21 +254,21 @@ class TelemetryManager {
     }
     
     /**
-     * Logs performance summary to console
-     * @param {string} category - Optional category filter
+     * Protokolliert die Leistungszusammenfassung in die Konsole
+     * @param {string} category - Optionale Kategoriefilterung
      */
     logPerformanceSummary(category = null) {
         if (category) {
             const summary = this.getPerformanceSummary(category);
-            console.log(`Pagy-Blocker Performance Summary (${category}):`, summary);
+            console.log(`Pagy-Blocker Leistungszusammenfassung (${category}):`, summary);
         } else {
             const summary = this.getAllMetrics();
-            console.log('Pagy-Blocker Performance Summary (All):', summary);
+            console.log('Pagy-Blocker Leistungszusammenfassung (Alle):', summary);
         }
     }
     
     /**
-     * Resets all metrics
+     * Setzt alle Metriken zurück
      */
     reset() {
         this.metrics.clear();
@@ -277,8 +277,8 @@ class TelemetryManager {
     }
     
     /**
-     * Enables or disables telemetry
-     * @param {boolean} enabled - Whether telemetry should be enabled
+     * Aktiviert oder deaktiviert die Telemetrie
+     * @param {boolean} enabled - Ob die Telemetrie aktiviert werden soll
      */
     setEnabled(enabled) {
         this.isEnabled = enabled;
@@ -288,28 +288,28 @@ class TelemetryManager {
     }
 }
 
-// Global telemetry instance
+// Globale Telemetrie-Instanz
 const telemetry = new TelemetryManager();
 
-// FIXED: Only monitor memory in development mode to prevent production issues
+// FIXIERT: Nur im Entwicklungsmodus den Speicher überwachen, um Produktionsprobleme zu vermeiden
 if (typeof setInterval !== 'undefined' && telemetry.isDevelopment) {
     setInterval(() => {
         telemetry.recordMemoryUsage();
-    }, 300000); // Every 5 minutes (reduced from 30 seconds)
+    }, 300000); // Alle 5 Minuten (von 30 Sekunden reduziert)
 }
 
-// Export for both CommonJS and ES modules
+// Export für sowohl CommonJS als auch ES-Module
 const exports = {
     TelemetryManager,
     telemetry
 };
 
-// CommonJS export
+// CommonJS-Export
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = exports;
 }
 
-// ES module export (for modern environments)
+// ES-Modul-Export (für moderne Umgebungen)
 if (typeof window !== 'undefined') {
     window.Telemetry = exports;
 }

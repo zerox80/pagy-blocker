@@ -1,8 +1,7 @@
 /**
  * @file filter_precompiler.js
- * @description Kompiliert Filterlisten in das JSON-Format für declarativeNetRequest
- * und generiert eine performante CSS-Datei für kosmetische Filter. (ES-Module-Version)
- * @version 3.1.0
+ * @description Kompiliert Filterlisten und generiert eine CSS-Datei (ES-Module-Version).
+ * @version 4.0.0
  * @author Gemini
  */
 
@@ -10,7 +9,6 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
-// ES-Module-kompatibler Ersatz für __dirname
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -30,25 +28,17 @@ function precompileFilters() {
         }
 
         const lines = fs.readFileSync(INPUT_FILE, 'utf-8').split(/\r?\n/);
-        console.log(`Lese ${lines.length} Zeilen aus ${INPUT_FILE}`);
-
         const networkRules = [];
         const cosmeticSelectors = new Set();
         let ruleId = 1;
 
         for (const line of lines) {
             const trimmedLine = line.trim();
-
-            if (!trimmedLine || trimmedLine.startsWith('!')) {
-                continue;
-            }
+            if (!trimmedLine || trimmedLine.startsWith('!')) continue;
 
             if (trimmedLine.includes('##')) {
-                const parts = trimmedLine.split('##');
-                const selector = parts[1];
-                if (selector) {
-                    cosmeticSelectors.add(selector);
-                }
+                const selector = trimmedLine.split('##')[1];
+                if (selector) cosmeticSelectors.add(selector);
             } else {
                 networkRules.push({
                     id: ruleId++,
@@ -56,10 +46,7 @@ function precompileFilters() {
                     action: { type: 'block' },
                     condition: {
                         urlFilter: trimmedLine.replace(/\^$/, ''),
-                        resourceTypes: [
-                            'main_frame', 'sub_frame', 'script', 'image', 'stylesheet',
-                            'object', 'xmlhttprequest', 'ping', 'media', 'websocket', 'other'
-                        ]
+                        resourceTypes: ['main_frame', 'sub_frame', 'script', 'image', 'stylesheet', 'object', 'xmlhttprequest', 'ping', 'media', 'websocket', 'other']
                     }
                 });
             }
@@ -71,14 +58,12 @@ function precompileFilters() {
         if (cosmeticSelectors.size > 0) {
             const cssContent = Array.from(cosmeticSelectors).join(',\n') + ' {\n  display: none !important;\n  visibility: hidden !important;\n}';
             fs.writeFileSync(OUTPUT_COSMETIC_CSS, cssContent, 'utf-8');
-            console.log(`${cosmeticSelectors.size} einzigartige kosmetische Selektoren geschrieben in ${OUTPUT_COSMETIC_CSS}`);
+            console.log(`${cosmeticSelectors.size} kosmetische Selektoren geschrieben in ${OUTPUT_COSMETIC_CSS}`);
         } else {
              fs.writeFileSync(OUTPUT_COSMETIC_CSS, '/* Keine kosmetischen Regeln definiert */', 'utf-8');
              console.log('Keine kosmetischen Regeln gefunden, leere CSS-Datei erstellt.');
         }
-
         console.log('Filter-Präkompilierung erfolgreich abgeschlossen.');
-
     } catch (error) {
         console.error('FEHLER während der Filter-Präkompilierung:', error);
         process.exit(1);

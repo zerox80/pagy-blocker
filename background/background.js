@@ -1,112 +1,108 @@
 /**
  * @file background.js
- * @description Haupt-Hintergrundskript für die Pagy-Blocker-Erweiterung.
- * @version 3.0.0
+ * @description Stabile Version mit Filterzähler und korrektem Tab-Reload.
+ * @version 6.2.0
  * @author Gemini
  */
 
-const STORAGE_KEY_IS_PAUSED = 'is_paused';
+const STORAGE_KEY_IS_PAUSED = 'is_globally_paused';
+const RULESET_ID = 'pagy_ruleset_static';
+const CSS_FILE = 'filter_lists/cosmetic_filters.css';
+const NETWORK_RULES_FILE = 'filter_lists/filter_precompiled.json';
 
-// --- Initialisierung und Regel-Management ---
+// Funktion zum Zählen der Filterregeln
+async function getFilterCounts() {
+    let networkCount = 0;
+    let cosmeticCount = 0;
 
-async function onInstallOrUpdate(details) {
-  console.log(`Pagy-Blocker: Event '${details.reason}' wurde ausgelöst.`);
-  await chrome.storage.local.set({ [STORAGE_KEY_IS_PAUSED]: false });
-  updateIcon(false);
-  reloadDynamicRules(); // Lädt die Regeln bei der Installation
-}
-
-async function reloadDynamicRules() {
-  const allRules = await chrome.declarativeNetRequest.getDynamicRules();
-  const ruleIdsToRemove = allRules.map(rule => rule.id);
-
-  const newRules = await getRulesFromPath('filter_lists/filter_precompiled.json');
-
-  await chrome.declarativeNetRequest.updateDynamicRules({
-    removeRuleIds: ruleIdsToRemove,
-    addRules: newRules
-  });
-  console.log(`Pagy-Blocker: ${newRules.length} Netzwerkregeln geladen.`);
-}
-
-async function getRulesFromPath(path) {
     try {
-        const rulesURL = chrome.runtime.getURL(path);
-        const response = await fetch(rulesURL);
-        if (!response.ok) {
-            throw new Error(`Fehler beim Laden der Regeldatei: ${response.statusText}`);
+        // Zähle Netzwerkregeln
+        const networkRulesUrl = chrome.runtime.getURL(NETWORK_RULES_FILE);
+        const networkResponse = await fetch(networkRulesUrl);
+        const networkData = await networkResponse.json();
+        networkCount = Array.isArray(networkData) ? networkData.length : 0;
+
+        // Zähle kosmetische Regeln
+        const cosmeticRulesUrl = chrome.runtime.getURL(CSS_FILE);
+        const cosmeticResponse = await fetch(cosmeticRulesUrl);
+        const cosmeticData = await cosmeticResponse.text();
+        // Eine einfache Zählmethode, die die Anzahl der CSS-Selektoren zählt
+        if (cosmeticData && !cosmeticData.includes("/*")) {
+            cosmeticCount = (cosmeticData.match(/,/g) || []).length + 1;
         }
-        return await response.json();
+
     } catch (error) {
-        console.error("Pagy-Blocker: Konnte Regeldatei nicht laden.", error);
-        return [];
+        console.error("Pagy Blocker: Fehler beim Zählen der Filter.", error);
     }
+    
+    return { networkCount, cosmeticCount };
 }
 
 
-// --- Zustand und UI ---
+// Schaltet den Blocker global an oder aus
+async function setPauseState(isPaused) {
+    // 1. Schalte den statischen Netzwerk-Regelsatz an/aus
+    await chrome.declarativeNetRequest.updateEnabledRulesets(isPaused ?
+        { disableRulesetIds: [RULESET_ID] } :
+        { enableRulesetIds: [RULESET_ID] }
+    );
 
-async function togglePauseState(shouldBePaused) {
-  await chrome.storage.local.set({ [STORAGE_KEY_IS_PAUSED]: shouldBePaused });
-  updateIcon(shouldBePaused);
+    // 2. Zustand speichern und Icon aktualisieren
+    await chrome.storage.local.set({ [STORAGE_KEY_IS_PAUSED]: isPaused });
+    updateIcon(isPaused);
+    console.log(`Pagy-Blocker ist jetzt global ${isPaused ? 'DEAKTIVIERT' : 'AKTIVIERT'}.`);
 
-  // Deaktiviert oder aktiviert die CSS-Injektion durch Neuladen
-  await chrome.declarativeNetRequest.updateEnabledRulesets(shouldBePaused ? {
-    disableRulesetIds: ['pagy_ruleset_1']
-  } : {
-    enableRulesetIds: ['pagy_ruleset_1']
-  });
 
-  // Informiere die Tabs und lade sie neu, um die Änderung zu übernehmen
-  const tabs = await chrome.tabs.query({ url: ["http://*/*", "https://*/*"] });
-  for (const tab of tabs) {
-    try {
-      if (tab.id) {
-        chrome.tabs.reload(tab.id, { bypassCache: true });
-      }
-    } catch (e) {
-      console.warn(`Konnte Tab ${tab.id} nicht neu laden:`, e.message);
+    // 3. Führe Aktionen auf dem aktiven Tab aus (CSS und Reload)
+    const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+
+    // Nur fortfahren, wenn es einen aktiven Tab mit einer normalen URL gibt
+    if (activeTab && activeTab.id && activeTab.url?.startsWith('http')) {
+        try {
+            if (isPaused) {
+                // Deaktivieren: CSS entfernen
+                await chrome.scripting.removeCSS({ target: { tabId: activeTab.id }, files: [CSS_FILE] });
+            } else {
+                // Aktivieren: CSS einfügen - HIER WAR DER FEHLER
+                await chrome.scripting.insertCSS({ target: { tabId: activeTab.id }, files: [CSS_FILE] });
+            }
+            // Lade den aktiven Tab neu, nachdem die CSS-Aktion erfolgreich war
+            chrome.tabs.reload(activeTab.id);
+        } catch (e) {
+            console.warn(`Konnte Skript nicht auf Tab ${activeTab.id} anwenden oder Tab neu laden.`, e.message);
+        }
     }
-  }
 }
 
 function updateIcon(isPaused) {
-    const iconPath = isPaused ? "/icons/deaktivieren.png" : "/icons/icon48.png";
-    chrome.action.setIcon({ path: { "48": iconPath } });
+    const iconPath = isPaused ? "/icons/deaktivieren.png" : "/icons/icon128.png";
+    chrome.action.setIcon({ path: iconPath });
 }
 
-
-// --- Event-Listener ---
-
-chrome.runtime.onInstalled.addListener(onInstallOrUpdate);
-
-chrome.runtime.onStartup.async = async () => {
-    const { [STORAGE_KEY_IS_PAUSED]: isPaused } = await chrome.storage.local.get(STORAGE_KEY_IS_PAUSED);
-    updateIcon(isPaused || false);
-};
-
-
+// Event-Listener für das Popup
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     (async () => {
-        if (message.command === 'getState') {
+        if (message.command === 'getPopupData') {
             const { [STORAGE_KEY_IS_PAUSED]: isPaused = false } = await chrome.storage.local.get(STORAGE_KEY_IS_PAUSED);
-            const rules = await chrome.declarativeNetRequest.getDynamicRules();
-            sendResponse({
-              isPaused,
-              stats: {
-                network: rules.length
-              }
+            const counts = await getFilterCounts();
+            sendResponse({ 
+                isPaused,
+                filterCount: counts.networkCount + counts.cosmeticCount
             });
-        } else if (message.command === 'togglePause') {
-            await togglePauseState(message.isPaused);
+        } else if (message.command === 'toggleGlobalPause') {
+            await setPauseState(message.isPaused);
             sendResponse({ success: true });
         }
     })();
-    return true; // Hält den Message-Channel für asynchrone Antworten offen
+    return true;
 });
 
-// Initialen Icon-Status setzen
-(async () => {
-    const { [STORAGE_KEY_IS_PAUSED]: isPaused } = await chrome.storage.local.get(STORAGE_KEY_IS_PAUSED);
-    updateIcon(isPaused || false);
-})();
+// Initialen Zustand beim Start festlegen
+chrome.runtime.onInstalled.addListener(() => {
+    // Beim ersten Mal sicherstellen, dass der Blocker aktiv ist
+    setPauseState(false);
+});
+chrome.runtime.onStartup.addListener(async () => {
+    const { [STORAGE_KEY_IS_PAUSED]: isPaused = false } = await chrome.storage.local.get(STORAGE_KEY_IS_PAUSED);
+    updateIcon(isPaused);
+});
