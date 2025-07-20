@@ -272,6 +272,37 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 async function togglePauseState(isPaused) {
   await chrome.storage.local.set({ [STORAGE_KEYS.IS_PAUSED]: isPaused });
   updateIcon(isPaused);
+
+  if (isPaused) {
+    // Disable Declarative Net Request rules
+    const existingRules = await chrome.declarativeNetRequest.getDynamicRules();
+    const ruleIds = existingRules.map(rule => rule.id);
+    if (ruleIds.length > 0) {
+      await chrome.declarativeNetRequest.updateDynamicRules({ removeRuleIds: ruleIds });
+    }
+  } else {
+    // Re-enable Declarative Net Request rules
+    await updateRules();
+  }
+
+  // Notify all tabs about the state change
+  const tabs = await chrome.tabs.query({});
+  for (const tab of tabs) {
+    try {
+      await chrome.tabs.sendMessage(tab.id, { 
+        command: 'updatePauseState',
+        isPaused: isPaused
+      });
+    } catch (error) {
+      // Ignore errors where content script isn't loaded
+    }
+  }
+  
+  // Reload the active tab to reflect the changes
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (tab && tab.id) {
+    chrome.tabs.reload(tab.id);
+  }
 }
 
 /**

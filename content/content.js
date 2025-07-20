@@ -130,6 +130,20 @@
         }
     }
 
+    // Listen for state changes from the background script
+    chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+        if (message.command === 'updatePauseState') {
+            isPaused = message.isPaused;
+            if (isPaused) {
+                // If adblocker is disabled, clean up hidden elements
+                performCleanup();
+            } else {
+                // If adblocker is re-enabled, reinitialize
+                initialize();
+            }
+        }
+    });
+
     // Listen for both beforeunload and pagehide for better BFCache handling
     window.addEventListener('beforeunload', performCleanup, { passive: true });
     window.addEventListener('pagehide', performCleanup, { passive: true });
