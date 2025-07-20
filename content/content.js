@@ -58,7 +58,10 @@
             await new Promise(resolve => {
                 requestAnimationFrame(async () => {
                     try {
-                        await scanAndHideElements(document.body);
+                        const targetElement = document.body || document.documentElement;
+                        if (targetElement) {
+                            await scanAndHideElements(targetElement);
+                        }
                     } catch (error) {
                         console.warn('Pagy-Blocker: Initial scan error:', error);
                     }
@@ -125,7 +128,14 @@
         });
 
         try {
-            observer.observe(document.body, {
+            // Ensure we have a valid target element to observe
+            const targetElement = document.body || document.documentElement;
+            
+            if (!targetElement) {
+                throw new Error('No valid target element (body or documentElement) available');
+            }
+            
+            observer.observe(targetElement, {
                 childList: true,
                 subtree: true
             });
