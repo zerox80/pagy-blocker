@@ -13,10 +13,15 @@
 
 const STORAGE_KEYS = {
   IS_PAUSED: 'is_paused',
-  BLOCKED_COUNT_TOTAL: 'blocked_count_total'
+  BLOCKED_COUNT_TOTAL: 'blocked_count_total',
+  RULES_VERSION: 'rules_version',
+  RULES_ETAG: 'rules_etag'
 };
 
 const IS_DEVELOPMENT = !('update_url' in chrome.runtime.getManifest());
+const RULES_FILE = IS_DEVELOPMENT 
+  ? 'filter_lists/filter_precompiled.json' 
+  : 'filter_lists/filter_precompiled_min.json';
 
 // Robuste Zählung pro Tab mit einer Map
 const blockedAdsPerTab = new Map();
@@ -52,27 +57,54 @@ async function initializeDefaultState() {
  * Lädt die Filterregeln aus der vorkompilierten Datei und fügt sie als dynamische Regeln hinzu.
  * Stellt sicher, dass alte Regeln zuerst entfernt werden.
  */
+async function getFileHash(content) {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(content);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+async function fetchRules() {
+  const response = await fetch(chrome.runtime.getURL(RULES_FILE));
+  if (!response.ok) {
+    throw new Error(`Fehler beim Laden der Filterliste: ${response.statusText}`);
+  }
+  const rules = await response.json();
+  const rulesString = JSON.stringify(rules);
+  const version = await getFileHash(rulesString);
+  return { rules, version };
+}
+
 async function updateRules() {
   try {
     // 1. Bestehende dynamische Regeln entfernen
     const existingRules = await chrome.declarativeNetRequest.getDynamicRules();
+    
+    // 2. Check if rules need updating
+    const { rules: newRules, version: newVersion } = await fetchRules();
+    const { [STORAGE_KEYS.RULES_VERSION]: currentVersion } = await chrome.storage.local.get(STORAGE_KEYS.RULES_VERSION);
+    
+    if (currentVersion === newVersion) {
+      console.log('Pagy-Blocker: Regeln sind aktuell, kein Update erforderlich.');
+      return;
+    }
+    
+    // 3. Remove old rules if any exist
     const ruleIds = existingRules.map(rule => rule.id);
     if (ruleIds.length > 0) {
       await chrome.declarativeNetRequest.updateDynamicRules({ removeRuleIds: ruleIds });
       console.log('Pagy-Blocker: Alte dynamische Regeln entfernt.');
     }
 
-    // 2. Neue Regeln aus der Datei laden
-    const response = await fetch(chrome.runtime.getURL('filter_lists/filter_precompiled_min.json'));
-    if (!response.ok) {
-        throw new Error(`Fehler beim Laden der Filterliste: ${response.statusText}`);
-    }
-    const rules = await response.json();
-
-    // 3. Neue Regeln hinzufügen
-    if (rules && rules.length > 0) {
-        await chrome.declarativeNetRequest.updateDynamicRules({ addRules: rules });
-        console.log(`Pagy-Blocker: ${rules.length} neue Regeln erfolgreich geladen.`);
+    // 4. Add new rules if we have any
+    if (newRules && newRules.length > 0) {
+      await chrome.declarativeNetRequest.updateDynamicRules({ addRules: newRules });
+      await chrome.storage.local.set({
+        [STORAGE_KEYS.RULES_VERSION]: newVersion,
+        lastRulesUpdate: Date.now()
+      });
+      console.log(`Pagy-Blocker: ${newRules.length} neue Regeln erfolgreich geladen.`);
     }
   } catch (error) {
     console.error('Pagy-Blocker: Fehler beim Aktualisieren der Regeln.', error);
@@ -133,6 +165,18 @@ if (chrome.declarativeNetRequest && chrome.declarativeNetRequest.onRuleMatchedDe
 // Tab wird geschlossen -> Zähler aus der Map entfernen
 chrome.tabs.onRemoved.addListener((tabId) => {
   blockedAdsPerTab.delete(tabId);
+  
+  // Clean up any zombie entries (shouldn't happen but just in case)
+  if (blockedAdsPerTab.size > 100) {
+    chrome.tabs.query({}, (tabs) => {
+      const validTabIds = new Set(tabs.map(t => t.id));
+      for (const [id] of blockedAdsPerTab) {
+        if (!validTabIds.has(id)) {
+          blockedAdsPerTab.delete(id);
+        }
+      }
+    });
+  }
 });
 
 // Navigation hat begonnen -> Zähler für den Tab zurücksetzen
@@ -145,6 +189,11 @@ chrome.webNavigation.onCommitted.addListener((details) => {
 
 // Nachrichten von anderen Teilen der Erweiterung (z.B. Popup)
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  // Security: Only accept messages from our extension
+  if (sender.id !== chrome.runtime.id) {
+    console.warn('Blocked message from unknown sender:', sender);
+    return false;
+  }
   (async () => {
     try {
       switch (message.command) {

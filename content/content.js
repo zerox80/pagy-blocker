@@ -33,38 +33,48 @@
         }
     }
 
+    function applyStylesToElements(elements) {
+        if (!elements.length) return;
+        
+        // Create a style element for all selectors at once
+        const style = document.createElement('style');
+        style.id = 'pagy-blocker-styles';
+        const selectorText = elements.map(el => {
+            const id = 'pagy-blocker-' + Math.random().toString(36).substr(2, 9);
+            el.dataset.pagyBlocked = id;
+            return `[data-pagy-blocked="${id}"]`;
+        }).join(',');
+        
+        style.textContent = `${selectorText} { display: none !important; }`;
+        document.head.appendChild(style);
+        
+        // Report blocked count
+        chrome.runtime.sendMessage({
+            command: 'updateBlockedCount',
+            count: elements.length
+        }).catch(() => {});
+    }
+
     async function scanAndHideElements(element) {
         if (isPaused || isCleanedUp || !element) return;
         const selectors = [...new Set([...(rules[hostname]?.selectors || []), ...(rules['generic']?.selectors || [])])];
         if (selectors.length === 0) return;
 
         try {
-            const matched = await querySelectorsAll(element, selectors);
-            const newlyHidden = matched.filter(el => el.style.display !== 'none');
+            // Use a single query selector for all selectors
+            const selectorString = selectors.join(',');
+            const matched = Array.from(element.querySelectorAll(selectorString))
+                .filter(el => !el.dataset.pagyBlocked); // Skip already blocked elements
 
-            if (newlyHidden.length > 0) {
-                requestAnimationFrame(() => newlyHidden.forEach(el => el.style.display = 'none'));
-                chrome.runtime.sendMessage({
-                    command: 'updateBlockedCount',
-                    count: newlyHidden.length
-                }).catch(() => {});
+            if (matched.length > 0) {
+                requestAnimationFrame(() => applyStylesToElements(matched));
             }
         } catch (error) {
             console.error('Pagy-Blocker: Scan failed:', error);
         }
     }
 
-    function querySelectorsAll(element, selectors) {
-        return new Promise(resolve => {
-            const matched = new Set();
-            for (const selector of selectors) {
-                try {
-                    element.querySelectorAll(selector).forEach(el => matched.add(el));
-                } catch (e) {}
-            }
-            resolve(Array.from(matched));
-        });
-    }
+    // Removed querySelectorsAll as it's no longer needed
 
     function startObserver() {
         if (observer || isCleanedUp) return;
@@ -83,9 +93,28 @@
     function performCleanup() {
         if (isCleanedUp) return;
         isCleanedUp = true;
-        if (observer) observer.disconnect();
-        clearTimeout(debounceTimer);
-        window.removeEventListener('beforeunload', performCleanup);
+        
+        try {
+            if (observer) {
+                observer.disconnect();
+                observer = null;
+            }
+            
+            // Remove any styles we added
+            const style = document.getElementById('pagy-blocker-styles');
+            if (style) style.remove();
+            
+            // Clean up data attributes
+            document.querySelectorAll('[data-pagy-blocked]').forEach(el => {
+                delete el.dataset.pagyBlocked;
+            });
+            
+            clearTimeout(debounceTimer);
+            window.removeEventListener('beforeunload', performCleanup);
+            window.removeEventListener('pagehide', performCleanup);
+        } catch (e) {
+            console.error('Error during cleanup:', e);
+        }
     }
 
     async function loadRules() {
@@ -101,7 +130,19 @@
         }
     }
 
+    // Listen for both beforeunload and pagehide for better BFCache handling
     window.addEventListener('beforeunload', performCleanup, { passive: true });
+    window.addEventListener('pagehide', performCleanup, { passive: true });
+    
+    // Handle page restoration from BFCache
+    window.addEventListener('pageshow', (event) => {
+        if (event.persisted) {
+            // Page was restored from BFCache, reinitialize
+            isCleanedUp = false;
+            initialize();
+        }
+    });
+    
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', initialize, { once: true });
     } else {

@@ -1,5 +1,5 @@
 # Datenschutzerklärung für Pagy Blocker
-**Zuletzt aktualisiert:** 17. Juli 2025
+**Zuletzt aktualisiert:** 20. Juli 2025
 
 ## 1. Verantwortlicher
 **Name:** zerox80

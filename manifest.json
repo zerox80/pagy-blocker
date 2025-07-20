@@ -1,20 +1,23 @@
 {
   "manifest_version": 3,
   "name": "Pagy Blocker",
-  "version": "2.2.0",
+  "version": "2.3.0",
   "description": "Ein extrem schneller Werbeblocker, der die native declarativeNetRequest API für maximale Leistung nutzt.",
   "author": "Pagy Team",
+  "content_security_policy": {
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self';"
+  },
   "permissions": [
     "storage",
     "activeTab", 
     "declarativeNetRequest",
     "declarativeNetRequestFeedback",
     "alarms",
-    "webNavigation"
+    "webNavigation",
+    "scripting"
   ],
   "host_permissions": [
-    "http://*/*",
-    "https://*/*"
+    "<all_urls>"
   ],
   "optional_permissions": [
     "tabs"
@@ -65,5 +68,16 @@
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
   },
-  "minimum_chrome_version": "101"
+  "minimum_chrome_version": "101",
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "filter_lists/cosmetic_filters.json",
+        "filter_lists/filter_precompiled.json",
+        "filter_lists/filter_precompiled_min.json"
+      ],
+      "matches": ["<all_urls>"],
+      "use_dynamic_url": true
+    }
+  ]
 }
