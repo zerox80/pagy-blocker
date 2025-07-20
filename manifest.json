@@ -6,14 +6,17 @@
   "author": "Pagy Team",
   "permissions": [
     "storage",
-    "activeTab",
-    "tabs",
+    "activeTab", 
     "declarativeNetRequest",
     "declarativeNetRequestFeedback",
     "alarms"
   ],
   "host_permissions": [
-    "<all_urls>"
+    "http://*/*",
+    "https://*/*"
+  ],
+  "optional_permissions": [
+    "tabs"
   ],
   "background": {
     "service_worker": "background/background.js"
@@ -35,6 +38,16 @@
       }
     ]
   },
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "filter_lists/cosmetic_filters.json",
+        "filter_lists/filter_precompiled.json",
+        "filter_lists/filter_precompiled_min.json"
+      ],
+      "matches": ["<all_urls>"]
+    }
+  ],
   "content_scripts": [
     {
       "matches": [

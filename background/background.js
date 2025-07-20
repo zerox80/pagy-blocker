@@ -16,6 +16,7 @@ const STORAGE_KEYS = {
 
 // BUGFIX: Die Pfade müssen absolut vom Root-Verzeichnis der Erweiterung sein (beginnend mit /).
 // Relative Pfade wie ../icons/ funktionieren in Service Workern nicht zuverlässig und führen zum Absturz.
+// FIXED: Fallback zu existierenden Icons falls disabled Icons fehlen
 const ICON_PATHS = {
   DEFAULT: {
     "16": "/icons/icon16.png",
@@ -23,9 +24,9 @@ const ICON_PATHS = {
     "128": "/icons/icon128.png"
   },
   DISABLED: {
-    "16": "/icons/icon16_disabled.png",
-    "48": "/icons/icon48_disabled.png",
-    "128": "/icons/icon128_disabled.png"
+    "16": "/icons/deaktivieren.png", // Fallback to existing disabled icon
+    "48": "/icons/deaktivieren.png",
+    "128": "/icons/deaktivieren.png"
   }
 };
 
@@ -62,13 +63,20 @@ async function initializeDefaultState() {
 
 /**
  * Aktualisiert das Icon der Erweiterung, indem ein Dictionary von Pfaden übergeben wird.
+ * FIXED: Robuste Fehlerbehandlung mit Fallback zu Default-Icon
  * @param {boolean} isPaused - Gibt an, ob die Erweiterung pausiert ist.
  */
 function updateIcon(isPaused) {
   const pathSet = isPaused ? ICON_PATHS.DISABLED : ICON_PATHS.DEFAULT;
   chrome.action.setIcon({ path: pathSet }, () => {
     if (chrome.runtime.lastError) {
-      console.error('Fehler beim Setzen des Icons mit Pfad-Dictionary:', chrome.runtime.lastError.message);
+      console.warn('Icon-Fallback aktiviert:', chrome.runtime.lastError.message);
+      // Fallback zu Default-Icons bei Fehler
+      chrome.action.setIcon({ path: ICON_PATHS.DEFAULT }, () => {
+        if (chrome.runtime.lastError) {
+          console.error('Kritischer Icon-Fehler:', chrome.runtime.lastError.message);
+        }
+      });
     }
   });
 }
@@ -128,16 +136,34 @@ async function togglePauseState(isPaused) {
 
 
 
-// Listener: Zähler für geblockte Anfragen erhöhen
-// Performance-Optimierung: Zähler im schnellen Session-Speicher erhöhen
-chrome.declarativeNetRequest.onRuleMatchedDebug.addListener(async () => {
-  try {
-    const { sessionBlockedCount = 0 } = await chrome.storage.session.get('sessionBlockedCount');
-    await chrome.storage.session.set({ sessionBlockedCount: sessionBlockedCount + 1 });
-  } catch (err) {
-    console.error('Pagy-Blocker: Fehler beim Aktualisieren des Session-Blockier-Zählers:', err);
+// FIXED: Debug-Listener nur in Development-Modus
+// Performance-Optimierung: Session-Storage für Zähler, Production-safe
+const IS_DEVELOPMENT = !('update_url' in chrome.runtime.getManifest());
+if (IS_DEVELOPMENT) {
+  chrome.declarativeNetRequest.onRuleMatchedDebug.addListener(async () => {
+    try {
+      const { sessionBlockedCount = 0 } = await chrome.storage.session.get('sessionBlockedCount');
+      await chrome.storage.session.set({ sessionBlockedCount: sessionBlockedCount + 1 });
+    } catch (err) {
+      console.error('Pagy-Blocker: Fehler beim Aktualisieren des Session-Blockier-Zählers:', err);
+    }
+  });
+} else {
+  // Alternative Zählmethode für Production (ohne Debug-API)
+  // Nutzt getMatchedRules() API für Statistiken
+  async function updateBlockedCount() {
+    try {
+      const matchedRules = await chrome.declarativeNetRequest.getMatchedRules({ tabId: -1 });
+      const currentCount = matchedRules.rulesMatchedInfo?.length || 0;
+      await chrome.storage.session.set({ sessionBlockedCount: currentCount });
+    } catch (err) {
+      console.warn('Pagy-Blocker: Statistiken temporär nicht verfügbar:', err);
+    }
   }
-});
+  
+  // Periodisches Update der Statistiken
+  setInterval(updateBlockedCount, 30000); // Alle 30 Sekunden
+}
 
 // Alarm einrichten, um den Zähler periodisch zu speichern
 chrome.alarms.create('persistBlockerCount', { periodInMinutes: 5 });

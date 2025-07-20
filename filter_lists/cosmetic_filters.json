@@ -1,0 +1,91 @@
+{
+  "google.com": {
+    "selectors": [
+      "[data-text-ad]",
+      ".ads-visurl",
+      ".commercial-unit-desktop-top", 
+      ".ad_cclk",
+      "#tads",
+      ".ads-ad",
+      ".uEierd"
+    ]
+  },
+  "mail.google.com": {
+    "selectors": [
+      "[data-category='promotion']",
+      ".aKB .nH .aKs",
+      ".no .if .aKs"
+    ]
+  },
+  "youtube.com": {
+    "selectors": [
+      ".ytd-promoted-sparkles-web-renderer",
+      ".ytd-ad-slot-renderer", 
+      "ytd-companion-slot-renderer",
+      "ytd-banner-promo-renderer",
+      ".video-ads",
+      ".ytp-ad-module"
+    ]
+  },
+  "facebook.com": {
+    "selectors": [
+      "[data-pagelet='RightRail']",
+      "[aria-label*='Sponsored']",
+      "[data-testid='story-subtitle'] a[href*='/ads/']",
+      "div[data-testid='placeholder-post']"
+    ]
+  },
+  "instagram.com": {
+    "selectors": [
+      "article:has([data-testid='post_context'])",
+      "[data-testid='post_context']"
+    ]
+  },
+  "amazon.com": {
+    "selectors": [
+      ".s-sponsored-info-icon",
+      "[data-component-type='sp-sponsored-result']",
+      ".AdHolder",
+      "[data-cy='title-recipe-card'] [aria-label*='Sponsored']"
+    ]
+  },
+  "twitter.com": {
+    "selectors": [
+      "[data-testid='placementTracking']",
+      "article:has([aria-label*='Promoted'])",
+      "[data-testid='trendItem']:has([aria-label*='Promoted'])"
+    ]
+  },
+  "x.com": {
+    "selectors": [
+      "[data-testid='placementTracking']",
+      "article:has([aria-label*='Promoted'])",
+      "[data-testid='trendItem']:has([aria-label*='Promoted'])"
+    ]
+  },
+  "reddit.com": {
+    "selectors": [
+      "[data-testid='post-container']:has([data-testid='post-content'] [data-adclicklocation])",
+      ".promotedlink",
+      "[data-promoted='true']"
+    ]
+  },
+  "generic": {
+    "selectors": [
+      ".advertisement",
+      ".ads",
+      ".ad-banner", 
+      ".google-ads",
+      "[class*='advertisement']",
+      "[id*='google_ads']",
+      "[class*='adsense']",
+      "[id*='adsense']",
+      ".sponsor",
+      ".sponsored",
+      "[data-ad-slot]",
+      ".ad-container",
+      ".ad-wrapper",
+      ".banner-ad"
+    ]
+  }
+}

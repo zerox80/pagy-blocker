@@ -17,19 +17,32 @@ document.addEventListener('DOMContentLoaded', () => {
 
     /**
      * Sendet eine Nachricht an das Hintergrundskript und gibt eine Promise zurück.
+     * FIXED: Robuste Input-Validierung und Timeout-Schutz
      * @param {object} message - Die zu sendende Nachricht.
      * @returns {Promise<object>} Eine Promise, die mit der Antwort des Hintergrundskripts aufgelöst wird.
      */
     function sendMessage(message) {
         return new Promise((resolve, reject) => {
+            // Input-Validierung
+            if (!message || typeof message !== 'object' || !message.command) {
+                return reject(new Error('Ungültige Nachricht: command erforderlich'));
+            }
+            
+            // Timeout-Schutz
+            const timeout = setTimeout(() => {
+                reject(new Error('Message timeout - Background script antwortet nicht'));
+            }, 5000);
+            
             chrome.runtime.sendMessage(message, (response) => {
+                clearTimeout(timeout);
+                
                 if (chrome.runtime.lastError) {
-                    return reject(chrome.runtime.lastError);
+                    return reject(new Error(`Runtime error: ${chrome.runtime.lastError.message}`));
                 }
                 if (response && response.error) {
-                    return reject(new Error(response.error));
+                    return reject(new Error(`Background error: ${response.error}`));
                 }
-                resolve(response);
+                resolve(response || {});
             });
         });
     }
@@ -45,7 +58,8 @@ document.addEventListener('DOMContentLoaded', () => {
             enableSwitch.checked = !isPaused;
             statusText.textContent = isPaused ? 'Deaktiviert' : 'Aktiviert';
             document.body.classList.toggle('disabled', isPaused);
-            logo.src = isPaused ? '../icons/icon48_disabled.png' : '../icons/icon48.png';
+            // FIXED: Konsistente absolute Pfade und Fallback-Logik
+            logo.src = isPaused ? '/icons/deaktivieren.png' : '/icons/icon48.png';
 
             // Statistiken abrufen und anzeigen
             statsDisplay.textContent = 'Lade Statistiken...';

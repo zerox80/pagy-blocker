@@ -19,7 +19,19 @@ async function readFileWithCache(filePath) {
   }
   
   try {
-    const content = await fs.readFile(filePath, 'utf8');
+    // FIXED: Timeout-Schutz für File-I/O Operationen
+    const fileReadPromise = fs.readFile(filePath, 'utf8');
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('File read timeout')), 5000);
+    });
+    
+    const content = await Promise.race([fileReadPromise, timeoutPromise]);
+    
+    // Validierung der Dateigröße (Schutz vor großen Dateien)
+    if (content.length > 1024 * 1024) { // 1MB Limit
+      console.warn(`⚠️ Große Datei detected: ${filePath} (${content.length} bytes)`);
+    }
+    
     fileCache.set(filePath, content);
     return content;
   } catch (error) {
@@ -38,21 +50,29 @@ async function analyzeFiles() {
     'filter_precompiler.js'
   ];
 
-  // Read all files in parallel
-  const filePromises = files.map(async (file) => {
-    const filePath = path.join(__dirname, file);
-    try {
-      const stat = await fs.stat(filePath);
-      const content = await readFileWithCache(filePath);
-      const lines = content.split('\n').length;
-      return { file, size: stat.size, lines, content };
-    } catch (error) {
-      console.log(`⚠️ ${file}: Datei nicht gefunden`);
-      return null;
-    }
-  });
-
-  const results = await Promise.all(filePromises);
+  // FIXED: Concurrency-limitierte Datei-Verarbeitung für bessere Memory-Performance
+  const maxConcurrency = 3;
+  const results = [];
+  
+  for (let i = 0; i < files.length; i += maxConcurrency) {
+    const batch = files.slice(i, i + maxConcurrency);
+    const batchPromises = batch.map(async (file) => {
+      const filePath = path.join(__dirname, file);
+      try {
+        const stat = await fs.stat(filePath);
+        const content = await readFileWithCache(filePath);
+        const lines = content.split('\n').length;
+        return { file, size: stat.size, lines, content };
+      } catch (error) {
+        console.log(`⚠️ ${file}: Datei nicht gefunden`);
+        return null;
+      }
+    });
+    
+    const batchResults = await Promise.all(batchPromises);
+    results.push(...batchResults);
+  }
+  
   const validResults = results.filter(Boolean);
   
   for (const result of validResults) {
