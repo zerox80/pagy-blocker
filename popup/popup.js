@@ -1,110 +1,192 @@
-// pagy-blocker-main/popup/popup.js
+/**
+ * @file popup.js
+ * @description UI-Logik für das Popup-Fenster der Pagy-Blocker-Erweiterung.
+ * Zeigt den Status an, ermöglicht das Aktivieren/Deaktivieren und zeigt Statistiken an.
+ *
+ * @version 2.6.4
+ * @author Gemini
+ */
 
-document.addEventListener('DOMContentLoaded', function() {
-    const pageBlockedCountEl = document.getElementById('page-blocked-count');
-    const totalBlockedCountEl = document.getElementById('total-blocked-count');
-    const domainNameEl = document.getElementById('domain-name');
-    const toggleBtn = document.getElementById('toggle-blocker-btn');
-
-    let currentTab;
-    let currentDomain;
-
-    // Funktion zum Aktualisieren des UI-Zustands des Toggle-Buttons
-    function updateToggleButton(isBlockingEnabled) {
-        if (isBlockingEnabled) {
-            toggleBtn.textContent = 'Blocker für diese Seite deaktivieren';
-            toggleBtn.classList.remove('enabled');
-            toggleBtn.classList.add('disabled'); // Rote Farbe für "deaktivieren"
-        } else {
-            toggleBtn.textContent = 'Blocker für diese Seite aktivieren';
-            toggleBtn.classList.remove('disabled');
-            toggleBtn.classList.add('enabled'); // Grüne Farbe für "aktivieren"
-        }
-        toggleBtn.disabled = false;
-    }
-
-    // Hauptfunktion zum Initialisieren des Popups
-    function initializePopup(tabs) {
-        if (!tabs || tabs.length === 0 || !tabs[0]) {
-            domainNameEl.textContent = "Kein aktiver Tab";
-            pageBlockedCountEl.textContent = 'N/A';
-            toggleBtn.textContent = 'Nicht verfügbar';
-            toggleBtn.disabled = true;
-            return;
-        }
-        currentTab = tabs[0];
-
-        // Überprüfen, ob der Tab eine gültige URL für die Verarbeitung hat
-        if (currentTab.url && (currentTab.url.startsWith('http://') || currentTab.url.startsWith('https://'))) {
-            try {
-                const url = new URL(currentTab.url);
-                currentDomain = url.hostname;
-                domainNameEl.textContent = currentDomain;
-
-                // Status vom Hintergrundskript abfragen (ist die Seite auf der Whitelist?)
-                chrome.runtime.sendMessage({type: "getDomainStatus", domain: currentDomain}, function(response) {
-                    if (chrome.runtime.lastError) {
-                        console.error("Pagy Blocker Fehler:", chrome.runtime.lastError.message);
-                        toggleBtn.textContent = 'Fehler';
-                        return;
-                    }
-                    if (response) {
-                        updateToggleButton(response.enabled);
-                    }
-                });
-
-            } catch (e) {
-                domainNameEl.textContent = 'Spezialseite';
-                toggleBtn.textContent = 'Nicht verfügbar';
-                toggleBtn.disabled = true;
-            }
-        } else {
-            domainNameEl.textContent = currentTab.url ? 'Spezialseite' : 'Leerer Tab';
-            toggleBtn.textContent = 'Nicht verfügbar';
-            toggleBtn.disabled = true;
-        }
-
-        // Anzahl der blockierten Elemente für diese Seite abrufen
-        chrome.runtime.sendMessage({type: "getStats", tabId: currentTab.id}, function(response) {
-            if (chrome.runtime.lastError) {
-                pageBlockedCountEl.textContent = 'N/A';
-                console.error("Pagy Blocker Fehler:", chrome.runtime.lastError.message);
-                return;
-            }
-            if (response && typeof response.blockedCount === 'number') {
-                pageBlockedCountEl.textContent = response.blockedCount;
-            } else {
-                pageBlockedCountEl.textContent = '0'; // Standardwert 0, wenn nichts zurückkommt
-            }
-        });
-    }
-
-    // Fragt den aktuell aktiven Tab ab und startet die Initialisierung
-    chrome.tabs.query({active: true, currentWindow: true}, initializePopup);
-
-    // Gesamtzahl der blockierten Elemente aus dem Speicher abrufen
-    chrome.storage.local.get('totalBlocked', function(data) {
-        totalBlockedCountEl.textContent = data.totalBlocked || 0;
+document.addEventListener('DOMContentLoaded', () => {
+    // ENHANCED: Global error boundary for popup
+    window.addEventListener('error', (event) => {
+        console.error('Pagy-Blocker Popup: Unhandled error:', event.error);
+        showErrorState('Ein unerwarteter Fehler ist aufgetreten');
+        return true; // Prevent default error handling
     });
 
-    // Event-Listener für den Toggle-Button
-    toggleBtn.addEventListener('click', function() {
-        if (!currentDomain || toggleBtn.disabled) {
-            return;
-        }
-        
-        // Den aktuellen Zustand aus dem Text des Buttons ableiten
-        const shouldEnableBlocking = toggleBtn.textContent.includes('aktivieren');
+    window.addEventListener('unhandledrejection', (event) => {
+        console.error('Pagy-Blocker Popup: Unhandled promise rejection:', event.reason);
+        showErrorState('Ein unerwarteter Fehler ist aufgetreten');
+        event.preventDefault(); // Prevent default handling
+    });
 
-        // Nachricht an das Hintergrundskript senden, um den Status zu ändern
-        chrome.runtime.sendMessage({type: "toggleDomain", domain: currentDomain, enable: shouldEnableBlocking}, function(response) {
-             if (response && response.success) {
-                updateToggleButton(shouldEnableBlocking);
-                // Seite neu laden, damit die Änderungen sofort sichtbar werden
-                chrome.tabs.reload(currentTab.id);
-                // Popup schließen für eine bessere User Experience
-                window.close();
-             }
+    const enableSwitch = document.getElementById('enable-switch');
+    const statusText = document.getElementById('status-text');
+    const blockedDisplay = document.getElementById('blocked-display');
+    const statsDisplay = document.getElementById('stats-display');
+    const refreshButton = document.getElementById('refresh-button');
+    const logo = document.querySelector('.logo');
+
+    // ENHANCED: Validate critical DOM elements
+    if (!enableSwitch || !statusText || !blockedDisplay || !statsDisplay || !refreshButton || !logo) {
+        console.error('Pagy-Blocker Popup: Critical DOM elements missing');
+        showErrorState('Popup konnte nicht geladen werden');
+        return;
+    }
+
+    /**
+     * Sendet eine Nachricht an das Hintergrundskript und gibt eine Promise zurück.
+     * FIXED: Robuste Input-Validierung und Timeout-Schutz
+     * @param {object} message - Die zu sendende Nachricht.
+     * @returns {Promise<object>} Eine Promise, die mit der Antwort des Hintergrundskripts aufgelöst wird.
+     */
+    function sendMessage(message) {
+        return new Promise((resolve, reject) => {
+            // Input-Validierung
+            if (!message || typeof message !== 'object' || !message.command) {
+                return reject(new Error('Ungültige Nachricht: command erforderlich'));
+            }
+            
+            // Timeout-Schutz
+            const timeout = setTimeout(() => {
+                reject(new Error('Message timeout - Background script antwortet nicht'));
+            }, 5000);
+            
+            chrome.runtime.sendMessage(message, (response) => {
+                clearTimeout(timeout);
+                
+                if (chrome.runtime.lastError) {
+                    return reject(new Error(`Runtime error: ${chrome.runtime.lastError.message}`));
+                }
+                if (response && response.error) {
+                    return reject(new Error(`Background error: ${response.error}`));
+                }
+                resolve(response || {});
+            });
         });
+    }
+
+    /**
+     * Aktualisiert die Benutzeroberfläche mit den neuesten Daten vom Hintergrundskript.
+     * ENHANCED: Improved error handling and state management
+     */
+    async function updateUI() {
+        try {
+            // Clear any previous error state
+            clearErrorState();
+            
+            // Status (pausiert/aktiviert) abrufen und UI aktualisieren
+            const state = await sendMessage({ command: 'getState' });
+            const isPaused = state.isPaused;
+            enableSwitch.checked = !isPaused;
+            statusText.textContent = isPaused ? 'Deaktiviert' : 'Aktiviert';
+            document.body.classList.toggle('disabled', isPaused);
+            // FIXED: Konsistente absolute Pfade und Fallback-Logik mit Error-Handling
+            const iconPath = isPaused ? '/icons/deaktivieren.png' : '/icons/icon48.png';
+            logo.src = iconPath;
+            logo.onerror = () => {
+                console.warn('Pagy-Blocker: Icon failed to load, using fallback');
+                logo.src = '/icons/icon48.png'; // Fallback zum Standard-Icon
+            };
+
+            // Statistiken abrufen und anzeigen
+            statsDisplay.textContent = 'Lade Statistiken...';
+            const stats = await sendMessage({ command: 'getStats' });
+            
+            const blockedCount = stats.blocked || 0;
+            const filterCount = stats.filterCount || { css: 0, network: 0, total: 0 };
+
+            blockedDisplay.textContent = 'Blockierte Ads: ';
+            const blockedCountSpan = document.createElement('span');
+            blockedCountSpan.className = 'blocked-count';
+            blockedCountSpan.textContent = blockedCount;
+            blockedDisplay.appendChild(blockedCountSpan);
+            
+            if (filterCount.total > 0) {
+                statsDisplay.textContent = `Geladene Regeln: ${filterCount.total}`;
+            } else {
+                statsDisplay.textContent = `Geladene Regeln: Laden fehlgeschlagen`;
+            }
+
+        } catch (error) {
+            console.error('Pagy-Blocker: Fehler beim Aktualisieren der Popup-UI.', error);
+            showErrorState('Fehler beim Laden der Daten');
+        }
+    }
+
+    // Event-Listener für den Umschalter
+    enableSwitch.addEventListener('change', async () => {
+        const isPaused = !enableSwitch.checked;
+        try {
+            await sendMessage({ command: 'togglePause', isPaused });
+            updateUI();
+        } catch (error) {
+            console.error('Pagy-Blocker: Fehler beim Umschalten des Status.', error);
+            updateUI(); // Zustand zurücksetzen
+        }
+    });
+
+    // Event-Listener für den Aktualisieren-Button
+    refreshButton.addEventListener('click', () => {
+        const icon = refreshButton.querySelector('svg');
+        icon.style.transition = 'transform 0.5s';
+        icon.style.transform = 'rotate(360deg)';
+        
+        // Just refresh the UI, don't add test ads
+        updateUI()
+            .finally(() => {
+                setTimeout(() => {
+                    icon.style.transition = 'none';
+                    icon.style.transform = 'none';
+                }, 500);
+            });
+    });
+
+    /**
+     * ENHANCED: Shows error state in the popup UI
+     * @param {string} message - Error message to display
+     */
+    function showErrorState(message) {
+        try {
+            if (statsDisplay) {
+                statsDisplay.textContent = message;
+                statsDisplay.classList.add('error-text');
+            }
+            if (blockedDisplay) {
+                blockedDisplay.textContent = 'Blockierte Ads: ';
+                const blockedCountSpan = document.createElement('span');
+                blockedCountSpan.className = 'blocked-count error-text';
+                blockedCountSpan.textContent = '-';
+                blockedDisplay.appendChild(blockedCountSpan);
+            }
+            if (document.body) {
+                document.body.classList.add('error-state');
+            }
+        } catch (error) {
+            console.error('Pagy-Blocker Popup: Failed to show error state:', error);
+        }
+    }
+
+    /**
+     * ENHANCED: Clears error state from the popup UI
+     */
+    function clearErrorState() {
+        try {
+            if (statsDisplay) {
+                statsDisplay.classList.remove('error-text');
+            }
+            if (document.body) {
+                document.body.classList.remove('error-state');
+            }
+        } catch (error) {
+            console.error('Pagy-Blocker Popup: Failed to clear error state:', error);
+        }
+    }
+
+    // Initiales Laden der UI-Daten
+    updateUI().catch(error => {
+        console.error('Pagy-Blocker Popup: Initial UI load failed:', error);
+        showErrorState('Fehler beim Laden der Daten');
     });
 });
