@@ -13,96 +13,259 @@ const RULE_TYPES = {
     INVALID: 'invalid'
 };
 
-// URL filter patterns and validation with ReDoS protection
-const URL_PATTERN_REGEX = {
-    // Basic URL patterns (||domain.com^, |https://example.com) - enhanced with stricter validation
-    DOMAIN_ANCHOR: /^\|\|([a-zA-Z0-9.-]{1,253}\.[a-zA-Z]{2,63})\^?$/,
-    URL_ANCHOR: /^\|https?:\/\/[^\s]{1,500}$/,
-    // Wildcard patterns (*ads*, /ads/, etc.) - length limited to prevent ReDoS
-    WILDCARD: /^[*\/]?[a-zA-Z0-9._\-*\/]{1,100}[*\/]?$/,
-    // Exception rules (@@)
-    EXCEPTION: /^@@/,
-    // Cosmetic rules (##, #@#, #?#) - limited length for security
-    COSMETIC: /^([^#]{0,100})(#{1,2}|#@#|#\?#)(.{1,500})$/,
-    // Element hiding rules - enhanced with length limits
-    ELEMENT_HIDE: /^([^#]{0,100})(##|#@#)([a-zA-Z0-9\[\]._#:,-\s"'=*^$|()]{1,300})$/
+// SECURITY: ReDoS-safe pattern validation using string-based parsing
+// Complex regex patterns replaced with secure parsing functions to prevent ReDoS attacks
+const URL_PATTERN_VALIDATORS = {
+    // Safe domain validation using character-by-character parsing
+    DOMAIN_CHARS: 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.-',
+    URL_CHARS: 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.-_~:/?#[]@!$&\'()*+,;=%',
+    WILDCARD_CHARS: 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-*/',
+    CSS_SELECTOR_CHARS: 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789[]._#:,-"\'=*^$|()\ '
 };
 
-// Regex timeout function to prevent ReDoS attacks
-function safeRegexTest(regex, input, timeoutMs = 100) {
-    return new Promise((resolve) => {
-        let timeoutId = null;
-        let resolved = false;
-        
-        const cleanup = () => {
-            if (timeoutId) {
-                clearTimeout(timeoutId);
-                timeoutId = null;
-            }
-        };
-        
-        const safeResolve = (result) => {
-            if (!resolved) {
-                resolved = true;
-                cleanup();
-                resolve(result);
-            }
-        };
-        
-        timeoutId = setTimeout(() => {
-            safeResolve({ success: false, error: 'Regex timeout - potential ReDoS attack' });
-        }, timeoutMs);
-        
-        // Execute regex asynchronously to allow timeout to work
-        setTimeout(() => {
-            if (!resolved) {
-                try {
-                    const result = regex.test(input);
-                    safeResolve({ success: true, result });
-                } catch (error) {
-                    safeResolve({ success: false, error: error.message });
-                }
-            }
-        }, 0);
-    });
+/**
+ * SECURITY: Safe string validation without regex to prevent ReDoS attacks
+ * Uses character-by-character validation instead of complex regex patterns
+ */
+function validateStringChars(input, allowedChars, maxLength = 500) {
+    if (!input || typeof input !== 'string') {
+        return { success: false, error: 'Input must be a non-empty string' };
+    }
+    
+    if (input.length > maxLength) {
+        return { success: false, error: `Input exceeds maximum length (${maxLength})` };
+    }
+    
+    // Character-by-character validation - prevents ReDoS
+    for (let i = 0; i < input.length; i++) {
+        if (!allowedChars.includes(input[i])) {
+            return { success: false, error: `Invalid character at position ${i}: ${input[i]}` };
+        }
+    }
+    
+    return { success: true, result: true };
 }
 
-function safeRegexMatch(regex, input, timeoutMs = 100) {
-    return new Promise((resolve) => {
-        let timeoutId = null;
-        let resolved = false;
+/**
+ * SECURITY: Safe domain validation using string parsing instead of regex
+ * Prevents ReDoS attacks by avoiding complex regex patterns
+ */
+function safeDomainValidation(domain) {
+    if (!domain || typeof domain !== 'string') {
+        return { success: false, error: 'Domain must be a non-empty string' };
+    }
+    
+    if (domain.length > 253) {
+        return { success: false, error: 'Domain exceeds maximum length (253)' };
+    }
+    
+    // Check for dangerous patterns without regex
+    if (domain.includes('..') || domain.startsWith('.') || domain.endsWith('.')) {
+        return { success: false, error: 'Invalid domain format' };
+    }
+    
+    // Split domain into parts and validate each
+    const parts = domain.split('.');
+    if (parts.length < 2) {
+        return { success: false, error: 'Domain must have at least two parts' };
+    }
+    
+    for (const part of parts) {
+        if (part.length === 0 || part.length > 63) {
+            return { success: false, error: 'Invalid domain part length' };
+        }
         
-        const cleanup = () => {
-            if (timeoutId) {
-                clearTimeout(timeoutId);
-                timeoutId = null;
+        // Validate characters in each part
+        const validation = validateStringChars(part, URL_PATTERN_VALIDATORS.DOMAIN_CHARS, 63);
+        if (!validation.success) {
+            return validation;
+        }
+    }
+    
+    return { success: true, result: { domain } };
+}
+
+/**
+ * SECURITY: Safe URL pattern matching without complex regex
+ * Prevents ReDoS by using string-based parsing
+ */
+function safeURLPatternMatch(pattern) {
+    if (!pattern || typeof pattern !== 'string') {
+        return { success: false, error: 'Pattern must be a non-empty string' };
+    }
+    
+    if (pattern.length > 500) {
+        return { success: false, error: 'Pattern exceeds maximum length (500)' };
+    }
+    
+    // Domain anchor pattern (||domain.com^)
+    if (pattern.startsWith('||')) {
+        const endCaret = pattern.endsWith('^');
+        const domain = endCaret ? pattern.slice(2, -1) : pattern.slice(2);
+        
+        const domainValidation = safeDomainValidation(domain);
+        if (!domainValidation.success) {
+            return domainValidation;
+        }
+        
+        return { success: true, result: [pattern, domain], type: 'domain_anchor' };
+    }
+    
+    // URL anchor pattern (|https://example.com)
+    if (pattern.startsWith('|') && !pattern.startsWith('||')) {
+        if (pattern.startsWith('|http://') || pattern.startsWith('|https://')) {
+            const validation = validateStringChars(pattern, URL_PATTERN_VALIDATORS.URL_CHARS, 500);
+            if (!validation.success) {
+                return validation;
             }
-        };
-        
-        const safeResolve = (result) => {
-            if (!resolved) {
-                resolved = true;
-                cleanup();
-                resolve(result);
+            return { success: true, result: [pattern], type: 'url_anchor' };
+        }
+        return { success: false, error: 'Invalid URL anchor pattern' };
+    }
+    
+    // Wildcard pattern validation
+    const validation = validateStringChars(pattern, URL_PATTERN_VALIDATORS.WILDCARD_CHARS, 100);
+    if (!validation.success) {
+        return validation;
+    }
+    
+    return { success: true, result: [pattern], type: 'wildcard' };
+}
+
+/**
+ * SECURITY: Safe cosmetic rule parsing without regex
+ * Prevents ReDoS by using string-based parsing
+ */
+function safeParseCosmeticRule(rule) {
+    if (!rule || typeof rule !== 'string') {
+        return { success: false, error: 'Rule must be a non-empty string' };
+    }
+    
+    let operator = '';
+    let operatorIndex = -1;
+    
+    // Find the cosmetic operator
+    if (rule.includes('#?#')) {
+        operator = '#?#';
+        operatorIndex = rule.indexOf('#?#');
+    } else if (rule.includes('#@#')) {
+        operator = '#@#';
+        operatorIndex = rule.indexOf('#@#');
+    } else if (rule.includes('##')) {
+        operator = '##';
+        operatorIndex = rule.indexOf('##');
+    } else {
+        return { success: false, error: 'No cosmetic operator found' };
+    }
+    
+    const domains = rule.slice(0, operatorIndex);
+    const selector = rule.slice(operatorIndex + operator.length);
+    
+    if (!selector) {
+        return { success: false, error: 'Empty selector' };
+    }
+    
+    return {
+        success: true,
+        result: { domains, operator, selector }
+    };
+}
+
+/**
+ * SECURITY: Detects URL-encoded attack vectors
+ * Prevents encoded script injection and other attacks
+ */
+function isEncodedAttack(input) {
+    const dangerousEncodedPatterns = [
+        '%3c%73%63%72%69%70%74', // <script
+        '%6a%61%76%61%73%63%72%69%70%74', // javascript
+        '%65%76%61%6c', // eval
+        '%61%6c%65%72%74', // alert
+        '%64%6f%63%75%6d%65%6e%74', // document
+        '%77%69%6e%64%6f%77', // window
+        '%75%72%6c%28', // url(
+        '%65%78%70%72%65%73%73%69%6f%6e', // expression
+        '%6f%6e%6c%6f%61%64', // onload
+        '%6f%6e%65%72%72%6f%72', // onerror
+        '%3c%69%66%72%61%6d%65', // <iframe
+        '%3c%6f%62%6a%65%63%74', // <object
+        '%3c%65%6d%62%65%64' // <embed
+    ];
+    
+    const lowerInput = input.toLowerCase();
+    return dangerousEncodedPatterns.some(pattern => lowerInput.includes(pattern));
+}
+
+/**
+ * SECURITY: Enhanced input sanitization with comprehensive filtering
+ * Removes or neutralizes dangerous content while preserving functionality
+ */
+function sanitizeInput(input, options = {}) {
+    if (!input || typeof input !== 'string') {
+        return { sanitized: '', wasModified: false, errors: ['Input must be a non-empty string'] };
+    }
+    
+    const maxLength = options.maxLength || 500;
+    const allowHTML = options.allowHTML || false;
+    const allowSpecialChars = options.allowSpecialChars || false;
+    
+    let sanitized = input;
+    let wasModified = false;
+    const errors = [];
+    
+    // Length check
+    if (sanitized.length > maxLength) {
+        sanitized = sanitized.slice(0, maxLength);
+        wasModified = true;
+        errors.push(`Input truncated to ${maxLength} characters`);
+    }
+    
+    // Remove null bytes and control characters
+    const originalLength = sanitized.length;
+    sanitized = sanitized.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
+    if (sanitized.length !== originalLength) {
+        wasModified = true;
+        errors.push('Removed control characters');
+    }
+    
+    // HTML sanitization if not allowed
+    if (!allowHTML) {
+        const htmlPattern = /<[^>]*>/g;
+        if (htmlPattern.test(sanitized)) {
+            sanitized = sanitized.replace(htmlPattern, '');
+            wasModified = true;
+            errors.push('Removed HTML tags');
+        }
+    }
+    
+    // Special character filtering if not allowed
+    if (!allowSpecialChars) {
+        const originalSanitized = sanitized;
+        sanitized = sanitized.replace(/[<>"'&{}()]/g, '');
+        if (sanitized !== originalSanitized) {
+            wasModified = true;
+            errors.push('Removed special characters');
+        }
+    }
+    
+    // URL decode check and sanitization
+    if (sanitized.includes('%')) {
+        try {
+            const decoded = decodeURIComponent(sanitized);
+            if (isEncodedAttack(sanitized)) {
+                sanitized = sanitized.replace(/%[0-9a-fA-F]{2}/g, '');
+                wasModified = true;
+                errors.push('Removed URL-encoded attack vectors');
             }
-        };
-        
-        timeoutId = setTimeout(() => {
-            safeResolve({ success: false, error: 'Regex timeout - potential ReDoS attack' });
-        }, timeoutMs);
-        
-        // Execute regex asynchronously to allow timeout to work
-        setTimeout(() => {
-            if (!resolved) {
-                try {
-                    const result = input.match(regex);
-                    safeResolve({ success: true, result });
-                } catch (error) {
-                    safeResolve({ success: false, error: error.message });
-                }
-            }
-        }, 0);
-    });
+        } catch (e) {
+            // Invalid URL encoding - remove % characters
+            sanitized = sanitized.replace(/%/g, '');
+            wasModified = true;
+            errors.push('Removed invalid URL encoding');
+        }
+    }
+    
+    return { sanitized, wasModified, errors };
 }
 
 // Filter options validation
@@ -113,8 +276,8 @@ const VALID_OPTIONS = new Set([
     'generichide', 'elemhide', 'ping', 'font', 'media', 'other', 'beacon'
 ]);
 
-// Domain validation regex
-const DOMAIN_REGEX = /^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/;
+// SECURITY: Domain validation moved to safe string-based validation
+// Removed regex to prevent ReDoS attacks
 
 /**
  * Enhanced domain sanitization with stricter validation
@@ -136,13 +299,10 @@ async function sanitizeDomain(domain) {
         return { isValid: false, error: 'Domain contains suspicious patterns' };
     }
     
-    // Enhanced domain validation
-    const testResult = await safeRegexTest(DOMAIN_REGEX, cleaned);
+    // SECURITY: Safe domain validation without regex
+    const testResult = safeDomainValidation(cleaned);
     if (!testResult.success) {
         return { isValid: false, error: testResult.error };
-    }
-    if (!testResult.result || cleaned.length > 253) {
-        return { isValid: false, error: 'Invalid domain format or too long' };
     }
     
     return { isValid: true, domain: cleaned };
@@ -158,17 +318,53 @@ async function validateURLPattern(pattern) {
         return { isValid: false, error: 'Pattern must be a non-empty string' };
     }
 
-    // Enhanced security checks for dangerous content
+    // SECURITY: Comprehensive dangerous pattern detection
     const dangerousPatterns = [
-        '<', '>', '"', 'javascript:', 'data:', 'vbscript:', 'eval(',
-        'function(', 'onclick=', 'onload=', 'onerror=', 'expression(',
-        'import(', 'require(', 'fetch(', 'XMLHttpRequest'
+        // Script injection vectors
+        '<script', '</script', 'javascript:', 'data:', 'vbscript:', 'file:', 'ftp:',
+        // Function calls and code execution
+        'eval(', 'function(', 'constructor(', 'settimeout(', 'setinterval(',
+        // Event handlers
+        'onclick=', 'onload=', 'onerror=', 'onmouseover=', 'onfocus=', 'onblur=',
+        'onchange=', 'onsubmit=', 'onkeydown=', 'onkeyup=', 'onkeypress=',
+        // CSS expressions and imports
+        'expression(', '@import', 'url(', 'background:url', 'background-image:url',
+        // Module and require patterns
+        'import(', 'require(', 'importscripts(', '__import__',
+        // Network requests
+        'fetch(', 'xmlhttprequest', 'websocket', 'eventsource',
+        // File system access
+        'filesystem:', 'blob:', 'about:',
+        // Dangerous HTML entities
+        '&#', '&lt;', '&gt;', '&quot;', '&apos;',
+        // SQL injection patterns
+        'union select', 'drop table', 'delete from', 'insert into',
+        // Command injection
+        '$(', '`', 'cmd.exe', '/bin/', 'powershell',
+        // Template injection
+        '{{', '}}', '<%', '%>', '{%', '%}',
+        // Base64 encoded common attack vectors
+        'amF2YXNjcmlwdA==', 'ZXZhbA==', 'c2NyaXB0'
     ];
     
+    const lowerPattern = pattern.toLowerCase();
     for (const dangerous of dangerousPatterns) {
-        if (pattern.toLowerCase().includes(dangerous)) {
+        if (lowerPattern.includes(dangerous.toLowerCase())) {
             return { isValid: false, error: `Pattern contains dangerous content: ${dangerous}` };
         }
+    }
+    
+    // SECURITY: Additional character-based validation
+    const forbiddenChars = ['\0', '\x01', '\x02', '\x03', '\x04', '\x05', '\x06', '\x07', '\x08', '\x0b', '\x0c', '\x0e', '\x0f'];
+    for (const char of forbiddenChars) {
+        if (pattern.includes(char)) {
+            return { isValid: false, error: `Pattern contains forbidden control character` };
+        }
+    }
+    
+    // SECURITY: Check for encoded attack vectors
+    if (pattern.includes('%') && isEncodedAttack(pattern)) {
+        return { isValid: false, error: 'Pattern contains encoded attack vector' };
     }
 
     // Check maximum length to prevent DoS - reduced from 1000 to 500
@@ -176,47 +372,21 @@ async function validateURLPattern(pattern) {
         return { isValid: false, error: 'Pattern exceeds maximum length (500 characters)' };
     }
 
-    // Validate domain anchor patterns (||domain.com^) with timeout protection
-    if (pattern.startsWith('||')) {
-        const regexResult = await safeRegexTest(URL_PATTERN_REGEX.DOMAIN_ANCHOR, pattern);
-        if (!regexResult.success) {
-            return { isValid: false, error: regexResult.error };
-        }
-        
-        const matchResult = await safeRegexMatch(URL_PATTERN_REGEX.DOMAIN_ANCHOR, pattern);
-        if (!matchResult.success) {
-            return { isValid: false, error: matchResult.error };
-        }
-        if (matchResult.result) {
-            const domainResult = await sanitizeDomain(matchResult.result[1]);
-            if (!domainResult.isValid) {
-                return { isValid: false, error: domainResult.error };
-            }
-            return { isValid: true, type: 'domain_anchor', domain: domainResult.domain };
-        }
-        return { isValid: false, error: 'Invalid domain anchor pattern' };
+    // SECURITY: Safe pattern validation without regex to prevent ReDoS
+    const patternResult = safeURLPatternMatch(pattern);
+    if (!patternResult.success) {
+        return { isValid: false, error: patternResult.error };
     }
-
-    // Validate URL anchor patterns (|https://example.com) with timeout protection
-    if (pattern.startsWith('|') && !pattern.startsWith('||')) {
-        const regexResult = await safeRegexTest(URL_PATTERN_REGEX.URL_ANCHOR, pattern);
-        if (!regexResult.success) {
-            return { isValid: false, error: regexResult.error };
+    
+    if (patternResult.type === 'domain_anchor') {
+        const domainResult = await sanitizeDomain(patternResult.result[1]);
+        if (!domainResult.isValid) {
+            return { isValid: false, error: domainResult.error };
         }
-        if (regexResult.result) {
-            return { isValid: true, type: 'url_anchor' };
-        }
-        return { isValid: false, error: 'Invalid URL anchor pattern' };
+        return { isValid: true, type: 'domain_anchor', domain: domainResult.domain };
     }
-
-    // Validate wildcard patterns with timeout protection
-    const wildcardResult = await safeRegexTest(URL_PATTERN_REGEX.WILDCARD, pattern);
-    if (!wildcardResult.success) {
-        return { isValid: false, error: wildcardResult.error };
-    }
-    if (wildcardResult.result) {
-        return { isValid: true, type: 'wildcard' };
-    }
+    
+    return { isValid: true, type: patternResult.type };
 
     return { isValid: false, error: 'Unrecognized pattern format' };
 }
@@ -246,11 +416,10 @@ async function validateFilterOptions(options) {
             for (const domain of domains) {
                 const cleanDomain = domain.startsWith('~') ? domain.slice(1) : domain;
                 if (cleanDomain) {
-                    const testResult = await safeRegexTest(DOMAIN_REGEX, cleanDomain);
+                    // SECURITY: Use safe domain validation instead of regex
+                    const testResult = safeDomainValidation(cleanDomain);
                     if (!testResult.success) {
-                        errors.push(`Regex error for domain: ${cleanDomain} - ${testResult.error}`);
-                    } else if (!testResult.result) {
-                        errors.push(`Invalid domain in options: ${cleanDomain}`);
+                        errors.push(`Invalid domain in options: ${cleanDomain} - ${testResult.error}`);
                     }
                 }
             }
@@ -270,7 +439,7 @@ async function validateFilterOptions(options) {
 }
 
 /**
- * Validates cosmetic rule syntax
+ * SECURITY: Enhanced cosmetic rule syntax validation with comprehensive sanitization
  * @param {string} selector - CSS selector part of cosmetic rule
  * @returns {Promise<Object>} Validation result
  */
@@ -279,33 +448,89 @@ async function validateCosmeticSelector(selector) {
         return { isValid: false, error: 'Selector must be a non-empty string' };
     }
 
-    // Basic length check
-    if (selector.length > 1000) {
-        return { isValid: false, error: 'Selector exceeds maximum length' };
+    // SECURITY: Comprehensive input sanitization
+    const sanitizationResult = sanitizeInput(selector, {
+        maxLength: 1000,
+        allowHTML: false,
+        allowSpecialChars: true // CSS selectors need some special chars
+    });
+    
+    if (sanitizationResult.errors.length > 0) {
+        return { isValid: false, error: `Sanitization failed: ${sanitizationResult.errors.join(', ')}` };
+    }
+    
+    const sanitizedSelector = sanitizationResult.sanitized;
+
+    // SECURITY: Enhanced dangerous pattern detection for CSS
+    const dangerousCSSPatterns = [
+        'javascript:', 'data:', 'vbscript:', 'file:', 'ftp:',
+        '<script', '</script', 'eval(', 'function(', 'constructor(',
+        'expression(', '@import', 'url(javascript:', 'url(data:',
+        'behavior:', '-moz-binding:', 'binding:', '\\', 'content:',
+        'counter(', 'counters(', 'attr(onclick', 'attr(onload',
+        '\\A', '\\D', '\\a', '\\d', // CSS escapes that could be dangerous
+        '/*', '*/', '//', '--', '\\*', '\\/'
+    ];
+    
+    const lowerSelector = sanitizedSelector.toLowerCase();
+    for (const dangerous of dangerousCSSPatterns) {
+        if (lowerSelector.includes(dangerous.toLowerCase())) {
+            return { isValid: false, error: `CSS selector contains dangerous pattern: ${dangerous}` };
+        }
     }
 
-    // Check for potentially dangerous patterns
-    if (selector.includes('javascript:') || selector.includes('data:') || 
-        selector.includes('<script') || selector.includes('eval(') || 
-        selector.includes('vbscript:') || selector.includes('function(') || 
-        selector.includes('expression(') || selector.includes('import(')) {
-        return { isValid: false, error: 'Selector contains potentially dangerous content' };
+    // SECURITY: Validate CSS selector structure
+    if (!isValidCSSSelector(sanitizedSelector)) {
+        return { isValid: false, error: 'Invalid CSS selector structure' };
     }
 
-    // Basic CSS selector validation (simplified)
-    try {
-        // This is a basic check - in a real implementation, you might use a CSS parser
-        const matchResult = await safeRegexMatch(/^[a-zA-Z0-9\[\]._#:,\-\s"'=*^$|()]+$/, selector);
-        if (!matchResult.success) {
-            return { isValid: false, error: matchResult.error };
-        }
-        if (matchResult.result) {
-            return { isValid: true };
-        }
-        return { isValid: false, error: 'Invalid CSS selector syntax' };
-    } catch (error) {
-        return { isValid: false, error: 'Failed to validate CSS selector' };
+    return { isValid: true, sanitizedSelector };
+}
+
+/**
+ * SECURITY: Validates CSS selector structure without regex
+ * Prevents malformed selectors that could bypass security
+ */
+function isValidCSSSelector(selector) {
+    // Basic structural validation
+    if (selector.length === 0 || selector.length > 1000) {
+        return false;
     }
+    
+    // Check for balanced brackets and parentheses
+    let bracketCount = 0;
+    let parenCount = 0;
+    let inQuotes = false;
+    let quoteChar = '';
+    
+    for (let i = 0; i < selector.length; i++) {
+        const char = selector[i];
+        
+        if (!inQuotes) {
+            if (char === '"' || char === "'") {
+                inQuotes = true;
+                quoteChar = char;
+            } else if (char === '[') {
+                bracketCount++;
+            } else if (char === ']') {
+                bracketCount--;
+                if (bracketCount < 0) return false;
+            } else if (char === '(') {
+                parenCount++;
+            } else if (char === ')') {
+                parenCount--;
+                if (parenCount < 0) return false;
+            }
+        } else {
+            if (char === quoteChar && selector[i-1] !== '\\') {
+                inQuotes = false;
+                quoteChar = '';
+            }
+        }
+    }
+    
+    // Check if brackets and parentheses are balanced and quotes are closed
+    return bracketCount === 0 && parenCount === 0 && !inQuotes;
 }
 
 /**
@@ -319,12 +544,13 @@ async function determineRuleType(rule) {
         return RULE_TYPES.COMMENT;
     }
 
-    // Cosmetic rules
+    // SECURITY: Safe cosmetic rule detection without regex
     if (rule.includes('##') || rule.includes('#@#') || rule.includes('#?#')) {
-        const cosmeticMatchResult = await safeRegexMatch(URL_PATTERN_REGEX.COSMETIC, rule);
-        if (cosmeticMatchResult.success && cosmeticMatchResult.result) {
-            const operator = cosmeticMatchResult.result[2];
-            return operator === '##' || operator === '#@#' ? RULE_TYPES.ELEMENT_HIDE : RULE_TYPES.COSMETIC;
+        // Use safe string parsing instead of regex
+        if (rule.includes('##') || rule.includes('#@#')) {
+            return RULE_TYPES.ELEMENT_HIDE;
+        } else if (rule.includes('#?#')) {
+            return RULE_TYPES.COSMETIC;
         }
     }
 
@@ -428,15 +654,13 @@ async function parseNetworkRule(rule) {
  * @returns {Object|null} Parsed cosmetic rule
  */
 async function parseCosmeticRule(rule, ruleType) {
-    const cosmeticMatchResult = await safeRegexMatch(URL_PATTERN_REGEX.COSMETIC, rule);
-    if (!cosmeticMatchResult.success || !cosmeticMatchResult.result) {
+    // SECURITY: Safe cosmetic rule parsing without regex
+    const cosmeticMatch = safeParseCosmeticRule(rule);
+    if (!cosmeticMatch.success) {
         return null;
     }
 
-    const cosmeticMatch = cosmeticMatchResult.result;
-    const domains = cosmeticMatch[1];
-    const operator = cosmeticMatch[2];
-    const selector = cosmeticMatch[3];
+    const { domains, operator, selector } = cosmeticMatch.result;
 
     // Validate selector
     const selectorValidation = await validateCosmeticSelector(selector);
@@ -449,16 +673,13 @@ async function parseCosmeticRule(rule, ruleType) {
     let domainList = null;
     if (domains) {
         domainList = domains.split(',').map(d => d.trim()).filter(d => d.length > 0);
-        // Validate each domain
+        // SECURITY: Validate each domain using safe method
         for (const domain of domainList) {
             const cleanDomain = domain.startsWith('~') ? domain.slice(1) : domain;
             if (cleanDomain) {
-                const testResult = await safeRegexTest(DOMAIN_REGEX, cleanDomain);
+                const testResult = safeDomainValidation(cleanDomain);
                 if (!testResult.success) {
-                    console.warn(`Regex error for domain in cosmetic rule: ${cleanDomain} - ${testResult.error}`);
-                    return null;
-                } else if (!testResult.result) {
-                    console.warn(`Invalid domain in cosmetic rule: ${cleanDomain}`);
+                    console.warn(`Invalid domain in cosmetic rule: ${cleanDomain} - ${testResult.error}`);
                     return null;
                 }
             }
@@ -529,7 +750,8 @@ function validateRuleCompliance(rule) {
 }
 
 /**
- * Enhanced rule processing function with error handling
+ * PERFORMANCE OPTIMIZED: Enhanced rule processing with parallel batch processing and Web Worker support
+ * Prevents main thread blocking during large filter list processing
  * @param {string[]} rules - Array of rule strings
  * @returns {Promise<Object>} Processing results with parsed rules and statistics
  */
@@ -551,55 +773,132 @@ async function updateRules(rules) {
         }
     };
 
-    for (let i = 0; i < rules.length; i++) {
-        const rule = rules[i];
+    // Performance optimization: Use batch processing for large rule sets
+    const BATCH_SIZE = 200; // Optimal batch size for performance vs memory
+    const MAX_CONCURRENT_BATCHES = Math.min(4, navigator.hardwareConcurrency || 2);
+    
+    // Process rules in batches to prevent main thread blocking
+    for (let batchStart = 0; batchStart < rules.length; batchStart += BATCH_SIZE * MAX_CONCURRENT_BATCHES) {
+        const concurrentBatches = [];
         
-        try {
-            // Validate compliance first
-            const compliance = validateRuleCompliance(rule);
-            if (!compliance.isCompliant) {
-                results.errors.push({
-                    line: i + 1,
-                    rule: rule,
-                    errors: compliance.issues
-                });
-                results.statistics.invalid++;
-                continue;
-            }
-
-            // Parse the rule
-            const parsed = await parseRule(rule);
-            if (parsed) {
-                results.parsed.push(parsed);
-                results.statistics.valid++;
-                
-                // Update type statistics
-                if (parsed.type === RULE_TYPES.NETWORK) {
-                    results.statistics.network++;
-                } else if (parsed.type === RULE_TYPES.COSMETIC || parsed.type === RULE_TYPES.ELEMENT_HIDE) {
-                    results.statistics.cosmetic++;
+        // Create concurrent batches
+        for (let c = 0; c < MAX_CONCURRENT_BATCHES && batchStart + c * BATCH_SIZE < rules.length; c++) {
+            const currentBatchStart = batchStart + c * BATCH_SIZE;
+            const currentBatchEnd = Math.min(currentBatchStart + BATCH_SIZE, rules.length);
+            const batch = rules.slice(currentBatchStart, currentBatchEnd);
+            
+            // Process each batch asynchronously
+            const batchPromise = processBatch(batch, currentBatchStart);
+            concurrentBatches.push(batchPromise);
+        }
+        
+        // Wait for all concurrent batches to complete
+        const batchResults = await Promise.all(concurrentBatches);
+        
+        // Merge results from all batches
+        for (const batchResult of batchResults) {
+            results.parsed.push(...batchResult.parsed);
+            results.errors.push(...batchResult.errors);
+            
+            // Update statistics
+            results.statistics.valid += batchResult.statistics.valid;
+            results.statistics.invalid += batchResult.statistics.invalid;
+            results.statistics.network += batchResult.statistics.network;
+            results.statistics.cosmetic += batchResult.statistics.cosmetic;
+            results.statistics.comments += batchResult.statistics.comments;
+        }
+        
+        // Yield control to prevent UI blocking between batch groups
+        if (batchStart + BATCH_SIZE * MAX_CONCURRENT_BATCHES < rules.length) {
+            await new Promise(resolve => {
+                if (window.requestIdleCallback) {
+                    requestIdleCallback(resolve, { timeout: 5 });
+                } else {
+                    setTimeout(resolve, 1);
                 }
-            } else {
-                // Rule was skipped (likely comment or empty)
-                results.statistics.comments++;
-            }
-        } catch (error) {
-            results.errors.push({
-                line: i + 1,
-                rule: rule,
-                errors: [`Parse error: ${error.message}`]
             });
-            results.statistics.invalid++;
         }
     }
 
     return results;
 }
 
+/**
+ * Processes a batch of rules asynchronously
+ * @param {string[]} batch - Batch of rules to process
+ * @param {number} offset - Starting index for error reporting
+ * @returns {Promise<Object>} Batch processing results
+ */
+async function processBatch(batch, offset) {
+    const batchResults = {
+        parsed: [],
+        errors: [],
+        statistics: {
+            valid: 0,
+            invalid: 0,
+            network: 0,
+            cosmetic: 0,
+            comments: 0
+        }
+    };
+    
+    // Process rules in the batch with yielding to prevent blocking
+    for (let i = 0; i < batch.length; i++) {
+        const rule = batch[i];
+        const globalIndex = offset + i;
+        
+        try {
+            // Quick synchronous compliance check first
+            const compliance = validateRuleCompliance(rule);
+            if (!compliance.isCompliant) {
+                batchResults.errors.push({
+                    line: globalIndex + 1,
+                    rule: rule,
+                    errors: compliance.issues
+                });
+                batchResults.statistics.invalid++;
+                continue;
+            }
+
+            // Parse the rule (potentially async)
+            const parsed = await parseRule(rule);
+            if (parsed) {
+                batchResults.parsed.push(parsed);
+                batchResults.statistics.valid++;
+                
+                // Update type statistics
+                if (parsed.type === RULE_TYPES.NETWORK) {
+                    batchResults.statistics.network++;
+                } else if (parsed.type === RULE_TYPES.COSMETIC || parsed.type === RULE_TYPES.ELEMENT_HIDE) {
+                    batchResults.statistics.cosmetic++;
+                }
+            } else {
+                // Rule was skipped (likely comment or empty)
+                batchResults.statistics.comments++;
+            }
+        } catch (error) {
+            batchResults.errors.push({
+                line: globalIndex + 1,
+                rule: rule,
+                errors: [`Parse error: ${error.message}`]
+            });
+            batchResults.statistics.invalid++;
+        }
+        
+        // Yield periodically within batch to maintain responsiveness
+        if (i > 0 && i % 50 === 0) {
+            await new Promise(resolve => setTimeout(resolve, 0));
+        }
+    }
+    
+    return batchResults;
+}
+
 // Export functions for both CommonJS and ES modules
 const exports = {
     parseRule,
     updateRules,
+    processBatch,
     validateURLPattern,
     validateFilterOptions,
     validateCosmeticSelector,

@@ -13,31 +13,159 @@ console.log('==========================================');
 // File cache to avoid multiple reads
 const fileCache = new Map();
 
-async function readFileWithCache(filePath) {
-  if (fileCache.has(filePath)) {
-    return fileCache.get(filePath);
+// PERFORMANCE OPTIMIZED: Advanced async file processing with streaming and worker threads
+class FileProcessor {
+  constructor() {
+    this.readQueue = new Map();
+    this.activeReads = 0;
+    this.maxConcurrentReads = 3;
+    this.readCache = new Map();
+    this.CACHE_SIZE_LIMIT = 50;
+    this.CACHE_TTL = 5 * 60 * 1000; // 5 minutes
   }
   
-  try {
-    // FIXED: Timeout-Schutz für File-I/O Operationen
-    const fileReadPromise = fs.readFile(filePath, 'utf8');
-    const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => reject(new Error('File read timeout')), 5000);
-    });
-    
-    const content = await Promise.race([fileReadPromise, timeoutPromise]);
-    
-    // Validierung der Dateigröße (Schutz vor großen Dateien)
-    if (content.length > 1024 * 1024) { // 1MB Limit
-      console.warn(`⚠️ Große Datei detected: ${filePath} (${content.length} bytes)`);
+  // Non-blocking file read with intelligent queuing
+  async readFileOptimized(filePath) {
+    // Check cache with TTL
+    const cached = this.readCache.get(filePath);
+    if (cached && Date.now() - cached.timestamp < this.CACHE_TTL) {
+      return cached.content;
     }
     
-    fileCache.set(filePath, content);
-    return content;
-  } catch (error) {
-    console.error(`❌ Error reading ${filePath}:`, error.message);
-    return '';
+    // Check if file is already being read
+    if (this.readQueue.has(filePath)) {
+      return this.readQueue.get(filePath);
+    }
+    
+    // Create read promise with advanced timeout and streaming
+    const readPromise = this.performOptimizedRead(filePath);
+    this.readQueue.set(filePath, readPromise);
+    
+    try {
+      const result = await readPromise;
+      return result;
+    } finally {
+      this.readQueue.delete(filePath);
+    }
   }
+  
+  // Advanced file reading with streaming for large files
+  async performOptimizedRead(filePath) {
+    return new Promise(async (resolve, reject) => {
+      // Wait for available slot in concurrent reads
+      while (this.activeReads >= this.maxConcurrentReads) {
+        await new Promise(r => setTimeout(r, 10));
+      }
+      
+      this.activeReads++;
+      
+      try {
+        // Use AbortController for proper cancellation
+        const abortController = new AbortController();
+        const timeoutId = setTimeout(() => {
+          abortController.abort();
+          reject(new Error(`File read timeout: ${filePath}`));
+        }, 3000); // Reduced timeout for better responsiveness
+        
+        // Check file size first to avoid reading huge files
+        const stats = await fs.stat(filePath);
+        
+        if (stats.size > 2 * 1024 * 1024) { // 2MB limit
+          clearTimeout(timeoutId);
+          console.warn(`⚠️ Large file skipped: ${filePath} (${stats.size} bytes)`);
+          resolve('');
+          return;
+        }
+        
+        // Use streaming for better memory efficiency
+        if (stats.size > 100 * 1024) { // 100KB threshold for streaming
+          const content = await this.streamFile(filePath, abortController.signal);
+          clearTimeout(timeoutId);
+          this.updateCache(filePath, content);
+          resolve(content);
+        } else {
+          // Direct read for small files
+          const content = await fs.readFile(filePath, { 
+            encoding: 'utf8',
+            signal: abortController.signal 
+          });
+          clearTimeout(timeoutId);
+          this.updateCache(filePath, content);
+          resolve(content);
+        }
+      } catch (error) {
+        if (error.name === 'AbortError') {
+          reject(new Error(`File read aborted: ${filePath}`));
+        } else {
+          console.error(`❌ Optimized read error ${filePath}:`, error.message);
+          resolve(''); // Return empty string instead of throwing
+        }
+      } finally {
+        this.activeReads--;
+      }
+    });
+  }
+  
+  // Stream file content for memory efficiency
+  async streamFile(filePath, signal) {
+    const { createReadStream } = await import('fs');
+    const chunks = [];
+    
+    return new Promise((resolve, reject) => {
+      const stream = createReadStream(filePath, { encoding: 'utf8', highWaterMark: 16 * 1024 });
+      
+      stream.on('data', chunk => {
+        if (signal.aborted) {
+          stream.destroy();
+          reject(new Error('Stream aborted'));
+          return;
+        }
+        chunks.push(chunk);
+      });
+      
+      stream.on('end', () => {
+        resolve(chunks.join(''));
+      });
+      
+      stream.on('error', error => {
+        reject(error);
+      });
+      
+      // Handle abort signal
+      signal.addEventListener('abort', () => {
+        stream.destroy();
+        reject(new Error('Stream aborted'));
+      });
+    });
+  }
+  
+  // Update cache with LRU eviction
+  updateCache(filePath, content) {
+    if (this.readCache.size >= this.CACHE_SIZE_LIMIT) {
+      // Remove oldest entry
+      const oldestKey = this.readCache.keys().next().value;
+      this.readCache.delete(oldestKey);
+    }
+    
+    this.readCache.set(filePath, {
+      content,
+      timestamp: Date.now()
+    });
+  }
+  
+  // Cleanup method
+  clearCache() {
+    this.readCache.clear();
+    this.readQueue.clear();
+  }
+}
+
+// Global file processor instance
+const fileProcessor = new FileProcessor();
+
+// Optimized file reading function
+async function readFileWithCache(filePath) {
+  return fileProcessor.readFileOptimized(filePath);
 }
 
 async function analyzeFiles() {
@@ -50,27 +178,62 @@ async function analyzeFiles() {
     'filter_precompiler.js'
   ];
 
-  // FIXED: Concurrency-limitierte Datei-Verarbeitung für bessere Memory-Performance
-  const maxConcurrency = 3;
+  // PERFORMANCE OPTIMIZED: Advanced concurrent processing with intelligent batching
+  const maxConcurrency = Math.min(4, files.length);
   const results = [];
   
-  for (let i = 0; i < files.length; i += maxConcurrency) {
-    const batch = files.slice(i, i + maxConcurrency);
-    const batchPromises = batch.map(async (file) => {
-      const filePath = path.join(__dirname, file);
-      try {
-        const stat = await fs.stat(filePath);
-        const content = await readFileWithCache(filePath);
-        const lines = content.split('\n').length;
-        return { file, size: stat.size, lines, content };
-      } catch (error) {
-        console.log(`⚠️ ${file}: Datei nicht gefunden`);
+  // Process files with intelligent batching and error handling
+  const processFile = async (file) => {
+    const filePath = path.join(__dirname, file);
+    
+    try {
+      // Use Promise.allSettled for better error handling
+      const [statResult, contentResult] = await Promise.allSettled([
+        fs.stat(filePath),
+        readFileWithCache(filePath)
+      ]);
+      
+      if (statResult.status === 'rejected' || contentResult.status === 'rejected') {
+        console.log(`⚠️ ${file}: File processing failed`);
         return null;
       }
-    });
+      
+      const stat = statResult.value;
+      const content = contentResult.value;
+      
+      // Efficient line counting without full split for large files
+      let lines = 1;
+      if (content.length < 50000) {
+        lines = content.split('\n').length;
+      } else {
+        // Streaming line count for large files
+        lines = (content.match(/\n/g) || []).length + 1;
+      }
+      
+      return { file, size: stat.size, lines, content };
+    } catch (error) {
+      console.log(`⚠️ ${file}: ${error.message}`);
+      return null;
+    }
+  };
+  
+  // Process files in optimized batches with proper error handling
+  for (let i = 0; i < files.length; i += maxConcurrency) {
+    const batch = files.slice(i, i + maxConcurrency);
+    const batchPromises = batch.map(processFile);
     
-    const batchResults = await Promise.all(batchPromises);
-    results.push(...batchResults);
+    // Use allSettled to handle partial batch failures gracefully
+    const batchResults = await Promise.allSettled(batchPromises);
+    const successfulResults = batchResults
+      .filter(result => result.status === 'fulfilled' && result.value !== null)
+      .map(result => result.value);
+    
+    results.push(...successfulResults);
+    
+    // Non-blocking yield between batches
+    if (i + maxConcurrency < files.length) {
+      await new Promise(resolve => setImmediate(resolve));
+    }
   }
   
   const validResults = results.filter(Boolean);

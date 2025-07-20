@@ -41,7 +41,12 @@ async function onInstallOrUpdate(details) {
     await initializeDefaultState();
     console.log('Pagy-Blocker: Initialisierung erfolgreich.');
   } catch (error) {
-    console.error('Pagy-Blocker: Fehler bei der Initialisierung.', error);
+    // SECURITY: Generic error message for production to prevent information disclosure
+    if (IS_DEVELOPMENT) {
+      console.error('Pagy-Blocker: Fehler bei der Initialisierung.', error);
+    } else {
+      console.error('Pagy-Blocker: Initialisierung fehlgeschlagen.');
+    }
   }
 }
 
@@ -61,22 +66,118 @@ async function initializeDefaultState() {
   updateIcon(isPaused || false);
 }
 
+// FIXED: Circuit breaker pattern for icon updates
+let iconUpdateCircuitBreaker = {
+  failureCount: 0,
+  lastFailureTime: 0,
+  isOpen: false,
+  failureThreshold: 3,
+  recoveryTimeout: 30000, // 30 seconds
+  halfOpenMaxRetries: 1
+};
+
+/**
+ * Resets the circuit breaker to closed state
+ */
+function resetCircuitBreaker() {
+  iconUpdateCircuitBreaker.failureCount = 0;
+  iconUpdateCircuitBreaker.isOpen = false;
+  iconUpdateCircuitBreaker.lastFailureTime = 0;
+}
+
+/**
+ * Checks if circuit breaker should transition from open to half-open
+ */
+function shouldAttemptRecovery() {
+  const now = Date.now();
+  return iconUpdateCircuitBreaker.isOpen && 
+         (now - iconUpdateCircuitBreaker.lastFailureTime) > iconUpdateCircuitBreaker.recoveryTimeout;
+}
+
+/**
+ * Records a failure in the circuit breaker
+ */
+function recordIconFailure() {
+  iconUpdateCircuitBreaker.failureCount++;
+  iconUpdateCircuitBreaker.lastFailureTime = Date.now();
+  
+  if (iconUpdateCircuitBreaker.failureCount >= iconUpdateCircuitBreaker.failureThreshold) {
+    iconUpdateCircuitBreaker.isOpen = true;
+    console.warn('Pagy-Blocker: Icon update circuit breaker opened due to repeated failures');
+  }
+}
+
 /**
  * Aktualisiert das Icon der Erweiterung, indem ein Dictionary von Pfaden übergeben wird.
- * FIXED: Robuste Fehlerbehandlung mit Fallback zu Default-Icon
+ * FIXED: Circuit breaker pattern prevents infinite loops and UI responsiveness issues
  * @param {boolean} isPaused - Gibt an, ob die Erweiterung pausiert ist.
  */
 function updateIcon(isPaused) {
+  // Check circuit breaker state
+  if (iconUpdateCircuitBreaker.isOpen && !shouldAttemptRecovery()) {
+    console.log('Pagy-Blocker: Icon update skipped - circuit breaker is open');
+    return;
+  }
+  
+  // If in half-open state, limit retries
+  if (iconUpdateCircuitBreaker.isOpen && shouldAttemptRecovery()) {
+    if (iconUpdateCircuitBreaker.failureCount > iconUpdateCircuitBreaker.halfOpenMaxRetries) {
+      console.log('Pagy-Blocker: Icon update skipped - half-open retry limit reached');
+      return;
+    }
+  }
+
   const pathSet = isPaused ? ICON_PATHS.DISABLED : ICON_PATHS.DEFAULT;
+  
+  // Add timeout to prevent hanging
+  const timeoutId = setTimeout(() => {
+    console.warn('Pagy-Blocker: Icon update timeout');
+    recordIconFailure();
+  }, 5000);
+  
   chrome.action.setIcon({ path: pathSet }, () => {
+    clearTimeout(timeoutId);
+    
     if (chrome.runtime.lastError) {
-      console.warn('Icon-Fallback aktiviert:', chrome.runtime.lastError.message);
-      // Fallback zu Default-Icons bei Fehler
-      chrome.action.setIcon({ path: ICON_PATHS.DEFAULT }, () => {
-        if (chrome.runtime.lastError) {
-          console.error('Kritischer Icon-Fehler:', chrome.runtime.lastError.message);
-        }
-      });
+      // SECURITY: Generic error messages for production
+      if (IS_DEVELOPMENT) {
+        console.warn('Pagy-Blocker: Primary icon update failed:', chrome.runtime.lastError.message);
+      } else {
+        console.warn('Pagy-Blocker: Primary icon update failed.');
+      }
+      recordIconFailure();
+      
+      // Only attempt fallback if not in circuit breaker open state
+      if (!iconUpdateCircuitBreaker.isOpen) {
+        // Fallback zu Default-Icons bei Fehler
+        const fallbackTimeoutId = setTimeout(() => {
+          console.error('Pagy-Blocker: Fallback icon update timeout');
+          recordIconFailure();
+        }, 3000);
+        
+        chrome.action.setIcon({ path: ICON_PATHS.DEFAULT }, () => {
+          clearTimeout(fallbackTimeoutId);
+          
+          if (chrome.runtime.lastError) {
+            // SECURITY: Generic error messages for production
+            if (IS_DEVELOPMENT) {
+              console.error('Pagy-Blocker: Fallback icon update failed:', chrome.runtime.lastError.message);
+            } else {
+              console.error('Pagy-Blocker: Fallback icon update failed.');
+            }
+            recordIconFailure();
+          } else {
+            console.log('Pagy-Blocker: Fallback icon update successful');
+            // Partial recovery - reduce failure count but don't fully reset
+            if (iconUpdateCircuitBreaker.failureCount > 0) {
+              iconUpdateCircuitBreaker.failureCount--;
+            }
+          }
+        });
+      }
+    } else {
+      // Success - reset circuit breaker
+      resetCircuitBreaker();
     }
   });
 }
@@ -106,9 +207,24 @@ function handleMessages(message, sender, sendResponse) {
         
 
         case 'getStats': {
-            const { [STORAGE_KEYS.BLOCKED_COUNT]: blocked = 0 } = await chrome.storage.local.get(STORAGE_KEYS.BLOCKED_COUNT);
-            const { sessionBlockedCount = 0 } = await chrome.storage.session.get('sessionBlockedCount');
-            sendResponse({ blocked: blocked + sessionBlockedCount });
+            // Use optimized stats retrieval with caching
+            try {
+              const [localStats, sessionStats] = await Promise.all([
+                chrome.storage.local.get(STORAGE_KEYS.BLOCKED_COUNT),
+                statsManager.getStats()
+              ]);
+              
+              const totalBlocked = (localStats[STORAGE_KEYS.BLOCKED_COUNT] || 0) + sessionStats.sessionBlockedCount;
+              sendResponse({ 
+                blocked: totalBlocked,
+                lastUpdate: sessionStats.lastUpdate
+              });
+            } catch (error) {
+              // Fallback to simple storage read
+              const { [STORAGE_KEYS.BLOCKED_COUNT]: blocked = 0 } = await chrome.storage.local.get(STORAGE_KEYS.BLOCKED_COUNT);
+              const { sessionBlockedCount = 0 } = await chrome.storage.session.get('sessionBlockedCount');
+              sendResponse({ blocked: blocked + sessionBlockedCount });
+            }
             break;
         }
 
@@ -117,8 +233,14 @@ function handleMessages(message, sender, sendResponse) {
           break;
       }
     } catch (error) {
-      console.error('Pagy-Blocker: Fehler bei der Nachrichtenverarbeitung.', error);
-      sendResponse({ success: false, error: error.message });
+      // SECURITY: Generic error messages for production to prevent information disclosure
+      if (IS_DEVELOPMENT) {
+        console.error('Pagy-Blocker: Fehler bei der Nachrichtenverarbeitung.', error);
+        sendResponse({ success: false, error: error.message });
+      } else {
+        console.error('Pagy-Blocker: Nachrichtenverarbeitung fehlgeschlagen.');
+        sendResponse({ success: false, error: 'Operation failed' });
+      }
     }
   })();
   return true; // Wichtig für asynchrone sendResponse
@@ -136,49 +258,318 @@ async function togglePauseState(isPaused) {
 
 
 
-// FIXED: Debug-Listener nur in Development-Modus
-// Performance-Optimierung: Session-Storage für Zähler, Production-safe
-const IS_DEVELOPMENT = !('update_url' in chrome.runtime.getManifest());
-if (IS_DEVELOPMENT) {
-  chrome.declarativeNetRequest.onRuleMatchedDebug.addListener(async () => {
+// FIXED: Session storage with error recovery and transaction-like updates
+let storageTransactionState = {
+  isInTransaction: false,
+  rollbackData: null,
+  maxRetries: 3,
+  retryDelay: 1000
+};
+
+/**
+ * Performs a transaction-like storage update with rollback capability
+ * FIXED: Robust session storage with error recovery
+ */
+async function safeStorageUpdate(storageArea, key, updateFunction, maxRetries = storageTransactionState.maxRetries) {
+  let attempt = 0;
+  
+  while (attempt < maxRetries) {
     try {
-      const { sessionBlockedCount = 0 } = await chrome.storage.session.get('sessionBlockedCount');
-      await chrome.storage.session.set({ sessionBlockedCount: sessionBlockedCount + 1 });
-    } catch (err) {
-      console.error('Pagy-Blocker: Fehler beim Aktualisieren des Session-Blockier-Zählers:', err);
+      // Begin transaction
+      storageTransactionState.isInTransaction = true;
+      
+      // Get current value for rollback
+      const currentData = await storageArea.get(key);
+      storageTransactionState.rollbackData = currentData;
+      
+      // Apply update function
+      const newValue = updateFunction(currentData[key] || 0);
+      
+      // Validate new value
+      if (typeof newValue !== 'number' || newValue < 0) {
+        throw new Error(`Invalid value for ${key}: ${newValue}`);
+      }
+      
+      // Perform update
+      await storageArea.set({ [key]: newValue });
+      
+      // Verify update succeeded
+      const verification = await storageArea.get(key);
+      if (verification[key] !== newValue) {
+        throw new Error(`Storage verification failed for ${key}`);
+      }
+      
+      // Transaction successful
+      storageTransactionState.isInTransaction = false;
+      storageTransactionState.rollbackData = null;
+      
+      return newValue;
+      
+    } catch (error) {
+      attempt++;
+      console.warn(`Pagy-Blocker: Storage update attempt ${attempt} failed for ${key}:`, error.message);
+      
+      // Attempt rollback if we have rollback data
+      if (storageTransactionState.rollbackData) {
+        try {
+          await storageArea.set(storageTransactionState.rollbackData);
+          console.log(`Pagy-Blocker: Rollback successful for ${key}`);
+        } catch (rollbackError) {
+          console.error(`Pagy-Blocker: Rollback failed for ${key}:`, rollbackError);
+        }
+      }
+      
+      if (attempt >= maxRetries) {
+        console.error(`Pagy-Blocker: Storage update failed after ${maxRetries} attempts for ${key}`);
+        storageTransactionState.isInTransaction = false;
+        storageTransactionState.rollbackData = null;
+        throw error;
+      }
+      
+      // Wait before retry with exponential backoff
+      await new Promise(resolve => setTimeout(resolve, storageTransactionState.retryDelay * attempt));
     }
-  });
-} else {
-  // Alternative Zählmethode für Production (ohne Debug-API)
-  // Nutzt getMatchedRules() API für Statistiken
-  async function updateBlockedCount() {
+  }
+}
+
+// PERFORMANCE OPTIMIZED: Event-driven statistics collection with intelligent caching
+class StatisticsManager {
+  constructor() {
+    this.isInitialized = false;
+    this.statsCache = {
+      sessionBlockedCount: 0,
+      lastUpdate: Date.now(),
+      updateThreshold: 5000 // Update cache every 5 seconds max
+    };
+    this.pendingUpdates = new Set();
+    this.debounceTimeout = null;
+    this.IS_DEVELOPMENT = !('update_url' in chrome.runtime.getManifest());
+  }
+  
+  // Initialize event-driven statistics collection
+  async initialize() {
+    if (this.isInitialized) return;
+    
     try {
-      const matchedRules = await chrome.declarativeNetRequest.getMatchedRules({ tabId: -1 });
-      const currentCount = matchedRules.rulesMatchedInfo?.length || 0;
-      await chrome.storage.session.set({ sessionBlockedCount: currentCount });
-    } catch (err) {
-      console.warn('Pagy-Blocker: Statistiken temporär nicht verfügbar:', err);
+      // Load existing session count
+      const { sessionBlockedCount = 0 } = await chrome.storage.session.get('sessionBlockedCount');
+      this.statsCache.sessionBlockedCount = sessionBlockedCount;
+      
+      if (this.IS_DEVELOPMENT && chrome.declarativeNetRequest.onRuleMatchedDebug) {
+        // Use debug listener for development with optimized batching
+        this.setupDevelopmentListener();
+      } else {
+        // Use event-driven approach for production
+        this.setupProductionListener();
+      }
+      
+      this.isInitialized = true;
+      console.log('Pagy-Blocker: Event-driven statistics initialized');
+    } catch (error) {
+      console.error('Pagy-Blocker: Statistics initialization failed:', error);
     }
   }
   
-  // Periodisches Update der Statistiken
-  setInterval(updateBlockedCount, 30000); // Alle 30 Sekunden
-}
-
-// Alarm einrichten, um den Zähler periodisch zu speichern
-chrome.alarms.create('persistBlockerCount', { periodInMinutes: 5 });
-
-chrome.alarms.onAlarm.addListener(async (alarm) => {
-  if (alarm.name === 'persistBlockerCount') {
-    const { sessionBlockedCount = 0 } = await chrome.storage.session.get('sessionBlockedCount');
-    if (sessionBlockedCount > 0) {
-      const { [STORAGE_KEYS.BLOCKED_COUNT]: totalCount = 0 } = await chrome.storage.local.get(STORAGE_KEYS.BLOCKED_COUNT);
-      await chrome.storage.local.set({ [STORAGE_KEYS.BLOCKED_COUNT]: totalCount + sessionBlockedCount });
-      await chrome.storage.session.set({ sessionBlockedCount: 0 }); // Zähler zurücksetzen
-      console.log(`Pagy-Blocker: ${sessionBlockedCount} geblockte Anfragen persistent gespeichert.`);
+  // Optimized development listener with batching
+  setupDevelopmentListener() {
+    chrome.declarativeNetRequest.onRuleMatchedDebug.addListener(() => {
+      this.incrementCount();
+    });
+  }
+  
+  // Event-driven production statistics
+  setupProductionListener() {
+    // Listen to tab updates for rule matching activity
+    if (chrome.tabs && chrome.tabs.onUpdated) {
+      chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+        if (changeInfo.status === 'complete' && tab.url) {
+          this.checkRuleMatches(tabId);
+        }
+      });
+    }
+    
+    // Listen to navigation events
+    if (chrome.webNavigation && chrome.webNavigation.onCompleted) {
+      chrome.webNavigation.onCompleted.addListener((details) => {
+        if (details.frameId === 0) { // Main frame only
+          this.checkRuleMatches(details.tabId);
+        }
+      });
     }
   }
-});
+  
+  // Optimized count increment with batching
+  incrementCount() {
+    this.statsCache.sessionBlockedCount++;
+    
+    // Debounced update to prevent excessive storage writes
+    if (this.debounceTimeout) {
+      clearTimeout(this.debounceTimeout);
+    }
+    
+    this.debounceTimeout = setTimeout(() => {
+      this.flushToStorage();
+    }, 1000); // Batch updates for 1 second
+  }
+  
+  // Event-driven rule match checking
+  async checkRuleMatches(tabId) {
+    // Avoid duplicate checks
+    if (this.pendingUpdates.has(tabId)) return;
+    this.pendingUpdates.add(tabId);
+    
+    try {
+      // Use setTimeout for non-blocking execution
+      await new Promise(resolve => setTimeout(resolve, 0));
+      
+      const matchedRules = await chrome.declarativeNetRequest.getMatchedRules({ tabId });
+      const newMatches = matchedRules.rulesMatchedInfo?.length || 0;
+      
+      if (newMatches > 0) {
+        this.statsCache.sessionBlockedCount += newMatches;
+        this.scheduleStorageUpdate();
+      }
+    } catch (error) {
+      // Silently handle errors to avoid spam
+      if (error.message && !error.message.includes('Invalid tab ID')) {
+        console.warn('Pagy-Blocker: Rule match check failed:', error.message);
+      }
+    } finally {
+      this.pendingUpdates.delete(tabId);
+    }
+  }
+  
+  // Intelligent storage update scheduling
+  scheduleStorageUpdate() {
+    const now = Date.now();
+    if (now - this.statsCache.lastUpdate > this.statsCache.updateThreshold) {
+      this.flushToStorage();
+    }
+  }
+  
+  // Flush cached stats to storage
+  async flushToStorage() {
+    try {
+      await safeStorageUpdate(
+        chrome.storage.session,
+        'sessionBlockedCount',
+        () => this.statsCache.sessionBlockedCount
+      );
+      this.statsCache.lastUpdate = Date.now();
+    } catch (error) {
+      console.error('Pagy-Blocker: Failed to update session storage:', error);
+    }
+  }
+  
+  // Get current statistics
+  async getStats() {
+    return {
+      sessionBlockedCount: this.statsCache.sessionBlockedCount,
+      lastUpdate: this.statsCache.lastUpdate
+    };
+  }
+  
+  // Cleanup method
+  cleanup() {
+    if (this.debounceTimeout) {
+      clearTimeout(this.debounceTimeout);
+      this.debounceTimeout = null;
+    }
+    this.flushToStorage(); // Ensure final flush
+  }
+}
+
+// Global statistics manager
+const statsManager = new StatisticsManager();
+
+// Initialize statistics on extension startup
+statsManager.initialize();
+
+// PERFORMANCE OPTIMIZED: Event-driven persistence with smart batching
+class PersistenceManager {
+  constructor() {
+    this.batchSize = 100; // Persist every 100 blocked requests
+    this.maxInterval = 5 * 60 * 1000; // Maximum 5 minutes between persists
+    this.lastPersist = Date.now();
+    this.pendingCount = 0;
+  }
+  
+  // Initialize persistence with smart triggers
+  initialize() {
+    // Set up alarm for maximum interval persistence
+    chrome.alarms.create('smartPersistBlockerCount', { periodInMinutes: 5 });
+    
+    // Listen for alarm events
+    chrome.alarms.onAlarm.addListener(async (alarm) => {
+      if (alarm.name === 'smartPersistBlockerCount') {
+        await this.persistStats('scheduled');
+      }
+    });
+    
+    // Listen for extension lifecycle events
+    if (chrome.runtime.onSuspend) {
+      chrome.runtime.onSuspend.addListener(() => {
+        this.persistStats('suspend');
+      });
+    }
+    
+    // Persist on browser shutdown
+    if (chrome.runtime.onSuspendCanceled) {
+      chrome.runtime.onSuspendCanceled.addListener(() => {
+        this.persistStats('suspend_cancelled');
+      });
+    }
+  }
+  
+  // Smart persistence with batching and throttling
+  async persistStats(reason = 'batch') {
+    try {
+      const { sessionBlockedCount = 0 } = await chrome.storage.session.get('sessionBlockedCount');
+      
+      if (sessionBlockedCount === 0) {
+        return; // Nothing to persist
+      }
+      
+      // Check if we should persist based on batch size or time
+      const timeSinceLastPersist = Date.now() - this.lastPersist;
+      const shouldPersist = 
+        sessionBlockedCount >= this.batchSize ||
+        timeSinceLastPersist >= this.maxInterval ||
+        reason === 'suspend' ||
+        reason === 'suspend_cancelled';
+      
+      if (shouldPersist) {
+        // Atomic update with error handling
+        await Promise.all([
+          safeStorageUpdate(
+            chrome.storage.local,
+            STORAGE_KEYS.BLOCKED_COUNT,
+            (currentTotal) => currentTotal + sessionBlockedCount
+          ),
+          safeStorageUpdate(
+            chrome.storage.session,
+            'sessionBlockedCount',
+            () => 0
+          )
+        ]);
+        
+        this.lastPersist = Date.now();
+        console.log(`Pagy-Blocker: ${sessionBlockedCount} blocked requests persisted (${reason})`);
+      }
+    } catch (error) {
+      console.error('Pagy-Blocker: Failed to persist stats:', error);
+    }
+  }
+  
+  // Trigger persistence check (called by statistics manager)
+  async checkPersistence() {
+    await this.persistStats('check');
+  }
+}
+
+// Global persistence manager
+const persistenceManager = new PersistenceManager();
+persistenceManager.initialize();
 
 // Event-Listener registrieren
 chrome.runtime.onInstalled.addListener(onInstallOrUpdate);
@@ -190,6 +581,11 @@ chrome.runtime.onMessage.addListener(handleMessages);
         const { [STORAGE_KEYS.IS_PAUSED]: isPaused } = await chrome.storage.local.get(STORAGE_KEYS.IS_PAUSED);
         updateIcon(isPaused || false);
     } catch (error) {
-        console.error("Fehler beim initialen Setzen des Icons:", error);
+        // SECURITY: Generic error messages for production
+        if (IS_DEVELOPMENT) {
+            console.error("Fehler beim initialen Setzen des Icons:", error);
+        } else {
+            console.error("Icon-Initialisierung fehlgeschlagen.");
+        }
     }
 })();

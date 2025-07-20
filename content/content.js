@@ -14,31 +14,57 @@
     let isPaused = false;
     let isWhitelisted = false;
     let observer = null;
+    let isCleanedUp = false;
     const hostname = window.location.hostname;
 
     /**
      * Initialisiert den Blocker, indem es den Status von der Erweiterung abruft
      * und den MutationObserver startet.
+     * FIXED: Race condition - proper promise chaining and initialization order
      */
     async function initialize() {
         try {
-            const state = await chrome.runtime.sendMessage({ command: 'getState' });
+            // Step 1: Get state from extension (with timeout)
+            const statePromise = chrome.runtime.sendMessage({ command: 'getState' });
+            const timeoutPromise = new Promise((_, reject) => 
+                setTimeout(() => reject(new Error('State fetch timeout')), 5000)
+            );
+            
+            const state = await Promise.race([statePromise, timeoutPromise]);
             isPaused = state.isPaused;
-            // isWhitelisted Logik kann hier bei Bedarf wieder hinzugefügt werden
-
+            
             if (isPaused) {
                 console.log(`Pagy-Blocker: Pausiert für ${hostname}`);
                 return;
             }
             
+            // Step 2: Load rules with proper error handling
             await loadRules();
-
-            if (rules && rules[hostname]) {
-                console.log(`Pagy-Blocker: Aktiv für ${hostname}. Starte Überwachung.`);
-                startObserver();
-                // Erste Überprüfung beim Laden der Seite
-                scanAndHideElements(document.body);
+            
+            // Step 3: Only proceed if we have valid rules for this domain or generic rules
+            const hasRules = rules && (rules[hostname] || rules['generic']);
+            if (!hasRules) {
+                console.log(`Pagy-Blocker: Keine Regeln für ${hostname} verfügbar`);
+                return;
             }
+            
+            // Step 4: Initialize in correct order to prevent race condition
+            console.log(`Pagy-Blocker: Aktiv für ${hostname}. Starte Überwachung.`);
+            
+            // Start observer first to catch any DOM changes during initial scan
+            startObserver();
+            
+            // Then perform initial scan with debouncing to prevent overlap (async for better performance)
+            await new Promise(resolve => {
+                requestAnimationFrame(async () => {
+                    try {
+                        await scanAndHideElements(document.body);
+                    } catch (error) {
+                        console.warn('Pagy-Blocker: Initial scan error:', error);
+                    }
+                    resolve();
+                });
+            });
 
         } catch (error) {
             // FIXED: Robuste Fehlerklassifizierung ohne fragiles String-Matching
@@ -60,29 +86,86 @@
 
     /**
      * Startet den MutationObserver, um auf DOM-Änderungen zu reagieren.
+     * FIXED: Memory leak prevention with proper cleanup in all scenarios
      */
     function startObserver() {
-        if (observer) {
-            observer.disconnect();
+        // Cleanup existing observer
+        cleanupObserver();
+        
+        if (isCleanedUp) {
+            console.log('Pagy-Blocker: Observer startup aborted - cleanup already performed');
+            return;
         }
 
         observer = new MutationObserver(mutations => {
-            for (const mutation of mutations) {
-                if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
-                    mutation.addedNodes.forEach(node => {
-                        // Wir überprüfen nur Element-Knoten
-                        if (node.nodeType === Node.ELEMENT_NODE) {
-                            scanAndHideElements(node);
-                        }
-                    });
+            // Check if we've been cleaned up during execution
+            if (isCleanedUp) {
+                return;
+            }
+            
+            try {
+                for (const mutation of mutations) {
+                    if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
+                        mutation.addedNodes.forEach(node => {
+                            // Wir überprüfen nur Element-Knoten
+                            if (node.nodeType === Node.ELEMENT_NODE && !isCleanedUp) {
+                                // Use async processing to avoid blocking the main thread
+                                scanAndHideElements(node).catch(error => {
+                                    console.warn('Pagy-Blocker: Async scan error:', error);
+                                });
+                            }
+                        });
+                    }
                 }
+            } catch (error) {
+                console.warn('Pagy-Blocker: Error in mutation observer callback:', error);
+                // On error, cleanup to prevent further issues
+                cleanupObserver();
             }
         });
 
-        observer.observe(document.body, {
-            childList: true,
-            subtree: true
-        });
+        try {
+            observer.observe(document.body, {
+                childList: true,
+                subtree: true
+            });
+        } catch (error) {
+            console.error('Pagy-Blocker: Failed to start observer:', error);
+            cleanupObserver();
+        }
+    }
+    
+    /**
+     * Safely cleans up the MutationObserver
+     * FIXED: Comprehensive cleanup function for all scenarios
+     */
+    function cleanupObserver() {
+        if (observer) {
+            try {
+                observer.disconnect();
+            } catch (error) {
+                console.warn('Pagy-Blocker: Error disconnecting observer:', error);
+            }
+            observer = null;
+        }
+    }
+    
+    /**
+     * Performs complete cleanup of all resources
+     * FIXED: Complete resource management
+     */
+    function performCleanup() {
+        if (isCleanedUp) {
+            return;
+        }
+        
+        isCleanedUp = true;
+        cleanupObserver();
+        
+        // Clear rules to free memory
+        rules = {};
+        
+        console.log('Pagy-Blocker: Complete cleanup performed');
     }
 
     /**
@@ -91,7 +174,7 @@
      */
         /**
      * Lädt die Filterregeln für das kosmetische Filtern.
-     * FIXED: Verwendet eingebaute kosmetische Filter-Regeln als Fallback
+     * FIXED: Smart domain-based fallback with improved coverage
      */
     async function loadRules() {
         // Versuche externe Filterregeln zu laden
@@ -100,6 +183,8 @@
             'filter_lists/filter_precompiled_min.json',
             'filter_lists/filter_precompiled.json'
         ];
+        
+        let lastError = null;
         
         for (const filterFile of filterFiles) {
             try {
@@ -113,133 +198,429 @@
                 if (typeof loadedRules === 'object' && loadedRules !== null && !Array.isArray(loadedRules)) {
                     rules = loadedRules;
                     console.log(`Pagy-Blocker: Kosmetische Filterregeln aus ${filterFile} geladen`);
+                    
+                    // FIXED: Enhance loaded rules with smart domain fallback
+                    enhanceRulesWithDomainFallback();
                     return;
                 }
             } catch (error) {
-                console.log(`Pagy-Blocker: ${filterFile} nicht verfügbar, versuche nächste Quelle`);
+                lastError = error;
+                console.log(`Pagy-Blocker: ${filterFile} nicht verfügbar (${error.message}), versuche nächste Quelle`);
                 continue;
             }
         }
         
-        // FALLBACK: Integrierte kosmetische Filter für häufige Ad-Domains
-        rules = getBuiltinCosmeticFilters();
-        console.log('Pagy-Blocker: Verwende eingebaute kosmetische Filter');
+        // FALLBACK: Smart domain-based builtin filters
+        console.warn('Pagy-Blocker: Alle externen Filter fehlgeschlagen, verwende intelligente eingebaute Filter');
+        if (lastError) {
+            console.warn('Pagy-Blocker: Letzter Fehler:', lastError.message);
+        }
+        
+        rules = getSmartBuiltinFilters();
+        console.log(`Pagy-Blocker: Intelligente Filter für ${hostname} geladen`);
+    }
+    
+    /**
+     * Enhances loaded rules with smart domain fallback logic
+     * FIXED: Ensures current domain has effective blocking rules
+     */
+    function enhanceRulesWithDomainFallback() {
+        // Check if current domain has rules
+        if (!rules[hostname]) {
+            // Try to find parent domain rules
+            const domainParts = hostname.split('.');
+            let foundParentRules = null;
+            
+            // Check parent domains (e.g., sub.example.com -> example.com)
+            for (let i = 1; i < domainParts.length; i++) {
+                const parentDomain = domainParts.slice(i).join('.');
+                if (rules[parentDomain]) {
+                    foundParentRules = rules[parentDomain];
+                    console.log(`Pagy-Blocker: Verwende Regeln von Parent-Domain ${parentDomain} für ${hostname}`);
+                    break;
+                }
+            }
+            
+            // Apply parent rules to current domain
+            if (foundParentRules) {
+                rules[hostname] = foundParentRules;
+            } else {
+                // Add smart generic rules for current domain
+                addSmartGenericRulesForDomain();
+            }
+        }
+        
+        // Ensure generic rules are always available
+        if (!rules['generic']) {
+            rules['generic'] = getGenericRules();
+        }
+    }
+    
+    /**
+     * Adds smart generic rules tailored for the current domain
+     * FIXED: Domain-specific intelligent fallback
+     */
+    function addSmartGenericRulesForDomain() {
+        const domainCategory = categorizeWebsite(hostname);
+        const smartRules = getSmartRulesForCategory(domainCategory);
+        
+        rules[hostname] = {
+            selectors: smartRules.selectors,
+            category: domainCategory
+        };
+        
+        console.log(`Pagy-Blocker: Intelligente ${domainCategory}-Regeln für ${hostname} hinzugefügt`);
+    }
+    
+    /**
+     * Categorizes website based on hostname patterns
+     * FIXED: Smart domain categorization for better targeting
+     */
+    function categorizeWebsite(hostname) {
+        // E-commerce patterns
+        if (/shop|store|buy|cart|commerce|market|amazon|ebay|etsy/.test(hostname)) {
+            return 'ecommerce';
+        }
+        
+        // News/Media patterns
+        if (/news|media|press|journal|times|post|herald|tribune|bbc|cnn/.test(hostname)) {
+            return 'news';
+        }
+        
+        // Social media patterns  
+        if (/social|facebook|twitter|instagram|linkedin|tiktok|snapchat/.test(hostname)) {
+            return 'social';
+        }
+        
+        // Video/Entertainment patterns
+        if (/video|tube|stream|netflix|youtube|twitch|vimeo|entertainment/.test(hostname)) {
+            return 'video';
+        }
+        
+        // Search engines
+        if (/google|bing|yahoo|duckduckgo|search/.test(hostname)) {
+            return 'search';
+        }
+        
+        // Blog patterns
+        if (/blog|wordpress|medium|tumblr|blogger/.test(hostname)) {
+            return 'blog';
+        }
+        
+        return 'generic';
+    }
+    
+    /**
+     * Returns smart rules based on website category
+     * FIXED: Category-specific blocking patterns
+     */
+    function getSmartRulesForCategory(category) {
+        const baseSelectors = [
+            '.advertisement', '.ads', '.ad-banner', '.google-ads',
+            '[class*="advertisement"]', '[id*="google_ads"]',
+            '[data-ad]', '[data-ads]', '.ad-container'
+        ];
+        
+        const categoryRules = {
+            ecommerce: [
+                ...baseSelectors,
+                '.sponsored-product', '[data-component-type*="sponsored"]',
+                '.ad-product', '.promoted-listing', '.sponsored-listing',
+                '[aria-label*="Sponsored"]', '.advertising-product'
+            ],
+            news: [
+                ...baseSelectors,
+                '.article-ad', '.content-ad', '.sidebar-ad', '.banner-ad',
+                '.ad-placement', '.ad-slot', '.dfp-ad', '.adhesion-ad'
+            ],
+            social: [
+                ...baseSelectors,
+                '[data-pagelet*="ads"]', '[aria-label*="Sponsored"]',
+                '.promoted-tweet', '.sponsored-post', '.ad-post',
+                '[data-testid*="ad"]', '.social-ad'
+            ],
+            video: [
+                ...baseSelectors,
+                '.video-ads', '.preroll-ad', '.overlay-ad', '.companion-ad',
+                '[class*="ad-overlay"]', '.advertisement-overlay'
+            ],
+            search: [
+                ...baseSelectors,
+                '.ads-visurl', '.commercial-unit', '[data-text-ad]',
+                '.ad_cclk', '.ads-ad', '.search-ad'
+            ],
+            blog: [
+                ...baseSelectors,
+                '.widget-ad', '.sidebar-ad', '.content-ad', '.inline-ad',
+                '.adsense', '.ad-widget'
+            ],
+            generic: baseSelectors
+        };
+        
+        return {
+            selectors: categoryRules[category] || categoryRules.generic
+        };
     }
 
     /**
-     * Gibt eingebaute kosmetische Filter für häufige Werbe-Websites zurück
+     * Returns smart builtin filters based on current domain
+     * FIXED: Intelligent domain-based filter selection
      */
-    function getBuiltinCosmeticFilters() {
+    function getSmartBuiltinFilters() {
+        const domainCategory = categorizeWebsite(hostname);
+        const smartRules = getSmartRulesForCategory(domainCategory);
+        
+        // Build comprehensive filter set
+        const filters = {
+            'generic': getGenericRules()
+        };
+        
+        // Add current domain with smart rules
+        filters[hostname] = smartRules;
+        
+        // Add known high-traffic sites with specific rules
+        const knownSites = getKnownSiteRules();
+        Object.assign(filters, knownSites);
+        
+        return filters;
+    }
+    
+    /**
+     * Returns generic rules that work across most websites
+     * FIXED: Comprehensive generic rule set
+     */
+    function getGenericRules() {
+        return {
+            selectors: [
+                '.advertisement', '.ads', '.ad-banner', '.google-ads',
+                '[class*="advertisement"]', '[id*="google_ads"]',
+                '[data-ad]', '[data-ads]', '.ad-container',
+                '.adblock', '.ad-block', '.ad-wrapper',
+                '.adsense', '.ad-space', '.ad-unit',
+                '[class*="ad-"]', '[id*="ad-"]',
+                '.sponsor', '.sponsored', '[class*="sponsor"]',
+                '.banner-ad', '.display-ad', '.popup-ad'
+            ]
+        };
+    }
+    
+    /**
+     * Returns rules for known high-traffic websites
+     * FIXED: Enhanced known site coverage
+     */
+    function getKnownSiteRules() {
         return {
             'google.com': {
                 selectors: [
-                    '[data-text-ad]',
-                    '.ads-visurl',
-                    '.commercial-unit-desktop-top',
-                    '.ad_cclk'
+                    '[data-text-ad]', '.ads-visurl', '.commercial-unit-desktop-top',
+                    '.ad_cclk', '.ads-ad', '.commercial-unit', '.search-ad',
+                    '[aria-label*="Ad"]', '[data-ved]'
                 ]
             },
             'youtube.com': {
                 selectors: [
-                    '.ytd-promoted-sparkles-web-renderer',
-                    '.ytd-ad-slot-renderer',
-                    'ytd-companion-slot-renderer'
+                    '.ytd-promoted-sparkles-web-renderer', '.ytd-ad-slot-renderer',
+                    'ytd-companion-slot-renderer', '.video-ads', '.ytp-ad-overlay-container',
+                    '.ytp-ad-text', '.ad-showing', '[class*="ad-overlay"]'
                 ]
             },
             'facebook.com': {
                 selectors: [
-                    '[data-pagelet="RightRail"]',
-                    '[aria-label*="Sponsored"]',
-                    '[data-testid="story-subtitle"] a[href*="/ads/"]'
+                    '[data-pagelet="RightRail"]', '[aria-label*="Sponsored"]',
+                    '[data-testid="story-subtitle"] a[href*="/ads/"]',
+                    '[data-pagelet*="ads"]', '.sponsored-post'
                 ]
             },
             'amazon.com': {
                 selectors: [
-                    '.s-sponsored-info-icon',
-                    '[data-component-type="sp-sponsored-result"]',
-                    '.AdHolder'
+                    '.s-sponsored-info-icon', '[data-component-type="sp-sponsored-result"]',
+                    '.AdHolder', '.sponsored-product', '.ad-product',
+                    '[aria-label*="Sponsored"]', '.advertising-product'
                 ]
             },
-            'generic': {
+            'twitter.com': {
                 selectors: [
-                    '.advertisement',
-                    '.ads',
-                    '.ad-banner',
-                    '.google-ads',
-                    '[class*="advertisement"]',
-                    '[id*="google_ads"]'
+                    '[data-testid*="ad"]', '.promoted-tweet', '.ads-container',
+                    '[aria-label*="Promoted"]', '.promoted-content'
+                ]
+            },
+            'reddit.com': {
+                selectors: [
+                    '.promoted', '[data-promoted="true"]', '.promotedlink',
+                    '.organic-listing[data-promoted]', '.promoted-post'
                 ]
             }
         };
     }
 
+    // Performance cache for validated selectors to avoid re-validation
+    const selectorCache = new Map();
+    const SELECTOR_CACHE_MAX_SIZE = 200;
+    const BATCH_SIZE_LIMIT = 50; // Limit concurrent DOM queries for performance
+    
+    /**
+     * Analyzes selector complexity to optimize query performance
+     * @param {string} selector - CSS selector to analyze
+     * @returns {number} Complexity score (lower is better)
+     */
+    function getSelectorComplexity(selector) {
+        let complexity = 0;
+        
+        // Count different selector components that impact performance
+        complexity += (selector.match(/:/g) || []).length * 2;        // Pseudo-selectors
+        complexity += (selector.match(/\[/g) || []).length * 3;       // Attribute selectors
+        complexity += (selector.match(/\>/g) || []).length;          // Direct child selectors
+        complexity += (selector.match(/\+/g) || []).length;          // Adjacent sibling
+        complexity += (selector.match(/~/g) || []).length;           // General sibling
+        complexity += (selector.match(/\*/g) || []).length * 4;       // Universal selectors
+        complexity += Math.max(0, (selector.split(' ').length - 1)); // Descendant depth
+        
+        return complexity;
+    }
+    
+    /**
+     * Validates selector using cached results for performance
+     * @param {string} selector - CSS selector to validate
+     * @returns {boolean} True if selector is valid
+     */
+    function isValidSelector(selector) {
+        // Check cache first
+        if (selectorCache.has(selector)) {
+            return selectorCache.get(selector);
+        }
+        
+        try {
+            // Use minimal DOM operation to test validity
+            document.querySelector.call(document.createElement('div'), selector);
+            const isValid = true;
+            
+            // Cache result with LRU eviction
+            if (selectorCache.size >= SELECTOR_CACHE_MAX_SIZE) {
+                const firstKey = selectorCache.keys().next().value;
+                selectorCache.delete(firstKey);
+            }
+            selectorCache.set(selector, isValid);
+            return isValid;
+        } catch (e) {
+            selectorCache.set(selector, false);
+            return false;
+        }
+    }
+    
+    /**
+     * Processes selectors in optimized batches based on complexity
+     * @param {string[]} selectors - Array of CSS selectors
+     * @param {HTMLElement} element - Element to search within
+     * @returns {Promise<HTMLElement[]>} Array of matching elements
+     */
+    async function processSelectorsInBatches(selectors, element) {
+        // Sort selectors by complexity (simple selectors first for better performance)
+        const selectorsByComplexity = selectors
+            .filter(isValidSelector)
+            .map(selector => ({ selector, complexity: getSelectorComplexity(selector) }))
+            .sort((a, b) => a.complexity - b.complexity);
+        
+        const allMatchedElements = new Set();
+        
+        // Process in batches to avoid overwhelming the DOM engine
+        for (let i = 0; i < selectorsByComplexity.length; i += BATCH_SIZE_LIMIT) {
+            const batch = selectorsByComplexity.slice(i, i + BATCH_SIZE_LIMIT);
+            
+            // Group simple selectors for batch processing
+            const simpleSelectors = batch.filter(s => s.complexity <= 3).map(s => s.selector);
+            const complexSelectors = batch.filter(s => s.complexity > 3).map(s => s.selector);
+            
+            // Batch process simple selectors
+            if (simpleSelectors.length > 0) {
+                try {
+                    const combinedSelector = simpleSelectors.join(', ');
+                    const elements = element.querySelectorAll(combinedSelector);
+                    elements.forEach(el => allMatchedElements.add(el));
+                } catch (e) {
+                    // Fallback to individual processing if batch fails
+                    simpleSelectors.forEach(selector => {
+                        try {
+                            const elements = element.querySelectorAll(selector);
+                            elements.forEach(el => allMatchedElements.add(el));
+                        } catch (err) {
+                            console.warn(`Pagy-Blocker: Selector failed: ${selector}`);
+                        }
+                    });
+                }
+            }
+            
+            // Process complex selectors individually to avoid query engine strain
+            for (const selector of complexSelectors) {
+                try {
+                    const elements = element.querySelectorAll(selector);
+                    elements.forEach(el => allMatchedElements.add(el));
+                } catch (err) {
+                    console.warn(`Pagy-Blocker: Complex selector failed: ${selector}`);
+                }
+            }
+            
+            // Yield control to prevent blocking the main thread
+            if (i + BATCH_SIZE_LIMIT < selectorsByComplexity.length) {
+                await new Promise(resolve => setTimeout(resolve, 0));
+            }
+        }
+        
+        return Array.from(allMatchedElements);
+    }
+    
     /**
      * Durchsucht ein gegebenes Element und seine Kinder nach übereinstimmenden Regeln und versteckt sie.
-     * FIXED: Optimierte DOM-Queries mit Batch-Processing und generic + site-specific Filter
+     * PERFORMANCE OPTIMIZED: Advanced DOM query optimization with complexity analysis and batching
      * @param {HTMLElement} element - Das zu durchsuchende Wurzelelement.
      */
-    function scanAndHideElements(element) {
+    async function scanAndHideElements(element) {
         if (!rules || typeof rules !== 'object') {
             return;
         }
 
         // Sammle alle anzuwendenden Selektoren
-        let allSelectors = [];
+        const allSelectors = [];
         
         // 1. Site-spezifische Selektoren
         const siteRules = rules[hostname];
         if (siteRules && siteRules.selectors && Array.isArray(siteRules.selectors)) {
-            allSelectors = allSelectors.concat(siteRules.selectors);
+            allSelectors.push(...siteRules.selectors);
         }
         
         // 2. Generische Selektoren (immer anwenden)
         const genericRules = rules['generic'];
         if (genericRules && genericRules.selectors && Array.isArray(genericRules.selectors)) {
-            allSelectors = allSelectors.concat(genericRules.selectors);
+            allSelectors.push(...genericRules.selectors);
         }
 
         if (allSelectors.length === 0) {
             return;
         }
 
-        // Performance-Optimierung: Validiere und kombiniere Selektoren
-        const validSelectors = [];
-        const invalidSelectors = [];
-        
-        // Entferne Duplikate
+        // Remove duplicates and process efficiently
         const uniqueSelectors = [...new Set(allSelectors)];
         
-        uniqueSelectors.forEach(selector => {
-            try {
-                // Teste Selektor-Gültigkeit ohne DOM-Query
-                document.querySelector.call(document.createElement('div'), selector);
-                validSelectors.push(selector);
-            } catch (e) {
-                invalidSelectors.push(selector);
-            }
-        });
-
-        // Batch-Processing: Ein Query für alle gültigen Selektoren
-        if (validSelectors.length > 0) {
-            try {
-                const combinedSelector = validSelectors.join(', ');
-                const elementsToHide = element.querySelectorAll(combinedSelector);
-                
-                // Batch-DOM-Updates für bessere Performance
-                const elementsArray = Array.from(elementsToHide);
-                elementsArray.forEach(el => {
-                    if (el.style.display !== 'none') {
-                        el.style.display = 'none';
-                    }
+        try {
+            // Use optimized batch processing
+            const elementsToHide = await processSelectorsInBatches(uniqueSelectors, element);
+            
+            if (elementsToHide.length > 0) {
+                // Batch DOM style updates using requestAnimationFrame for smooth performance
+                requestAnimationFrame(() => {
+                    elementsToHide.forEach(el => {
+                        if (el.style.display !== 'none') {
+                            el.style.display = 'none';
+                        }
+                    });
                 });
                 
-                if (elementsArray.length > 0) {
-                    console.log(`Pagy-Blocker: ${elementsArray.length} Elemente versteckt auf ${hostname} (${validSelectors.length} Regeln)`);
-                }
-            } catch (e) {
-                // Fallback: Einzelne Selektoren verarbeiten
-                console.warn('Pagy-Blocker: Batch-Query fehlgeschlagen, Fallback zu einzelnen Queries');
-                validSelectors.forEach(selector => {
+                console.log(`Pagy-Blocker: ${elementsToHide.length} elements hidden on ${hostname} using ${uniqueSelectors.length} optimized rules`);
+            }
+        } catch (error) {
+            console.error('Pagy-Blocker: Critical error in optimized DOM processing:', error);
+            // Emergency fallback to simple processing
+            uniqueSelectors.forEach(selector => {
+                if (isValidSelector(selector)) {
                     try {
                         const elements = element.querySelectorAll(selector);
                         elements.forEach(el => {
@@ -248,17 +629,31 @@
                             }
                         });
                     } catch (err) {
-                        console.warn(`Pagy-Blocker: Selektor '${selector}' fehlgeschlagen:`, err);
+                        console.warn(`Pagy-Blocker: Fallback selector failed: ${selector}`);
                     }
-                });
-            }
-        }
-
-        // Logge ungültige Selektoren nur einmal (und nur wenn es welche gibt)
-        if (invalidSelectors.length > 0 && validSelectors.length === 0) {
-            console.warn(`Pagy-Blocker: Alle ${invalidSelectors.length} Selektoren ungültig für ${hostname}`);
+                }
+            });
         }
     }
+
+    // FIXED: Add cleanup event listeners to prevent memory leaks
+    // Cleanup on page unload/navigation
+    window.addEventListener('beforeunload', performCleanup, { passive: true });
+    window.addEventListener('pagehide', performCleanup, { passive: true });
+    
+    // Cleanup on extension context invalidation
+    window.addEventListener('unload', performCleanup, { passive: true });
+    
+    // Cleanup on visibility change (tab hidden)
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden') {
+            // Don't fully cleanup, but disconnect observer to save resources
+            cleanupObserver();
+        } else if (document.visibilityState === 'visible' && !isCleanedUp && !isPaused) {
+            // Restart observer when tab becomes visible again
+            startObserver();
+        }
+    }, { passive: true });
 
     // Startet die Initialisierung.
     initialize();
