@@ -41,7 +41,6 @@ Ein blitzschneller, ressourcenschonender Werbeblocker für Chrome, der die nativ
 
 ### 1. Für Endbenutzer (Chrome Web Store)
 Die Erweiterung ist im Chrome Web Store verfügbar.  
-**Hinweis:** Ersetzen Sie `IHRE_EXTENSION_ID` durch die ID aus Ihrem Entwickler-Dashboard.
 [➡️ Zum Chrome Web Store](https://chrome.google.com/webstore/detail/IHRE_EXTENSION_ID)
 
 ### 2. Für Entwickler
