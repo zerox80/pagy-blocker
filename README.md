@@ -21,7 +21,7 @@ Ein blitzschneller, ressourcenschonender Werbeblocker für Chrome, der die nativ
 - **Native Blockierung:** Nutzt die Chrome `declarativeNetRequest` API für Blockierung im Browser-Kern.
 - **Pro-Tab-Kontrolle:** Deaktivieren Sie den Blocker mit einem Klick für einzelne Domains.
 - **Dynamische Regeln:** Temporäre Regeln für die aktuelle Browser-Sitzung.
-- **Optimierte Filter:** Basiert auf EasyList mit über 265.000 vor-kompilierten Regeln.
+- **Optimierte Filter:** Basiert auf EasyList mit über 100 vor-kompilierten Regeln.
 - **Minimaler Ressourcenverbrauch:** Effizienter als traditionelle JavaScript-basierte Blocker.
 
 ---
