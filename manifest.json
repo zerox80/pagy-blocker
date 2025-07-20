@@ -1,23 +1,17 @@
 {
   "manifest_version": 3,
   "name": "Pagy Blocker",
-  "version": "2.2.0",
-  "description": "Ein extrem schneller Werbeblocker, der die native declarativeNetRequest API für maximale Leistung nutzt.",
-  "author": "Pagy Team",
+  "version": "2.0",
+  "description": "Ein einfacher und effektiver Werbeblocker.",
   "permissions": [
     "storage",
-    "activeTab", 
     "declarativeNetRequest",
-    "declarativeNetRequestFeedback",
-    "alarms",
-    "webNavigation"
+    "tabs",
+    "webNavigation",
+    "webRequest"
   ],
   "host_permissions": [
-    "http://*/*",
-    "https://*/*"
-  ],
-  "optional_permissions": [
-    "tabs"
+    "<all_urls>"
   ],
   "background": {
     "service_worker": "background/background.js"
@@ -30,41 +24,9 @@
       "128": "icons/icon128.png"
     }
   },
-  "declarative_net_request": {
-    "rule_resources": [
-      {
-        "id": "empty_rules",
-        "enabled": true,
-        "path": "filter_lists/empty_rules.json"
-      }
-    ]
-  },
-  "web_accessible_resources": [
-    {
-      "resources": [
-        "filter_lists/cosmetic_filters.json",
-        "filter_lists/filter_precompiled.json",
-        "filter_lists/filter_precompiled_min.json"
-      ],
-      "matches": ["<all_urls>"]
-    }
-  ],
-  "content_scripts": [
-    {
-      "matches": [
-        "<all_urls>"
-      ],
-      "js": [
-        "js/telemetry.js",
-        "content/content.js"
-      ],
-      "run_at": "document_start"
-    }
-  ],
   "icons": {
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
-  },
-  "minimum_chrome_version": "101"
+  }
 }
