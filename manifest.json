@@ -9,7 +9,8 @@
     "activeTab", 
     "declarativeNetRequest",
     "declarativeNetRequestFeedback",
-    "alarms"
+    "alarms",
+    "webNavigation"
   ],
   "host_permissions": [
     "http://*/*",
@@ -32,9 +33,9 @@
   "declarative_net_request": {
     "rule_resources": [
       {
-        "id": "ruleset_1",
+        "id": "empty_rules",
         "enabled": true,
-        "path": "filter_lists/filter_precompiled.json"
+        "path": "filter_lists/empty_rules.json"
       }
     ]
   },

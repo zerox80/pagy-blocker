@@ -16,6 +16,7 @@
     let observer = null;
     let isCleanedUp = false;
     const hostname = window.location.hostname;
+    let currentPageBlockedCount = 0; // Track current page blocked ads
 
     /**
      * ENHANCED: Validates initialization state and prerequisites
@@ -100,7 +101,10 @@
                 return;
             }
             
-            // Step 4: Initialize in correct order to prevent race condition
+            // Step 4: Reset page blocked count for new page
+            currentPageBlockedCount = 0;
+            
+            // Step 5: Initialize in correct order to prevent race condition
             console.log(`Pagy-Blocker: Aktiv für ${hostname}. Starte Überwachung.`);
             
             // Start observer first to catch any DOM changes during initial scan
@@ -710,8 +714,11 @@
             return;
         }
 
-        // Remove duplicates and process efficiently
-        const uniqueSelectors = [...new Set(allSelectors)];
+        // Remove duplicates and add some basic selectors that should work everywhere
+        const uniqueSelectors = [...new Set([
+            ...allSelectors,
+            '.advertisement', '.ads', '.ad-banner', '.google-ads', '[id*="ad"]', '[class*="ad"]'
+        ])];
         
         try {
             // Use optimized batch processing
@@ -736,6 +743,19 @@
                         hostname: hostname
                     });
                     window.Telemetry.telemetry.recordMetric('blocking', 'elements_hidden', elementsToHide.length);
+                }
+                
+                // Update current page blocked count
+                if (elementsToHide.length > 0) {
+                    currentPageBlockedCount += elementsToHide.length;
+                    try {
+                        chrome.runtime.sendMessage({
+                            command: 'updateBlockedCount',
+                            count: currentPageBlockedCount
+                        });
+                    } catch (error) {
+                        // Ignore errors
+                    }
                 }
                 
                 console.log(`Pagy-Blocker: ${elementsToHide.length} elements hidden on ${hostname} using ${uniqueSelectors.length} optimized rules (${scanDuration.toFixed(2)}ms)`);

@@ -95,9 +95,19 @@ document.addEventListener('DOMContentLoaded', () => {
             const stats = await sendMessage({ command: 'getStats' });
             
             const blockedCount = stats.blocked || 0;
+            const filterCount = stats.filterCount || { css: 0, network: 0, total: 0 };
 
-            blockedDisplay.innerHTML = `Blockierte Ads: <span class="blocked-count">${blockedCount}</span>`;
-            statsDisplay.textContent = `Filterliste: Pagy Standard`;
+            blockedDisplay.textContent = 'Blockierte Ads: ';
+            const blockedCountSpan = document.createElement('span');
+            blockedCountSpan.className = 'blocked-count';
+            blockedCountSpan.textContent = blockedCount;
+            blockedDisplay.appendChild(blockedCountSpan);
+            
+            if (filterCount.total > 0) {
+                statsDisplay.textContent = `Geladene Regeln: ${filterCount.total}`;
+            } else {
+                statsDisplay.textContent = `Geladene Regeln: Laden fehlgeschlagen`;
+            }
 
         } catch (error) {
             console.error('Pagy-Blocker: Fehler beim Aktualisieren der Popup-UI.', error);
@@ -123,12 +133,14 @@ document.addEventListener('DOMContentLoaded', () => {
         icon.style.transition = 'transform 0.5s';
         icon.style.transform = 'rotate(360deg)';
         
-        updateUI().finally(() => {
-            setTimeout(() => {
-                icon.style.transition = 'none';
-                icon.style.transform = 'none';
-            }, 500);
-        });
+        // Just refresh the UI, don't add test ads
+        updateUI()
+            .finally(() => {
+                setTimeout(() => {
+                    icon.style.transition = 'none';
+                    icon.style.transform = 'none';
+                }, 500);
+            });
     });
 
     /**
@@ -142,7 +154,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 statsDisplay.classList.add('error-text');
             }
             if (blockedDisplay) {
-                blockedDisplay.innerHTML = 'Blockierte Ads: <span class="blocked-count error-text">-</span>';
+                blockedDisplay.textContent = 'Blockierte Ads: ';
+                const blockedCountSpan = document.createElement('span');
+                blockedCountSpan.className = 'blocked-count error-text';
+                blockedCountSpan.textContent = '-';
+                blockedDisplay.appendChild(blockedCountSpan);
             }
             if (document.body) {
                 document.body.classList.add('error-state');

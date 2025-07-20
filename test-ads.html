@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Ad Blocking Test Page</title>
+    <style>
+        .test-element {
+            padding: 10px;
+            margin: 5px;
+            border: 1px solid #ccc;
+            background-color: #f9f9f9;
+        }
+        .visible {
+            background-color: #d4edda;
+        }
+        .should-be-hidden {
+            background-color: #f8d7da;
+        }
+    </style>
+</head>
+<body>
+    <h1>Ad Blocking Test Page</h1>
+    
+    <h2>Elements that should be blocked by generic selectors:</h2>
+    
+    <!-- Generic ad selectors -->
+    <div class="advertisement test-element should-be-hidden">This should be hidden - .advertisement</div>
+    <div class="ads test-element should-be-hidden">This should be hidden - .ads</div>
+    <div class="ad-banner test-element should-be-hidden">This should be hidden - .ad-banner</div>
+    <div class="google-ads test-element should-be-hidden">This should be hidden - .google-ads</div>
+    
+    <!-- Attribute selectors -->
+    <div class="test-element should-be-hidden" data-ad="true">This should be hidden - [data-ad]</div>
+    <div class="test-element should-be-hidden" data-ads="banner">This should be hidden - [data-ads]</div>
+    <div class="test-element should-be-hidden advertisement-widget">This should be hidden - [class*='advertisement']</div>
+    <div id="google_ads_123" class="test-element should-be-hidden">This should be hidden - [id*='google_ads']</div>
+    
+    <!-- More generic selectors -->
+    <div class="ad-container test-element should-be-hidden">This should be hidden - .ad-container</div>
+    <div class="sponsor test-element should-be-hidden">This should be hidden - .sponsor</div>
+    <div class="sponsored test-element should-be-hidden">This should be hidden - .sponsored</div>
+    <div class="ad-wrapper test-element should-be-hidden">This should be hidden - .ad-wrapper</div>
+    
+    <h2>Elements that should remain visible:</h2>
+    <div class="test-element visible">This should remain visible - normal content</div>
+    <div class="test-element visible">This should remain visible - regular div</div>
+    <div class="content test-element visible">This should remain visible - .content</div>
+    
+    <h2>Site-specific selectors (for google.com if testing there):</h2>
+    <div data-text-ad="true" class="test-element should-be-hidden">This should be hidden on Google - [data-text-ad]</div>
+    <div class="ads-visurl test-element should-be-hidden">This should be hidden on Google - .ads-visurl</div>
+    
+    <script>
+        // Show test results after page loads
+        setTimeout(() => {
+            const shouldBeHidden = document.querySelectorAll('.should-be-hidden');
+            const visible = document.querySelectorAll('.visible');
+            
+            let hiddenCount = 0;
+            let visibleCount = 0;
+            
+            shouldBeHidden.forEach(el => {
+                if (window.getComputedStyle(el).display === 'none') {
+                    hiddenCount++;
+                } else {
+                    el.style.border = '3px solid red';
+                    el.innerHTML += ' <strong>[NOT BLOCKED!]</strong>';
+                }
+            });
+            
+            visible.forEach(el => {
+                if (window.getComputedStyle(el).display !== 'none') {
+                    visibleCount++;
+                } else {
+                    el.style.border = '3px solid orange';
+                    el.innerHTML += ' <strong>[INCORRECTLY HIDDEN!]</strong>';
+                }
+            });
+            
+            // Add results summary
+            const summary = document.createElement('div');
+            summary.style.cssText = 'position: fixed; top: 10px; right: 10px; background: white; border: 2px solid black; padding: 10px; z-index: 9999;';
+            summary.innerHTML = `
+                <h3>Test Results:</h3>
+                <p>Hidden: ${hiddenCount}/${shouldBeHidden.length} ad elements</p>
+                <p>Visible: ${visibleCount}/${visible.length} normal elements</p>
+                <p>Extension ${hiddenCount > 0 ? 'IS' : 'IS NOT'} blocking ads</p>
+            `;
+            document.body.appendChild(summary);
+            
+            console.log('Ad blocking test results:', {
+                hidden: hiddenCount,
+                total: shouldBeHidden.length,
+                visible: visibleCount,
+                working: hiddenCount > 0
+            });
+        }, 2000);
+    </script>
+</body>
+</html>
