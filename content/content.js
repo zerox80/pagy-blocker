@@ -651,9 +651,6 @@
     window.addEventListener('beforeunload', performCleanup, { passive: true });
     window.addEventListener('pagehide', performCleanup, { passive: true });
     
-    // Cleanup on extension context invalidation
-    window.addEventListener('unload', performCleanup, { passive: true });
-    
     // Cleanup on visibility change (tab hidden)
     document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'hidden') {
