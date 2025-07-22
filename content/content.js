@@ -2,7 +2,7 @@
  * @file content.js
  * @description Wird in Webseiten injiziert, um Werbeelemente mit einem leistungsfähigen MutationObserver zu blockieren.
  * @version 5.0.0 Final & Verifiziert
- * @author zerox80 (Original), Gemini (Überarbeitung)
+ * @author zerox80 (Original)
  */
 (async function() {
     'use strict';
