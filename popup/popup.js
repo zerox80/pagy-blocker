@@ -215,7 +215,7 @@ class PagyPopup {
             const response = await chrome.runtime.sendMessage({
                 command: 'toggleDomainState',
                 domain: this.state.currentDomain,
-                isPaused: !this.elements.enableSwitch.checked,
+                isPaused: !this.elements.enableSwitch.checked
             });
 
             if (response?.error) {
@@ -227,7 +227,10 @@ class PagyPopup {
                 newState: !this.elements.enableSwitch.checked ? 'disabled' : 'enabled'
             });
 
-            // Popup will close automatically after page reload
+            // Close the popup to avoid UI keeping focus while the active tab reloads
+            try {
+                window.close();
+            } catch (_) {}
             
         } catch (error) {
             popupLogger.error('Failed to toggle domain state', { 
@@ -307,7 +310,8 @@ class PagyPopup {
 // Initialize popup when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
     try {
-        new PagyPopup();
+        // keep a reference for beforeunload cleanup
+        window.pagyPopup = new PagyPopup();
     } catch (error) {
         console.error('[Pagy Popup] Failed to initialize:', error);
     }

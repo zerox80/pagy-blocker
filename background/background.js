@@ -262,9 +262,27 @@ class MessageHandler {
 
             await Promise.allSettled(notificationPromises);
 
-            // Note: Removed automatic tab reload to prevent unwanted page reloads
-            // during fullscreen transitions and other browser events.
-            // Content scripts will handle state changes dynamically.
+            // Reload only the currently active tab in the current window
+            try {
+                const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+                if (activeTab?.id && activeTab?.url) {
+                    const activeTabDomain = blockerEngine.getDomainFromUrl(activeTab.url);
+                    
+                    if (activeTabDomain === domain) {
+                        await chrome.tabs.reload(activeTab.id);
+                        backgroundLogger.info('Active tab reloaded after domain toggle', { 
+                            tabId: activeTab.id, 
+                            domain: domain 
+                        });
+                    }
+                }
+            } catch (e) {
+                // Log detailed error information
+                backgroundLogger.error('Active tab reload failed', { 
+                    error: e?.message, 
+                    stack: e?.stack 
+                });
+            }
 
             return { success: true };
         } finally {
