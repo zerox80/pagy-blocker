@@ -1,0 +1,16 @@
+{
+  "name": "pagy-blocker-devtools",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Build tools for Pagy Blocker",
+  "type": "module",
+  "scripts": {
+    "build:filters": "node tools/precompile-filters.mjs",
+    "dedupe:filters": "node tools/dedupe-filters.mjs",
+    "dedupe:filters:inplace": "node tools/dedupe-filters.mjs --in-place",
+    "build": "npm run build:filters"
+  },
+  "engines": {
+    "node": ">=16"
+  }
+}
