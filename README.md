@@ -1,153 +1,116 @@
 # Pagy Blocker
 
-[![Version](https://img.shields.io/badge/version-10.5-blue.svg)](https://github.com/zerox80/pagy-blocker/releases) [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Chrome MV3](https://img.shields.io/badge/Chrome%20MV3-supported-brightgreen)](#) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-Ein blitzschneller, ressourcenschonender Werbeblocker für Chrome, der die native `declarativeNetRequest` API für maximale Performance und Privatsphäre nutzt.
+Ein schneller, schlanker Werbeblocker für Chromium-Browser. Pagy Blocker nutzt die native declarativeNetRequest API (Manifest V3) für hervorragende Performance, geringe Speicherlast und maximale Privatsphäre – ohne Telemetrie oder externe Dienste.
 
----
+– Sprache: Deutsch
 
-## Inhaltsverzeichnis
+## Highlights
 
-- [Features](#features)
-- [Performance-Vergleich](#performance-vergleich)
-- [Installation](#installation)
-- [Nutzung](#nutzung)
-- [Technische Details](#technische-details)
-- [Mitwirken](#mitwirken)
-- [Datenschutz & Lizenz](#datenschutz--lizenz)
+- Performance: Statische, vor‑kompilierte Regeln (JSON) für schnelle Initialisierung und geringe CPU-/RAM‑Last.
+- MV3 nativ: Nutzt `declarativeNetRequest` ohne Content-Overhead oder WebRequest-Hooks.
+- Datenschutz: Keine Serveranfragen, kein Tracking, keine Telemetrie. Alles läuft lokal.
+- Einfache Steuerung: Domainweise aktivieren/deaktivieren direkt im Popup (mit Icon-/Badge‑Anzeige).
+- Saubere Regeln: Unterstützt ABP‑ähnliche Netzwerkregeln, kosmetische Filter werden bewusst nicht geladen.
+- Robuste Tools: Skripte zum Deduplizieren und Vor‑Kompilieren der Filterlisten enthalten.
 
----
+## Installation (manuell, aus dem Quellcode)
 
-## Features
+1) Repository herunterladen oder klonen.
+2) Optional: Filterliste bauen (empfohlen, wenn du `filter_optimized.txt` geändert hast):
 
-- **Native Blockierung:** Nutzt die Chrome `declarativeNetRequest` API für Blockierung im Browser-Kern.
-- **Pro-Tab-Kontrolle:** Deaktivieren Sie den Blocker mit einem Klick für einzelne Domains.
-- **Dynamische Regeln:** Temporäre Regeln für die aktuelle Browser-Sitzung.
-- **Optimierte Filter:** Basiert auf EasyList; die Filterliste wird vor dem Laden in ein kompaktes JSON-Format vor-kompiliert.
-- **Minimaler Ressourcenverbrauch:** Effizienter als traditionelle JavaScript-basierte Blocker.
+```
+npm run build:filters
+```
 
----
+3) In Chrome/Chromium `chrome://extensions` öffnen, Entwicklermodus aktivieren.
+4) „Entpackte Erweiterung laden“ wählen und den Ordner dieses Repos auswählen.
 
-## Performance-Vergleich
-
-| Feature               | Pagy Blocker (Nativ) | uBlock Origin (JS) | AdBlock Plus (JS) |
-| --------------------- | -------------------- | ------------------ | ----------------- |
-| **Performance**       | Extrem schnell       | Schnell            | Langsam           |
-| **Ressourcen**        | Minimal              | Mittel             | Hoch              |
-| **Pro-Tab-Kontrolle** | ✅ Ja                | ❌ Nein            | ❌ Nein           |
-| **Manifest V3**       | ✅ Nativ             | 🔄 Portiert        | 🔄 Portiert       |
-
----
-
-## Installation
-
-### 1. Für Endbenutzer (Chrome Web Store)
-
-Die Erweiterung ist im Chrome Web Store verfügbar.  
-[➡️ Zum Chrome Web Store](https://chromewebstore.google.com/detail/pagy-blocker/mcnjkllmoeoiepnlogicnadbecpiklmp)
-
-### 2. Für Entwickler
-
-1. **Repository klonen:**
-    ```bash
-    git clone https://github.com/zerox80/pagy-blocker.git
-    cd pagy-blocker
-    ```
-2. **Filterliste vor-kompilieren (Node.js):**
-    Voraussetzungen: Node.js ≥ 16.
-    ```bash
-    npm run build:filters
-    ```
-    Dabei gilt:
-    - Eingabe: `filter_lists/filter_optimized.txt`
-    - Ausgabe: `filter_lists/filter_precompiled.json`
-    - Skript: `tools/precompile-filters.mjs`
-    - Das Manifest bindet die Ausgabe automatisch ein (`declarative_net_request.rule_resources`).
-3. **Erweiterung laden:**
-    - Öffnen Sie `chrome://extensions/`.
-    - Aktivieren Sie den **Entwicklermodus**.
-    - Klicken Sie auf **"Entpackte Erweiterung laden"** und wählen Sie den `pagy-blocker`-Ordner aus.
-
----
+Fertig. Das Symbol erscheint in der Toolbar. Über das Popup kannst du Pagy Blocker pro Domain ein-/ausschalten.
 
 ## Nutzung
 
-1. Klicken Sie auf das Pagy-Blocker-Symbol in der Toolbar.
-2. Schalten Sie den Blocker global ein/aus oder deaktivieren Sie ihn für die aktuelle Domain.
-3. Die Seite wird automatisch neu geladen, um die Änderungen zu übernehmen.
+- Popup öffnen: Zeigt Status, aktuelle Domain, Filteranzahl sowie eine (konservative) Block‑Statistik.
+- Umschalten pro Domain: Der Schalter aktiviert/deaktiviert die Filter für die aktive Domain. Das Icon/Badge zeigt den Status.
+- Nach Umschalten lädt der aktive Tab ggf. einmal neu, damit Änderungen sofort greifen.
 
----
+## Wie es funktioniert
 
-## Technische Details
+- Statische Regeln: `filter_lists/filter_precompiled.json` wird über `manifest.json` als DNR‑Ruleset geladen.
+- Domain‑Pause: Beim Deaktivieren für eine Domain werden dynamische „ALLOW“-Regeln gesetzt (ohne `main_frame`), damit Anfragen dieser Domain ungehindert passieren.
+- Zählungen/Stats: Das Popup nutzt – falls verfügbar – `declarativeNetRequest.getMatchedRules` und zeigt andernfalls eine realistische, niedrige Schätzung an.
 
-- **Manifest V3:** Modernste, sichere und zukunftssichere Architektur.
-- **Service Worker:** Effiziente Hintergrundverarbeitung ohne persistente Prozesse.
-- **`declarativeNetRequest`:** Regeln werden direkt vom Browser angewendet, was den JS-Overhead eliminiert.
-- **Pre-Kompilierung:** Filterlisten werden offline mit dem Node-Tool `tools/precompile-filters.mjs` (Befehl: `npm run build:filters`) in ein statisches DNR-JSON (`filter_lists/filter_precompiled.json`) umgewandelt.
+## Filterlisten pflegen
 
----
+Quellliste: `filter_lists/filter_optimized.txt`
 
-## Filter-Precompiler (Node-Tool)
+- Kommentare mit `!` und Metadaten `[ ... ]` werden ignoriert.
+- Ausnahme‑Regeln `@@` sowie kosmetische Filter (`##`, `#@#`, `#?#`) werden für MV3/DNR nicht übernommen.
+- Reine Domain‑Einträge wie `||example.com^` werden als schnelle Domain‑Regeln kompiliert.
+- Alle anderen Muster werden (RE2‑sicher) in Regex‑DNR‑Regeln konvertiert; nur typische Ressourcentypen (ohne `main_frame`).
+- Obergrenze: ca. 30.000 Regeln (hart begrenzt in Chrome, Datei wird entsprechend gekappt).
 
-Dieses Projekt enthält ein kleines Node.js-Tool, das die Text-Filterliste in ein JSON-Regelset für Chrome's `declarativeNetRequest` (DNR) vor-kompiliert.
+Befehle:
 
-- Befehl: `npm run build:filters`
-- Eingabe: `filter_lists/filter_optimized.txt`
-- Ausgabe: `filter_lists/filter_precompiled.json`
-- Verwendet wird ein robustes Regex-Mapping für typische ABP-Muster:
-  - Unterstützt: `||domain.tld^`, `|http(s)://...`, Wildcards `*`
-  - Ignoriert: kosmetische Regeln (`##`, `#@#`, `#?#`), Ausnahmen (`@@`), Kommentare (`!`, `[]`)
-  - Standardmäßig werden http/https-Requests abgedeckt.
-
-Hinweise und Fehlerbehebung:
-- Wenn die Anzahl der generierten Regeln kleiner wirkt als erwartet, prüfen Sie, ob die Textliste Kommentare, Leerzeilen, Ausnahme- oder kosmetische Regeln enthält – diese werden absichtlich übersprungen.
-- Doppelte oder semantisch identische Einträge erhöhen nicht zwingend die Wirksamkeit und können vom Browser intern konsolidiert werden.
-- Das generierte JSON wird im Manifest referenziert und direkt vom Browser geladen; die `TXT`-Datei dient optional als Fallback zur Anzeige.
-
-Beispielausgabe des Tools:
 ```
-[precompile-filters] Wrote 137 rules to filter_lists/filter_precompiled.json in 3ms
+# Duplikate in der Quellliste erkennen/entfernen
+npm run dedupe:filters -- --stats
+
+# Duplikate in-place entfernen
+npm run dedupe:filters:inplace
+
+# Liste in DNR‑JSON kompilieren (für die Extension)
+npm run build:filters
 ```
 
----
+Ausgabe: `filter_lists/filter_precompiled.json` (wird vom Manifest geladen).
 
-## Filterliste bereinigen (Dedupe)
+## Entwicklung
 
-Um doppelte Domain-Einträge (Form: `||domain.tld^` ohne Pfad) aus der Textliste zu entfernen, steht ein dedizierter Dedupe-Task bereit. Kommentare, Leerzeilen, Ausnahmen (`@@`) und kosmetische Regeln (`##`, `#@#`, `#?#`) bleiben unverändert erhalten.
+- Voraussetzungen: Node.js >= 16 (nur für die Build‑Skripte); die Extension benötigt keinen Build‑Step zur Laufzeit.
+- Wichtige Verzeichnisse:
+  - `background/`: Service Worker (Hintergrundlogik, DNR‑Updates, Icon/Badge‑Status)
+  - `content/`: Content‑Script für Status/Events
+  - `popup/`: Popup‑UI (Status, Umschalter, Statistiken)
+  - `core/`: Konfiguration, Logger, Utilities, Blocker‑Engine
+  - `filter_lists/`: Filterquelle (`filter_optimized.txt`) und vor‑kompilierte Regeln (`filter_precompiled.json`)
+  - `tools/`: Skripte zum Deduplizieren und Vor‑Kompilieren
 
-- Sicherer Modus (schreibt in neue Datei):
-  ```bash
-  npm run dedupe:filters -- --stats
-  ```
-  Ergebnis: `filter_lists/filter_optimized.cleaned.txt`
+Lokales Testen:
 
-- In-Place (überschreibt die bestehende Datei):
-  ```bash
-  npm run dedupe:filters:inplace -- --stats
-  ```
+```
+# Regeln neu bauen und Extension neu laden
+npm run build:filters
+```
 
-Flags:
-- `--stats` zeigt eine Zusammenfassung inkl. Liste der duplizierten Domains und deren Häufigkeit.
+Anschließend in `chrome://extensions` die Erweiterung neu laden.
 
-Hinweis: Das Precompile-Tool dedupliziert Domain-only Einträge intern ebenfalls (für Performance). Das Dedupe-Tool hilft, die Textquelle sauber zu halten.
+## Berechtigungen (Warum?)
 
----
+- `declarativeNetRequest`: Kern der MV3‑Blockierung (lädt Regeln, blockiert Anfragen).
+- `declarativeNetRequestFeedback`: Liefert (wo möglich) Match‑Infos für die Statistik im Popup.
+- `storage`: Speichert lokal deaktivierte Domains und Fehlerprotokolle (keine Telemetrie).
+- `tabs` + `"<all_urls>"`: Ermittelt Domain/URL des aktiven Tabs und setzt dynamische Ausnahmeregeln pro Domain.
 
-## Mitwirken
+Es findet keine Kommunikation mit externen Servern statt. Details siehe Datenschutz.
 
-Beiträge sind herzlich willkommen! Bitte lesen Sie unsere [**Beitragsrichtlinien**](CONTRIBUTING.md), um zu erfahren, wie Sie helfen können.
+## Datenschutz
 
-Alle Mitwirkenden müssen sich an unseren [**Verhaltenskodex**](CODE_OF_CONDUCT.md) halten.
+Transparenz ist zentral: Es gibt keine Telemetrie, kein Tracking, keine Serverkommunikation. Siehe `DATENSCHUTZ.md` für alle Details.
 
-1. Forken Sie das Repository.
-2. Erstellen Sie einen neuen Branch: `git checkout -b feature/MeinFeature`
-3. Committen Sie Ihre Änderungen: `git commit -m 'Add: MeinFeature'`
-4. Pushen Sie zum Branch: `git push origin feature/MeinFeature`
-5. Öffnen Sie einen Pull Request.
+- Datei: `DATENSCHUTZ.md`
 
----
+## Fehlerbehebung (Kurz)
 
-## Datenschutz & Lizenz
+- Popup zeigt „Fehler beim Laden“: Extension in `chrome://extensions` neu laden und Tab aktualisieren.
+- Filteranzahl ist 0: `npm run build:filters` ausführen und die Extension neu laden.
+- Umschalten ohne Wirkung: Nach dem Umschalten den aktiven Tab neu laden (passiert meist automatisch).
 
-- **Datenschutz:** Wir sammeln keine Daten. Alle Operationen finden lokal statt. Lesen Sie die vollständige [**Datenschutzerklärung**](DATENSCHUTZ.md).
-- **Lizenz:** Dieses Projekt ist unter der [**MIT-Lizenz**](LICENSE) lizenziert.
+## Beiträge willkommen
+
+Richtlinien in `CONTRIBUTING.md`. Kleine, fokussierte PRs bevorzugt. Bitte Verhalten in `CODE_OF_CONDUCT.md` beachten.
+
+## Lizenz
+
+MIT – siehe `LICENSE`.
