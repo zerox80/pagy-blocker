@@ -1,8 +1,8 @@
 # Pagy Blocker
 
-[![Chrome MV3](https://img.shields.io/badge/Chrome%20MV3-supported-brightgreen)](#) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Chrome MV3](https://img.shields.io/badge/Chrome%20MV3-supported-brightgreen)](https://developer.chrome.com/docs/extensions/mv3/) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-Ein schneller, schlanker Werbeblocker für Chromium-Browser. Pagy Blocker nutzt die native declarativeNetRequest API (Manifest V3) für hervorragende Performance, geringe Speicherlast und maximale Privatsphäre – ohne Telemetrie oder externe Dienste.
+Ein schneller, schlanker Werbeblocker für Chromium-Browser. Pagy Blocker nutzt die native [declarativeNetRequest API](https://developer.chrome.com/docs/extensions/reference/declarativeNetRequest/) (Manifest V3) für hervorragende Performance, geringe Speicherlast und maximale Privatsphäre – ohne Telemetrie oder externe Dienste.
 
 – Sprache: Deutsch
 
@@ -17,7 +17,7 @@ Ein schneller, schlanker Werbeblocker für Chromium-Browser. Pagy Blocker nutzt 
 
 ## Installation (manuell, aus dem Quellcode)
 
-1) Repository herunterladen oder klonen.
+1) [Repository](https://github.com/zerox80/pagy-blocker) herunterladen oder klonen.
 2) Optional: Filterliste bauen (empfohlen, wenn du `filter_optimized.txt` geändert hast):
 
 ```
@@ -37,13 +37,13 @@ Fertig. Das Symbol erscheint in der Toolbar. Über das Popup kannst du Pagy Bloc
 
 ## Wie es funktioniert
 
-- Statische Regeln: `filter_lists/filter_precompiled.json` wird über `manifest.json` als DNR‑Ruleset geladen.
-- Domain‑Pause: Beim Deaktivieren für eine Domain werden dynamische „ALLOW“-Regeln gesetzt (ohne `main_frame`), damit Anfragen dieser Domain ungehindert passieren.
-- Zählungen/Stats: Das Popup nutzt – falls verfügbar – `declarativeNetRequest.getMatchedRules` und zeigt andernfalls eine realistische, niedrige Schätzung an.
+- Statische Regeln: [`filter_lists/filter_precompiled.json`](filter_lists/filter_precompiled.json) wird über [`manifest.json`](manifest.json) als DNR‑Ruleset geladen.
+- Domain‑Pause: Beim Deaktivieren für eine Domain werden dynamische „ALLOW“-Regeln gesetzt (ohne `main_frame`) über [updateDynamicRules](https://developer.chrome.com/docs/extensions/reference/declarativeNetRequest/#method-updateDynamicRules), damit Anfragen dieser Domain ungehindert passieren.
+- Zählungen/Stats: Das Popup nutzt – falls verfügbar – [`declarativeNetRequest.getMatchedRules`](https://developer.chrome.com/docs/extensions/reference/declarativeNetRequest/#method-getMatchedRules) und zeigt andernfalls eine realistische, niedrige Schätzung an.
 
 ## Filterlisten pflegen
 
-Quellliste: `filter_lists/filter_optimized.txt`
+Quellliste: [`filter_lists/filter_optimized.txt`](filter_lists/filter_optimized.txt)
 
 - Kommentare mit `!` und Metadaten `[ ... ]` werden ignoriert.
 - Ausnahme‑Regeln `@@` sowie kosmetische Filter (`##`, `#@#`, `#?#`) werden für MV3/DNR nicht übernommen.
@@ -70,12 +70,12 @@ Ausgabe: `filter_lists/filter_precompiled.json` (wird vom Manifest geladen).
 
 - Voraussetzungen: Node.js >= 16 (nur für die Build‑Skripte); die Extension benötigt keinen Build‑Step zur Laufzeit.
 - Wichtige Verzeichnisse:
-  - `background/`: Service Worker (Hintergrundlogik, DNR‑Updates, Icon/Badge‑Status)
-  - `content/`: Content‑Script für Status/Events
-  - `popup/`: Popup‑UI (Status, Umschalter, Statistiken)
-  - `core/`: Konfiguration, Logger, Utilities, Blocker‑Engine
-  - `filter_lists/`: Filterquelle (`filter_optimized.txt`) und vor‑kompilierte Regeln (`filter_precompiled.json`)
-  - `tools/`: Skripte zum Deduplizieren und Vor‑Kompilieren
+  - [`background/`](background/): Service Worker (Hintergrundlogik, DNR‑Updates, Icon/Badge‑Status)
+  - [`content/`](content/): Content‑Script für Status/Events
+  - [`popup/`](popup/): Popup‑UI (Status, Umschalter, Statistiken)
+  - [`core/`](core/): Konfiguration, Logger, Utilities, Blocker‑Engine
+  - [`filter_lists/`](filter_lists/): Filterquelle (`filter_optimized.txt`) und vor‑kompilierte Regeln (`filter_precompiled.json`)
+  - [`tools/`](tools/): Skripte zum Deduplizieren und Vor‑Kompilieren
 
 Lokales Testen:
 
@@ -88,8 +88,8 @@ Anschließend in `chrome://extensions` die Erweiterung neu laden.
 
 ## Berechtigungen (Warum?)
 
-- `declarativeNetRequest`: Kern der MV3‑Blockierung (lädt Regeln, blockiert Anfragen).
-- `declarativeNetRequestFeedback`: Liefert (wo möglich) Match‑Infos für die Statistik im Popup.
+- [`declarativeNetRequest`](https://developer.chrome.com/docs/extensions/reference/declarativeNetRequest/): Kern der MV3‑Blockierung (lädt Regeln, blockiert Anfragen).
+- [`declarativeNetRequestFeedback`](https://developer.chrome.com/docs/extensions/reference/declarativeNetRequest/): Liefert (wo möglich) Match‑Infos für die Statistik im Popup.
 - `storage`: Speichert lokal deaktivierte Domains und Fehlerprotokolle (keine Telemetrie).
 - `tabs` + `"<all_urls>"`: Ermittelt Domain/URL des aktiven Tabs und setzt dynamische Ausnahmeregeln pro Domain.
 
@@ -97,9 +97,9 @@ Es findet keine Kommunikation mit externen Servern statt. Details siehe Datensch
 
 ## Datenschutz
 
-Transparenz ist zentral: Es gibt keine Telemetrie, kein Tracking, keine Serverkommunikation. Siehe `DATENSCHUTZ.md` für alle Details.
+Transparenz ist zentral: Es gibt keine Telemetrie, kein Tracking, keine Serverkommunikation. Siehe [`DATENSCHUTZ.md`](DATENSCHUTZ.md) für alle Details.
 
-- Datei: `DATENSCHUTZ.md`
+- Datei: [`DATENSCHUTZ.md`](DATENSCHUTZ.md)
 
 ## Fehlerbehebung (Kurz)
 
@@ -109,7 +109,7 @@ Transparenz ist zentral: Es gibt keine Telemetrie, kein Tracking, keine Serverko
 
 ## Beiträge willkommen
 
-Richtlinien in `CONTRIBUTING.md`. Kleine, fokussierte PRs bevorzugt. Bitte Verhalten in `CODE_OF_CONDUCT.md` beachten.
+Richtlinien in [`CONTRIBUTING.md`](CONTRIBUTING.md). Kleine, fokussierte PRs bevorzugt. Bitte Verhalten in [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) beachten.
 
 ## Lizenz
 
