@@ -44,7 +44,7 @@ Ein blitzschneller, ressourcenschonender Werbeblocker für Chrome, der die nativ
 ### 1. Für Endbenutzer (Chrome Web Store)
 
 Die Erweiterung ist im Chrome Web Store verfügbar.  
-[➡️ Zum Chrome Web Store](https://chrome.google.com/webstore/detail/IHRE_EXTENSION_ID)
+[➡️ Zum Chrome Web Store](https://chromewebstore.google.com/detail/pagy-blocker/mcnjkllmoeoiepnlogicnadbecpiklmp)
 
 ### 2. Für Entwickler
 
