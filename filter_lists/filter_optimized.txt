@@ -1,6 +1,6 @@
 ! Pagy Blocker Optimized Domains
-! Last-Updated: 2025-09-05T18:18:14Z
-! Total-Domains: 245 (cap: 400)
+! Last-Updated: 2025-09-06T12:30:00Z
+! Note: Domain count is managed by tooling.
 ! Format: Adblock domain-only rules (||domain^)
 
 ||2mdn.net^
@@ -248,3 +248,78 @@
 ||zeotap.com^
 ||zqtk.net^
 ||zucks.co.jp^
+!
+! Additions: common analytics/trackers (carefully chosen, third‑party)
+||hotjar.com^
+||segment.com^
+||segment.io^
+||mixpanel.com^
+||fullstory.com^
+||nr-data.net^
+||newrelic.com^
+||optimizely.com^
+||amplitude.com^
+||bugsnag.com^
+||heapanalytics.com^
+||logrocket.com^
+||intercom.io^
+||intercomcdn.com^
+||clarity.ms^
+||connect.facebook.net^
+||ads.linkedin.com^
+||snapads.com^
+||onesignal.com^
+||pushwoosh.com^
+||cleverpush.com^
+||braze.com^
+||mc.yandex.ru^
+||matomo.cloud^
+||mouseflow.com^
+||contentsquare.net^
+||quantummetric.com^
+||luckyorange.com^
+||pardot.com^
+||marketo.net^
+
+! Added in 2025-09-06 update (curated, high-impact)
+||aaxads.com^
+||aaxdetect.com^
+||adservice.google.ca^
+||adservice.google.co.in^
+||adservice.google.co.jp^
+||adservice.google.co.uk^
+||adservice.google.com.au^
+||adservice.google.com.br^
+||adservice.google.de^
+||adservice.google.es^
+||adservice.google.fr^
+||adservice.google.it^
+||adservice.google.nl^
+||adservice.google.pl^
+||adservice.google.se^
+||ads-api.twitter.com^
+||ads.pinterest.com^
+||ads.reddit.com^
+||ads.yahoo.com^
+||analytics.twitter.com^
+||analytics.yahoo.com^
+||app-analytics.snapchat.com^
+||business-api.tiktok.com^
+||ct.pinterest.com^
+||events.reddit.com^
+||gemini.yahoo.com^
+||iad.apple.com^
+||log.byteoversea.com^
+||log.pinterest.com^
+||log.tiktokv.com^
+||lr-ingest.io^
+||pendo.io^
+||pixel.reddit.com^
+||px.ads.linkedin.com^
+||sentry.io^
+||static.ads-twitter.com^
+||tr.snapchat.com^
+||rollbar.com^
+||logrocket.io^
+||datadoghq.com^
+||tiqcdn.com^
