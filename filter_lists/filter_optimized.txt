@@ -1,5 +1,5 @@
 ! Pagy Blocker Optimized Domains
-! Last-Updated: 2025-09-06T12:30:00Z
+! Last-Updated: 2025-09-06T12:56:00Z
 ! Note: Domain count is managed by tooling.
 ! Format: Adblock domain-only rules (||domain^)
 
@@ -323,3 +323,16 @@
 ||logrocket.io^
 ||datadoghq.com^
 ||tiqcdn.com^
+||bkrtx.com^
+||cloudflareinsights.com^
+||siteimproveanalytics.com^
+||adzerk.net^
+||datadoghq.eu^
+
+! Targeted path rules for major pixels (avoid overblocking full domains)
+||facebook.com/tr^
+||twitter.com/i/adsct^
+||x.com/i/adsct^
+||youtube.com/api/stats^
+||youtube.com/ptracking^
+||google.com/pagead/*
