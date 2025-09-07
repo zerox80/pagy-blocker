@@ -8,9 +8,15 @@
     "build:filters": "node tools/precompile-filters.mjs",
     "dedupe:filters": "node tools/dedupe-filters.mjs",
     "dedupe:filters:inplace": "node tools/dedupe-filters.mjs --in-place",
-    "build": "npm run build:filters"
+    "build": "npm run build:filters",
+    "test": "jest",
+    "test:watch": "jest --watch"
   },
   "engines": {
     "node": ">=16"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "jest-environment-jsdom": "^29.7.0"
   }
 }
