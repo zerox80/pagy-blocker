@@ -160,9 +160,12 @@ export class BlockerEngine {
 
         let baseBlocksPerMinute = 2; // konservativer Standardwert
         
-        if (highAdDomains.some(d => domain.includes(d))) {
+        // Präzisere Domain-Prüfung, um Fehler wie `de.evil.com` zu vermeiden
+        const isDomainOrSubdomain = (base, full) => full === base || full.endsWith(`.${base}`);
+
+        if (highAdDomains.some(d => isDomainOrSubdomain(d, domain))) {
             baseBlocksPerMinute = 8; // Seiten mit vielen Anzeigen
-        } else if (mediumAdDomains.some(d => domain.includes(d))) {
+        } else if (mediumAdDomains.some(d => isDomainOrSubdomain(d, domain))) {
             baseBlocksPerMinute = 4; // Seiten mit mittlerer Anzeigenlast
         } else if (domain.includes('news') || domain.includes('blog')) {
             baseBlocksPerMinute = 6; // News/Blogs haben oft mehr Anzeigen
@@ -198,7 +201,8 @@ export class BlockerEngine {
             const domains = Array.isArray(result?.disabledDomains) ? result.disabledDomains : [];
             this._updateDisabledDomainsCache(domains);
             return this._disabledDomains;
-        } catch {
+        } catch (error) {
+            console.error('Failed to retrieve disabled domains:', error);
             this._updateDisabledDomainsCache([]);
             return this._disabledDomains;
         }
@@ -216,18 +220,23 @@ export class BlockerEngine {
     }
 
     async addDisabledDomain(domain) {
-        const domains = await this.getDisabledDomains();
-        if (!this._disabledDomainsSet?.has(domain)) {
-            const updated = domains.concat(domain);
-            await this.setDisabledDomains(updated);
+        // Um Race Conditions zu vermeiden, Daten direkt vor der Änderung lesen
+        const { disabledDomains: currentDomains = [] } = await chrome.storage.local.get('disabledDomains');
+
+        if (this.isValidDomain(domain) && !currentDomains.includes(domain)) {
+            const updatedDomains = [...currentDomains, domain];
+            await this.setDisabledDomains(updatedDomains);
         }
     }
 
     async removeDisabledDomain(domain) {
-        const domains = await this.getDisabledDomains();
-        if (!domains?.length) return;
-        const filtered = domains.filter(d => d !== domain);
-        await this.setDisabledDomains(filtered);
+        // Um Race Conditions zu vermeiden, Daten direkt vor der Änderung lesen
+        const { disabledDomains: currentDomains = [] } = await chrome.storage.local.get('disabledDomains');
+
+        if (currentDomains.includes(domain)) {
+            const updatedDomains = currentDomains.filter(d => d !== domain);
+            await this.setDisabledDomains(updatedDomains);
+        }
     }
 
     async isDomainDisabled(domain) {
