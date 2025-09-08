@@ -1,14 +1,16 @@
 export default {
   preset: null,
   testEnvironment: 'jsdom',
-  extensionsToTreatAsEsm: ['.js'],
+  // extensionsToTreatAsEsm wird nicht mehr benötigt, da Jest dies
+  // automatisch aus der package.json ("type": "module") ableitet.
   globals: {
     'ts-jest': {
       useESM: true,
     },
   },
   transform: {},
-  moduleNameMapping: {
+  // Korrekter Name ist "moduleNameMapper"
+  moduleNameMapper: {
     '^(\\.{1,2}/.*)\\.js$': '$1',
   },
   setupFilesAfterEnv: ['<rootDir>/test/setup.js'],

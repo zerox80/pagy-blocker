@@ -9,8 +9,8 @@
     "dedupe:filters": "node tools/dedupe-filters.mjs",
     "dedupe:filters:inplace": "node tools/dedupe-filters.mjs --in-place",
     "build": "npm run build:filters",
-    "test": "jest",
-    "test:watch": "jest --watch"
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
+    "test:watch": "node --experimental-vm-modules node_modules/jest/bin/jest.js --watch"
   },
   "engines": {
     "node": ">=16"
