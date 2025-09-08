@@ -22,7 +22,14 @@ class BackgroundState {
 
     async initialize() {
         if (this.isInitialized) return;
-        
+
+        const operationId = 'initialize';
+        if (this.activeOperations.has(operationId)) {
+            backgroundLogger.debug('Initialization already in progress.');
+            return;
+        }
+        this.activeOperations.add(operationId);
+
         const timer = new PerformanceTimer('Background initialization');
         
         try {
@@ -41,9 +48,10 @@ class BackgroundState {
             backgroundLogger.info('Blocker stats:', stats);
         } catch (error) {
             backgroundLogger.error('Failed to initialize background script', { error: error.message });
-            throw error;
+            throw error; // Fehler weitergeben, damit ensureInitialized ihn fangen kann
         } finally {
             timer.end();
+            this.activeOperations.delete(operationId);
         }
     }
 
@@ -86,11 +94,142 @@ class BackgroundState {
 
 const state = new BackgroundState();
 
+// --- Robuste Initialisierungslogik ---
+let initializationPromise = null;
+
+// Stellt sicher, dass die Initialisierung nur einmal ausgeführt wird und
+// weitere Anfragen auf das Ergebnis warten.
+const ensureInitialized = async () => {
+    // Wenn bereits initialisiert, sofort zurückkehren.
+    if (state.isInitialized) {
+        return;
+    }
+    // Wenn die Initialisierung bereits läuft, auf das Promise warten.
+    if (initializationPromise) {
+        return initializationPromise;
+    }
+
+    // Initialisierung starten und das Promise speichern.
+    initializationPromise = (async () => {
+        try {
+            await state.initialize();
+        } catch (error) {
+            backgroundLogger.error('Initialization failed, will retry on next event.', { error: error?.message });
+            // Promise zurücksetzen, damit ein erneuter Versuch gestartet werden kann.
+            initializationPromise = null;
+            // Fehler weiterwerfen, damit der Aufrufer darauf reagieren kann.
+            throw error;
+        }
+    })();
+
+    return initializationPromise;
+};
+
+
+/**
+ * Liest die aktuell vom Add-on verwalteten dynamischen Regeln.
+ * @returns {Promise<{existingRulesMap: Map<string, object>, maxId: number}>}
+ */
+const getManagedDynamicRules = async () => {
+    const existingRules = await chrome.declarativeNetRequest.getDynamicRules();
+    const existingRulesMap = new Map();
+    let maxId = 0;
+
+    for (const rule of existingRules) {
+        maxId = Math.max(maxId, rule.id);
+        const { initiatorDomains } = rule.condition;
+        const { type } = rule.action;
+
+        // Nur unsere eigenen "allow" Regeln berücksichtigen
+        if (
+            type === RULE_CONFIG.ACTIONS.ALLOW &&
+            rule.priority === EXTENSION_CONFIG.PRIORITIES.ALLOW_RULE &&
+            Array.isArray(initiatorDomains) &&
+            initiatorDomains.length === 1
+        ) {
+            existingRulesMap.set(initiatorDomains[0], rule);
+        }
+    }
+    return { existingRulesMap, maxId };
+};
+
+/**
+ * Erstellt eine neue dynamische "allow"-Regel.
+ * @param {string} domain - Die Domain für die Regel.
+ * @param {number} id - Die eindeutige ID für die Regel.
+ * @returns {object} Das Regelobjekt.
+ */
+const createNewAllowRule = (domain, id) => {
+    const dynamicResourceTypes = RULE_CONFIG.RESOURCE_TYPES.filter(t => t !== 'main_frame');
+    return {
+        id,
+        priority: EXTENSION_CONFIG.PRIORITIES.ALLOW_RULE,
+        action: { type: RULE_CONFIG.ACTIONS.ALLOW },
+        condition: {
+            initiatorDomains: [domain],
+            resourceTypes: dynamicResourceTypes,
+        },
+    };
+};
+
+
+/**
+ * Berechnet die Änderungen (hinzufügen/entfernen) für die dynamischen Regeln.
+ * @param {string[]} desiredDomains - Liste der Domains, die pausiert sein sollen.
+ * @param {Map<string, object>} existingRulesMap - Map der existierenden Regeln.
+ * @param {number} maxId - Die höchste aktuell verwendete Regel-ID.
+ * @returns {{rulesToAdd: object[], rulesToRemove: number[]}}
+ */
+const calculateRuleChanges = (desiredDomains, existingRulesMap, maxId) => {
+    const rulesToRemove = [];
+    const rulesToAdd = [];
+    let nextId = maxId + 1;
+
+    const desiredSet = new Set(desiredDomains);
+    const dynamicResourceTypes = RULE_CONFIG.RESOURCE_TYPES.filter(t => t !== 'main_frame');
+
+    // Prüfen, welche existierenden Regeln entfernt oder aktualisiert werden müssen
+    for (const [domain, rule] of existingRulesMap.entries()) {
+        const isStillDesired = desiredSet.has(domain);
+        const currentResourceTypes = rule.condition.resourceTypes || [];
+        const areResourceTypesEqual =
+            currentResourceTypes.length === dynamicResourceTypes.length &&
+            currentResourceTypes.every((t, i) => t === dynamicResourceTypes[i]);
+
+        if (!isStillDesired || !areResourceTypesEqual) {
+            // Regel wird nicht mehr gebraucht oder ist veraltet -> entfernen
+            rulesToRemove.push(rule.id);
+        }
+    }
+
+    // Prüfen, welche neuen Regeln hinzugefügt werden müssen
+    for (const domain of desiredDomains) {
+        const existingRule = existingRulesMap.get(domain);
+        if (!existingRule) {
+            // Neue Domain -> Regel hinzufügen
+            rulesToAdd.push(createNewAllowRule(domain, nextId++));
+        } else {
+            // Existierende Domain, aber evtl. veraltet (und wurde oben zum Entfernen markiert)
+            const currentResourceTypes = existingRule.condition.resourceTypes || [];
+            const areResourceTypesEqual =
+                currentResourceTypes.length === dynamicResourceTypes.length &&
+                currentResourceTypes.every((t, i) => t === dynamicResourceTypes[i]);
+
+            if (!areResourceTypesEqual) {
+                // Ressourcentypen haben sich geändert -> Regel mit neuer ID neu erstellen
+                rulesToAdd.push(createNewAllowRule(domain, nextId++));
+            }
+        }
+    }
+
+    return { rulesToAdd, rulesToRemove };
+};
+
+
 // Verwaltung dynamischer Regeln (Diff-basiert, vermeidet Full-Replace)
 const updateDynamicRules = async () => {
     const operationId = 'updateDynamicRules';
     
-    // Gleichzeitige Ausführungen verhindern
     if (state.activeOperations.has(operationId)) {
         backgroundLogger.debug('Dynamic rules update already in progress');
         return;
@@ -102,7 +241,6 @@ const updateDynamicRules = async () => {
     try {
         const disabledDomains = await blockerEngine.getDisabledDomains();
         
-        // Domains validieren
         const validDomains = disabledDomains
             .filter(domain => blockerEngine.isValidDomain(domain))
             .slice(0, EXTENSION_CONFIG.LIMITS.MAX_DYNAMIC_RULES);
@@ -114,90 +252,26 @@ const updateDynamicRules = async () => {
             });
         }
 
-        // Aktuelle dynamische Regeln lesen und in Map ablegen
-        const existingRules = await chrome.declarativeNetRequest.getDynamicRules();
-        const domainToRule = new Map();
-        const usedIds = new Set();
+        const { existingRulesMap, maxId } = await getManagedDynamicRules();
 
-        for (const rule of existingRules) {
-            usedIds.add(rule.id);
-            const initiators = rule?.condition?.initiatorDomains;
-            const actionType = rule?.action?.type;
-            const priority = rule?.priority;
-            // Nur unsere eigenen Allow-Regeln berücksichtigen
-            if (
-                Array.isArray(initiators) &&
-                initiators.length === 1 &&
-                actionType === RULE_CONFIG.ACTIONS.ALLOW &&
-                priority === EXTENSION_CONFIG.PRIORITIES.ALLOW_RULE
-            ) {
-                domainToRule.set(initiators[0], rule);
-            }
-        }
-
-        const desired = new Set(validDomains);
-        const existing = new Set(domainToRule.keys());
-
-        // Für dynamische Allow-Regeln die Ressourcentypen ohne main_frame verwenden
-        const dynamicResourceTypes = (RULE_CONFIG.RESOURCE_TYPES || []).filter(t => t !== 'main_frame');
-
-        // Zu entfernende Regeln = existieren, aber nicht mehr gewünscht
-        const rulesToRemove = [];
-        for (const domain of existing) {
-            if (!desired.has(domain)) {
-                rulesToRemove.push(domainToRule.get(domain).id);
-            } else {
-                // Falls sich die Ressourcentypen geändert haben, neu anlegen
-                const rule = domainToRule.get(domain);
-                const rt = rule?.condition?.resourceTypes || [];
-                const sameRT = Array.isArray(rt) && rt.length === dynamicResourceTypes.length && rt.every((t, i) => t === dynamicResourceTypes[i]);
-                if (!sameRT) {
-                    rulesToRemove.push(rule.id);
-                    existing.delete(domain);
-                }
-            }
-        }
-
-        // Zu ergänzende Regeln = gewünscht, aber nicht vorhanden
-        const rulesToAdd = [];
-
-        // Kleine Hilfsfunktion: kleinste freie ID finden
-        const nextFreeId = () => {
-            let id = 1;
-            while (usedIds.has(id)) id++;
-            usedIds.add(id);
-            return id;
-        };
-
-        for (const domain of desired) {
-            if (!existing.has(domain)) {
-                rulesToAdd.push({
-                    id: nextFreeId(),
-                    priority: EXTENSION_CONFIG.PRIORITIES.ALLOW_RULE,
-                    action: { type: RULE_CONFIG.ACTIONS.ALLOW },
-                    condition: {
-                        initiatorDomains: [domain],
-                        resourceTypes: dynamicResourceTypes
-                    }
-                });
-            }
-        }
+        const { rulesToAdd, rulesToRemove } = calculateRuleChanges(
+            validDomains,
+            existingRulesMap,
+            maxId
+        );
 
         if (rulesToRemove.length > 0 || rulesToAdd.length > 0) {
             await chrome.declarativeNetRequest.updateDynamicRules({
                 removeRuleIds: rulesToRemove,
                 addRules: rulesToAdd
             });
+            backgroundLogger.info('Dynamic rules updated', {
+                removed: rulesToRemove.length,
+                added: rulesToAdd.length
+            });
+        } else {
+            backgroundLogger.debug('No dynamic rule changes needed.');
         }
-
-        // Hinweis: Automatisches Neuladen von Tabs entfernt, um ungewollte Reloads zu vermeiden.
-        // Die Erweiterung funktioniert ohne erzwungenes Neuladen – Content Scripts
-        // und dynamische Regeln greifen automatisch.
-
-        backgroundLogger.info('Dynamic rules updated', {
-            removed: rulesToRemove.length,
-            added: rulesToAdd.length
-        });
 
     } catch (error) {
         backgroundLogger.error('Failed to update dynamic rules', { 
@@ -215,7 +289,7 @@ const updateDynamicRules = async () => {
 state.updateDynamicRules = updateDynamicRules;
 
 // Icon-Aktualisierung mit Debounce
-const updateIcon = debounce(async (tabId) => {
+const updateIcon = debounce(async (tabId, tab) => { // 'tab' ist optional
     const operationId = `updateIcon-${tabId}`;
     
     if (state.activeOperations.has(operationId)) {
@@ -225,34 +299,48 @@ const updateIcon = debounce(async (tabId) => {
     state.activeOperations.add(operationId);
     
     try {
+        await ensureInitialized(); // Warten, bis der State bereit ist
+
         if (!tabId || typeof tabId !== 'number') {
             backgroundLogger.error('Invalid tabId for updateIcon', { tabId });
             return;
         }
 
-        const tab = await chrome.tabs.get(tabId);
-        const domain = blockerEngine.getDomainFromUrl(tab.url);
+        // Tab-Informationen nur bei Bedarf abrufen
+        const currentTab = tab || await chrome.tabs.get(tabId);
+        const domain = blockerEngine.getDomainFromUrl(currentTab.url);
 
         // Für Nicht-Web-URLs das Standard-Icon verwenden
         if (!domain) {
             await chrome.action.setIcon({ path: EXTENSION_CONFIG.ICONS.DEFAULT, tabId });
+            await chrome.action.setBadgeText({ text: '', tabId });
+            state.tabIconCache.delete(tabId);
             return;
         }
 
         const isPausedForDomain = await blockerEngine.isDomainDisabled(domain);
+
+        // Redundante Updates vermeiden, indem der Zustand vor dem Update geprüft wird.
+        const prev = state.tabIconCache.get(tabId);
+        if (prev && prev.domain === domain && prev.isPaused === isPausedForDomain) {
+            // Zustand hat sich nicht geändert, kein Update nötig.
+            backgroundLogger.debug('Icon state for tab is unchanged, skipping update', { tabId });
+            return;
+        }
+
         const iconPath = isPausedForDomain ? EXTENSION_CONFIG.ICONS.DISABLED : EXTENSION_CONFIG.ICONS.DEFAULT;
         const badgeText = isPausedForDomain ? '⏸' : '';
 
-        // Redundante Updates vermeiden
-        const prev = state.tabIconCache.get(tabId);
-        if (!prev || prev.domain !== domain || prev.iconPath !== iconPath) {
+        // API-Aufrufe nur ausführen, wenn sich der jeweilige Wert geändert hat.
+        if (!prev || prev.iconPath !== iconPath) {
             await chrome.action.setIcon({ path: iconPath, tabId });
         }
         if (!prev || prev.badgeText !== badgeText) {
             await chrome.action.setBadgeText({ text: badgeText, tabId });
         }
 
-        state.tabIconCache.set(tabId, { domain, iconPath, badgeText });
+        // Cache mit dem neuen Zustand aktualisieren.
+        state.tabIconCache.set(tabId, { domain, isPaused: isPausedForDomain, iconPath, badgeText });
         
         backgroundLogger.debug('Icon updated', { tabId, domain, isPaused: isPausedForDomain });
         
@@ -299,6 +387,13 @@ class MessageHandler {
             throw new Error('Invalid domain provided');
         }
 
+        const operationId = `toggleDomain-${domain}`;
+        if (state.activeOperations.has(operationId)) {
+            backgroundLogger.warn('Toggle operation already in progress for this domain', { domain });
+            return { success: false, reason: 'Operation already in progress' };
+        }
+        state.activeOperations.add(operationId);
+
         const timer = new PerformanceTimer(`Toggle domain ${domain}`);
         
         try {
@@ -310,20 +405,18 @@ class MessageHandler {
 
             await updateDynamicRules();
 
-            // Alle Content Scripts über den Zustandswechsel informieren
-            const tabs = await chrome.tabs.query({});
-            const notificationPromises = tabs
-                .filter(tab => blockerEngine.getDomainFromUrl(tab.url) === domain)
-                .map(async (tab) => {
-                    try {
-                        await chrome.tabs.sendMessage(tab.id, {
-                            command: 'updatePauseState',
-                            isPaused: isPaused
-                        });
-                    } catch (e) {
-                        // Tab existiert ggf. nicht mehr oder lädt gerade
-                    }
-                });
+            // Alle relevanten Content Scripts über den Zustandswechsel informieren
+            const tabs = await chrome.tabs.query({ url: `*://${domain}/*` });
+            const notificationPromises = tabs.map(async (tab) => {
+                try {
+                    await chrome.tabs.sendMessage(tab.id, {
+                        command: 'updatePauseState',
+                        isPaused: isPaused
+                    });
+                } catch (e) {
+                    // Tab existiert ggf. nicht mehr oder lädt gerade, das ist ok.
+                }
+            });
 
             await Promise.allSettled(notificationPromises);
 
@@ -352,6 +445,7 @@ class MessageHandler {
             return { success: true };
         } finally {
             timer.end();
+            state.activeOperations.delete(operationId);
         }
     }
 }
@@ -359,8 +453,10 @@ class MessageHandler {
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     (async () => {
         try {
-            let result;
+            // Vor jeder Nachrichtenverarbeitung sicherstellen, dass die Erweiterung initialisiert ist.
+            await ensureInitialized();
             
+            let result;
             switch (message.command) {
                 case 'getPopupData':
                     result = await MessageHandler.handleGetPopupData();
@@ -381,32 +477,27 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 command: message.command, 
                 error: error.message 
             });
-            sendResponse({ error: error.message });
+            // Bei Initialisierungsfehlern eine spezifische Nachricht senden.
+            if (error.message.includes('Initialization failed')) {
+                sendResponse({ error: 'Extension failed to initialize. Please try again.' });
+            } else {
+                sendResponse({ error: error.message });
+            }
         }
     })();
-    return true;
+    return true; // Asynchrone Antwort
 });
 
-// Ereignis-Listener
+// --- Ereignis-Listener ---
+
 chrome.runtime.onInstalled.addListener(async (details) => {
     backgroundLogger.info('Extension installed/updated', { reason: details.reason });
-    
-    try {
-        await state.initialize();
-        backgroundLogger.info('Extension initialization completed');
-    } catch (error) {
-        backgroundLogger.error('Extension initialization failed', { error: error.message });
-    }
+    await ensureInitialized();
 });
 
 chrome.runtime.onStartup.addListener(async () => {
-    backgroundLogger.info('Extension startup');
-    
-    try {
-        await state.initialize();
-    } catch (error) {
-        backgroundLogger.error('Extension startup failed', { error: error.message });
-    }
+    backgroundLogger.info('Extension starting up');
+    await ensureInitialized();
 });
 
 // Tab-Listener mit robuster Fehlerbehandlung
@@ -415,8 +506,9 @@ chrome.tabs.onActivated.addListener((activeInfo) => {
 });
 
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+    // Icon-Update nur bei relevanter Statusänderung oder URL-Wechsel
     if (changeInfo.status === 'complete' || changeInfo.url) {
-        updateIcon(tabId);
+        updateIcon(tabId, tab); // Übergibt das Tab-Objekt, um chrome.tabs.get zu sparen
     }
 });
 
@@ -424,12 +516,3 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 chrome.tabs.onRemoved.addListener((tabId) => {
     state.tabIconCache.delete(tabId);
 });
-
-// Sofort initialisieren, falls der Service Worker bereits läuft
-(async () => {
-    try {
-        await state.initialize();
-    } catch (error) {
-        backgroundLogger.error('Initial state initialization failed', { error: error.message });
-    }
-})();
