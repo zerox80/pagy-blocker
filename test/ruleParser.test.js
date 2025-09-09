@@ -71,7 +71,16 @@ describe('Rule Parser', () => {
         rule: '||ads.example.com^$domain=example.com|~example.net',
         type: 'network',
         pattern: '||ads.example.com^',
-        options: [{ type: 'domain', value: 'example.com|~example.net', negated: false }],
+        options: [
+          {
+            type: 'domain',
+            value: [
+              { name: 'example.com', negated: false },
+              { name: 'example.net', negated: true },
+            ],
+            negated: false,
+          },
+        ],
         isException: false,
         patternType: 'network',
         isValid: true,
@@ -111,8 +120,40 @@ describe('Rule Parser', () => {
             rule: rule,
             type: 'network',
             pattern: '||adservice.google.com^',
-            options: [{ type: 'domain', value: 'google.com', negated: false }],
+            options: [
+                {
+                    type: 'domain',
+                    value: [{ name: 'google.com', negated: false }],
+                    negated: false,
+                },
+            ],
             isException: true,
+            patternType: 'network',
+            isValid: true,
+        });
+    });
+
+    // Test 11: Rule with complex domain options
+    test('should parse a rule with complex domain options including multiple negations', () => {
+        const rule = '||example.com^$domain=site.com|~sub.site.com|another.com|~another.sub.com';
+        const result = parseRule(rule);
+        expect(result).toEqual({
+            rule: rule,
+            type: 'network',
+            pattern: '||example.com^',
+            options: [
+                {
+                    type: 'domain',
+                    value: [
+                        { name: 'site.com', negated: false },
+                        { name: 'sub.site.com', negated: true },
+                        { name: 'another.com', negated: false },
+                        { name: 'another.sub.com', negated: true },
+                    ],
+                    negated: false,
+                },
+            ],
+            isException: false,
             patternType: 'network',
             isValid: true,
         });
