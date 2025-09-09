@@ -158,5 +158,10 @@ describe('Rule Parser', () => {
             isValid: true,
         });
     });
+
+    // Test 12: Invalid rule (negated domain option)
+    test('should return null for a rule with a negated domain option', () => {
+      expect(parseRule('||example.com^$~domain=example.net')).toBeNull();
+    });
   });
 });

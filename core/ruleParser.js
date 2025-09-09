@@ -194,24 +194,30 @@ export function validateFilterOptions(options) {
         const isNegated = option.startsWith('~');
         const baseOption = isNegated ? option.slice(1) : option;
         if (baseOption.startsWith('domain=')) {
-            const domainValues = [];
-            const domains = baseOption.slice(7).split('|');
-            for (const domain of domains) {
-                const isDomainNegated = domain.startsWith('~');
-                const cleanDomainName = isDomainNegated ? domain.slice(1) : domain;
+            if (isNegated) {
+                errors.push('Die Option "domain" darf nicht negiert werden.');
+            } else {
+                const domainValues = [];
+                const domains = baseOption.slice(7).split('|');
+                for (const domain of domains) {
+                    const isDomainNegated = domain.startsWith('~');
+                    const cleanDomainName = isDomainNegated ? domain.slice(1) : domain;
 
-                if (cleanDomainName) {
-                    const testResult = sanitizeDomain(cleanDomainName);
-                    if (!testResult.isValid) {
-                        errors.push(
-                            `Ungültige Domain in den Optionen: ${cleanDomainName} - ${testResult.error}`
-                        );
-                    } else {
-                        domainValues.push({ name: testResult.domain, negated: isDomainNegated });
+                    if (cleanDomainName) {
+                        const testResult = sanitizeDomain(cleanDomainName);
+                        if (!testResult.isValid) {
+                            errors.push(
+                                `Ungültige Domain in den Optionen: ${cleanDomainName} - ${testResult.error}`
+                            );
+                        } else {
+                            domainValues.push({ name: testResult.domain, negated: isDomainNegated });
+                        }
                     }
                 }
+                if (domainValues.length > 0) {
+                    parsedOptions.push({ type: 'domain', value: domainValues, negated: false });
+                }
             }
-            parsedOptions.push({ type: 'domain', value: domainValues, negated: isNegated });
         } else if (VALID_OPTIONS.has(baseOption)) {
             parsedOptions.push({ type: 'filter', value: baseOption, negated: isNegated });
         } else {
