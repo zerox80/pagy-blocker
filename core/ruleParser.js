@@ -52,7 +52,7 @@ const VALID_OPTIONS = new Set([
 /**
  * Verbesserte Domain-Säuberung mit strengerer Validierung.
  */
-async function sanitizeDomain(domain) {
+function sanitizeDomain(domain) {
     if (!domain || typeof domain !== 'string') {
         return { isValid: false, error: 'Domain muss ein nicht leerer String sein' };
     }
@@ -77,7 +77,7 @@ async function sanitizeDomain(domain) {
 /**
  * Verbesserte Validierung von URL-Filtermustern mit ReDoS-Schutz.
  */
-export async function validateURLPattern(pattern) {
+export function validateURLPattern(pattern) {
     if (!pattern || typeof pattern !== 'string') {
         return { isValid: false, error: 'Muster muss ein nicht leerer String sein' };
     }
@@ -183,7 +183,7 @@ export async function validateURLPattern(pattern) {
 /**
  * Validiert Filteroptionen (z.B. $script,third-party).
  */
-export async function validateFilterOptions(options) {
+export function validateFilterOptions(options) {
     if (!options) {
         return { isValid: true, parsedOptions: [] };
     }
@@ -198,7 +198,7 @@ export async function validateFilterOptions(options) {
             for (const domain of domains) {
                 const cleanDomain = domain.startsWith('~') ? domain.slice(1) : domain;
                 if (cleanDomain) {
-                    const testResult = await sanitizeDomain(cleanDomain);
+                    const testResult = sanitizeDomain(cleanDomain);
                     if (!testResult.isValid) {
                         errors.push(
                             `Ungültige Domain in den Optionen: ${cleanDomain} - ${testResult.error}`
@@ -223,7 +223,7 @@ export async function validateFilterOptions(options) {
 /**
  * Verbesserter Regelparser mit umfassender Validierung.
  */
-export async function parseRule(rule) {
+export function parseRule(rule) {
     if (!rule || typeof rule !== 'string') {
         return null;
     }
@@ -244,9 +244,9 @@ export async function parseRule(rule) {
     }
 
     try {
-        return await parseNetworkRule(normalizedRule);
+        return parseNetworkRule(normalizedRule);
     } catch (error) {
-
+        console.warn(`Failed to parse rule: ${rule}`, error);
         return null;
     }
 }
@@ -254,7 +254,7 @@ export async function parseRule(rule) {
 /**
  * Parst Regeln für die Netzwerkfilterung.
  */
-async function parseNetworkRule(rule) {
+function parseNetworkRule(rule) {
     const isException = rule.startsWith('@@');
     const cleanRule = isException ? rule.slice(2) : rule;
     const dollarIndex = cleanRule.lastIndexOf('$');
@@ -264,13 +264,13 @@ async function parseNetworkRule(rule) {
         pattern = cleanRule.slice(0, dollarIndex);
         options = cleanRule.slice(dollarIndex + 1);
     }
-    const patternValidation = await validateURLPattern(pattern);
+    const patternValidation = validateURLPattern(pattern);
     if (!patternValidation.isValid) {
         return null;
     }
     let parsedOptions = null;
     if (options) {
-        const optionsValidation = await validateFilterOptions(options);
+        const optionsValidation = validateFilterOptions(options);
         if (!optionsValidation.isValid) {
             return null;
         }

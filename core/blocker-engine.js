@@ -102,11 +102,9 @@ export class BlockerEngine {
             console.debug('Chrome DNR API unavailable:', error.message);
         }
 
-        // Methode 2: Wenn keine echten Daten vorliegen, realistische Schätzung basierend auf Aktivität
-        if (blockedCount === 0) {
-            blockedCount = await this.getEstimatedBlockCount();
-        }
-
+        // Die Zählung basiert nun ausschließlich auf der getMatchedRules API.
+        // Die Schätzung wurde entfernt, um die Code-Komplexität zu reduzieren
+        // und eine irreführende, ungenaue Statistik zu vermeiden.
         const result = {
             initialized: true,
             filterCount: this.filterRules.length,
@@ -117,66 +115,6 @@ export class BlockerEngine {
         // Cache aktualisieren
         this._statsCache = { time: now, blockedRequests: blockedCount };
         return result;
-    }
-
-    /**
-     * Schätzt die Blockanzahl basierend auf typischen Surf-Mustern
-     */
-    async getEstimatedBlockCount() {
-        try {
-            const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
-            if (!activeTab?.url) return 0;
-
-            const domain = this.getDomainFromUrl(activeTab.url);
-            if (!domain) return 0;
-
-            // Prüfen, ob die Domain pausiert/deaktiviert ist
-            const isDisabled = await this.isDomainDisabled(domain);
-            if (isDisabled) return 0;
-
-            // Schätzung anhand Domain-Typ und Sitzungsdauer
-            const sessionMinutes = Math.max(1, (Date.now() - this.startTime) / 60000);
-            const estimatedBlocked = this.calculateBlocksForDomain(domain, sessionMinutes);
-            
-            return Math.floor(estimatedBlocked);
-        } catch (error) {
-            return 0;
-        }
-    }
-
-    /**
-     * Berechnet eine realistische Blockzahl für bestimmte Domains
-     */
-    calculateBlocksForDomain(domain, sessionMinutes) {
-        // Bekannte „werbelastige“ Domains bekommen höhere Werte
-        const highAdDomains = [
-            'golem.de', 'spiegel.de', 'bild.de', 'focus.de', 'welt.de',
-            'stern.de', 'chip.de', 'heise.de', 'computerbase.de', 'pcwelt.de'
-        ];
-        
-        const mediumAdDomains = [
-            'github.com', 'stackoverflow.com', 'reddit.com', 'youtube.com'
-        ];
-
-        let baseBlocksPerMinute = 2; // konservativer Standardwert
-        
-        // Präzisere Domain-Prüfung, um Fehler wie `de.evil.com` zu vermeiden
-        const isDomainOrSubdomain = (base, full) => full === base || full.endsWith(`.${base}`);
-
-        if (highAdDomains.some(d => isDomainOrSubdomain(d, domain))) {
-            baseBlocksPerMinute = 8; // Seiten mit vielen Anzeigen
-        } else if (mediumAdDomains.some(d => isDomainOrSubdomain(d, domain))) {
-            baseBlocksPerMinute = 4; // Seiten mit mittlerer Anzeigenlast
-        } else if (domain.includes('news') || domain.includes('blog')) {
-            baseBlocksPerMinute = 6; // News/Blogs haben oft mehr Anzeigen
-        }
-
-        // Leichte zufällige Variation einbauen
-        const variation = 0.7 + (Math.random() * 0.6); // 0.7 to 1.3 multiplier
-        const estimated = sessionMinutes * baseBlocksPerMinute * variation;
-        
-        // Obergrenze pro Minute setzen
-        return Math.min(estimated, sessionMinutes * 15);
     }
 
     /**
