@@ -194,19 +194,24 @@ export function validateFilterOptions(options) {
         const isNegated = option.startsWith('~');
         const baseOption = isNegated ? option.slice(1) : option;
         if (baseOption.startsWith('domain=')) {
+            const domainValues = [];
             const domains = baseOption.slice(7).split('|');
             for (const domain of domains) {
-                const cleanDomain = domain.startsWith('~') ? domain.slice(1) : domain;
-                if (cleanDomain) {
-                    const testResult = sanitizeDomain(cleanDomain);
+                const isDomainNegated = domain.startsWith('~');
+                const cleanDomainName = isDomainNegated ? domain.slice(1) : domain;
+
+                if (cleanDomainName) {
+                    const testResult = sanitizeDomain(cleanDomainName);
                     if (!testResult.isValid) {
                         errors.push(
-                            `Ungültige Domain in den Optionen: ${cleanDomain} - ${testResult.error}`
+                            `Ungültige Domain in den Optionen: ${cleanDomainName} - ${testResult.error}`
                         );
+                    } else {
+                        domainValues.push({ name: testResult.domain, negated: isDomainNegated });
                     }
                 }
             }
-            parsedOptions.push({ type: 'domain', value: baseOption.slice(7), negated: isNegated });
+            parsedOptions.push({ type: 'domain', value: domainValues, negated: isNegated });
         } else if (VALID_OPTIONS.has(baseOption)) {
             parsedOptions.push({ type: 'filter', value: baseOption, negated: isNegated });
         } else {
