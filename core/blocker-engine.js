@@ -20,6 +20,22 @@ export class BlockerEngine {
         this._storageListenerAttached = false;
         // Leichter Stats-Cache, um wiederholte teure Abfragen zu vermeiden
         this._statsCache = { time: 0, blockedRequests: 0 };
+        // Promise-basiertes Lock für Domain-Änderungen
+        this._domainLock = Promise.resolve();
+    }
+
+    /**
+     * Erwirbt das Lock, um atomare Domain-Änderungen sicherzustellen.
+     * @returns {Promise<Function>} Eine Promise, die zu einer release-Funktion auflöst.
+     */
+    _acquireLock() {
+        let release;
+        const newLock = new Promise(resolve => {
+            release = resolve;
+        });
+        const oldLock = this._domainLock;
+        this._domainLock = newLock;
+        return oldLock.then(() => release);
     }
 
     async initialize() {
@@ -129,13 +145,12 @@ export class BlockerEngine {
     }
 
     async getDisabledDomains() {
-        // Cache nutzen, falls vorhanden
-        if (Array.isArray(this._disabledDomains)) {
-            return this._disabledDomains;
-        }
-
+        const release = await this._acquireLock();
         try {
-            const result = await chrome.storage?.local?.get?.('disabledDomains');
+            if (Array.isArray(this._disabledDomains)) {
+                return this._disabledDomains;
+            }
+            const result = await chrome.storage.local.get('disabledDomains');
             const domains = Array.isArray(result?.disabledDomains) ? result.disabledDomains : [];
             this._updateDisabledDomainsCache(domains);
             return this._disabledDomains;
@@ -143,37 +158,53 @@ export class BlockerEngine {
             console.error('Failed to retrieve disabled domains:', error);
             this._updateDisabledDomainsCache([]);
             return this._disabledDomains;
+        } finally {
+            release();
         }
     }
 
     async setDisabledDomains(domains) {
+        const release = await this._acquireLock();
         try {
-            await chrome.storage?.local?.set?.({ 
-                disabledDomains: Array.isArray(domains) ? domains : [] 
-            });
-            this._updateDisabledDomainsCache(Array.isArray(domains) ? domains : []);
+            const domainsToSet = Array.isArray(domains) ? domains : [];
+            await chrome.storage.local.set({ disabledDomains: domainsToSet });
+            this._updateDisabledDomainsCache(domainsToSet);
         } catch (error) {
             console.error('Failed to save disabled domains:', error);
+        } finally {
+            release();
         }
     }
 
     async addDisabledDomain(domain) {
-        // Um Race Conditions zu vermeiden, Daten direkt vor der Änderung lesen
-        const { disabledDomains: currentDomains = [] } = await chrome.storage.local.get('disabledDomains');
-
-        if (this.isValidDomain(domain) && !currentDomains.includes(domain)) {
-            const updatedDomains = [...currentDomains, domain];
-            await this.setDisabledDomains(updatedDomains);
+        const release = await this._acquireLock();
+        try {
+            const { disabledDomains: currentDomains = [] } = await chrome.storage.local.get('disabledDomains');
+            if (this.isValidDomain(domain) && !currentDomains.includes(domain)) {
+                const updatedDomains = [...currentDomains, domain];
+                await chrome.storage.local.set({ disabledDomains: updatedDomains });
+                this._updateDisabledDomainsCache(updatedDomains);
+            }
+        } catch (error) {
+            console.error('Error adding disabled domain:', error);
+        } finally {
+            release();
         }
     }
 
     async removeDisabledDomain(domain) {
-        // Um Race Conditions zu vermeiden, Daten direkt vor der Änderung lesen
-        const { disabledDomains: currentDomains = [] } = await chrome.storage.local.get('disabledDomains');
-
-        if (currentDomains.includes(domain)) {
-            const updatedDomains = currentDomains.filter(d => d !== domain);
-            await this.setDisabledDomains(updatedDomains);
+        const release = await this._acquireLock();
+        try {
+            const { disabledDomains: currentDomains = [] } = await chrome.storage.local.get('disabledDomains');
+            if (currentDomains.includes(domain)) {
+                const updatedDomains = currentDomains.filter(d => d !== domain);
+                await chrome.storage.local.set({ disabledDomains: updatedDomains });
+                this._updateDisabledDomainsCache(updatedDomains);
+            }
+        } catch (error) {
+            console.error('Error removing disabled domain:', error);
+        } finally {
+            release();
         }
     }
 
