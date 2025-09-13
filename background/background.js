@@ -9,6 +9,13 @@ import { backgroundLogger } from '../core/logger.js';
 import { debounce, PerformanceTimer } from '../core/utilities.js';
 import { blockerEngine } from '../core/blocker-engine.js';
 
+// Vorberechnete, gewünschte Ressourcentypen für dynamische Allow-Regeln (ohne main_frame)
+const DYNAMIC_RESOURCE_TYPES = (RULE_CONFIG.RESOURCE_TYPES || []).filter(t => t !== 'main_frame');
+const DYNAMIC_RESOURCE_TYPES_SET = new Set(DYNAMIC_RESOURCE_TYPES);
+
+// Reaktives, aber nicht übertriebenes Debounce für Icon-Updates
+const ICON_DEBOUNCE_MS = Math.min(EXTENSION_CONFIG.PERFORMANCE?.DEBOUNCE_DELAY ?? 150, 150);
+
 // Zustandsverwaltung
 class BackgroundState {
     constructor() {
@@ -138,8 +145,8 @@ const updateDynamicRules = async () => {
         const desired = new Set(validDomains);
         const existing = new Set(domainToRule.keys());
 
-        // Für dynamische Allow-Regeln die Ressourcentypen ohne main_frame verwenden
-        const dynamicResourceTypes = (RULE_CONFIG.RESOURCE_TYPES || []).filter(t => t !== 'main_frame');
+        // Für dynamische Allow-Regeln die Ressourcentypen ohne main_frame verwenden (vorberechnet)
+        const dynamicResourceTypes = DYNAMIC_RESOURCE_TYPES;
 
         // Zu entfernende Regeln = existieren, aber nicht mehr gewünscht
         const rulesToRemove = [];
@@ -149,8 +156,10 @@ const updateDynamicRules = async () => {
             } else {
                 // Falls sich die Ressourcentypen geändert haben, neu anlegen
                 const rule = domainToRule.get(domain);
-                const rt = rule?.condition?.resourceTypes || [];
-                const sameRT = Array.isArray(rt) && rt.length === dynamicResourceTypes.length && rt.every((t, i) => t === dynamicResourceTypes[i]);
+                const rt = Array.isArray(rule?.condition?.resourceTypes) ? rule.condition.resourceTypes : [];
+                // Reihenfolge-unabhängiger Vergleich der Ressourcentypen zur Vermeidung unnötiger Updates
+                const rtSet = new Set(rt);
+                const sameRT = rtSet.size === DYNAMIC_RESOURCE_TYPES_SET.size && [...DYNAMIC_RESOURCE_TYPES_SET].every(t => rtSet.has(t));
                 if (!sameRT) {
                     rulesToRemove.push(rule.id);
                     existing.delete(domain);
@@ -264,7 +273,7 @@ const updateIcon = debounce(async (tabId) => {
     } finally {
         state.activeOperations.delete(operationId);
     }
-}, 100); // Icon-Updates entprellen
+}, ICON_DEBOUNCE_MS); // Icon-Updates entprellen
 
 // Nachrichten-Handler mit verbesserter Fehlerbehandlung
 class MessageHandler {

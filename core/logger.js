@@ -4,7 +4,19 @@
  * @version 10.5
  */
 
-import { LOG_CONFIG } from './config.js';
+import { LOG_CONFIG as IMPORTED_LOG_CONFIG } from './config.js';
+
+// Fallback, falls LOG_CONFIG in Tests gemockt oder nicht verfügbar ist
+const LOG_CONFIG = IMPORTED_LOG_CONFIG ?? {
+    LEVELS: {
+        ERROR: 0,
+        WARN: 1,
+        INFO: 2,
+        DEBUG: 3,
+    },
+    DEFAULT_LEVEL: 1, // WARN
+    PREFIX: '[Pagy Blocker]'
+};
 
 class Logger {
     constructor(context = 'General') {

@@ -5,6 +5,11 @@
  */
 
 import { getDomainFromUrl as utilGetDomainFromUrl, isValidDomain as utilIsValidDomain } from './utilities.js';
+import { EXTENSION_CONFIG } from './config.js';
+import StorageManager from './storage.js';
+import { createLogger } from './logger.js';
+
+const engineLogger = createLogger('Engine');
 
 /**
  * Zentrale Blocker-Engine, die Chromes native declarativeNetRequest API nutzt
@@ -22,6 +27,8 @@ export class BlockerEngine {
         this._statsCache = { time: 0, blockedRequests: 0 };
         // Promise-basiertes Lock für Domain-Änderungen
         this._domainLock = Promise.resolve();
+        // Zentrale Storage-Instanz
+        this._storage = new StorageManager();
     }
 
     /**
@@ -48,10 +55,11 @@ export class BlockerEngine {
             // Storage-Listener nur einmal registrieren
             if (!this._storageListenerAttached && chrome?.storage?.onChanged) {
                 try {
+                    const DISABLED_KEY = EXTENSION_CONFIG.STORAGE_KEYS.DISABLED_DOMAINS;
                     chrome.storage.onChanged.addListener((changes, areaName) => {
-                        if (areaName === 'local' && changes?.disabledDomains) {
-                            const newValue = Array.isArray(changes.disabledDomains.newValue)
-                                ? changes.disabledDomains.newValue
+                        if (areaName === 'local' && changes?.[DISABLED_KEY]) {
+                            const newValue = Array.isArray(changes[DISABLED_KEY].newValue)
+                                ? changes[DISABLED_KEY].newValue
                                 : [];
                             this._updateDisabledDomainsCache(newValue);
                         }
@@ -65,13 +73,13 @@ export class BlockerEngine {
             this.isInitialized = true;
             
             const initTime = Date.now() - initStart;
-            // Hinweis in der Konsole zur Initialisierungsdauer
-            console.log(`Blocker engine initialized in ${initTime.toFixed(2)}ms`);
+            // Hinweis zur Initialisierungsdauer
+            engineLogger.info(`Blocker engine initialized in ${initTime.toFixed(2)}ms`);
             
             return true;
         } catch (error) {
             // Fehlermeldung bei gescheiterter Initialisierung
-            console.error('Failed to initialize blocker engine:', error);
+            engineLogger.error('Failed to initialize blocker engine', { error: error.message });
             return false;
         }
     }
@@ -115,7 +123,7 @@ export class BlockerEngine {
                 }
             }
         } catch (error) {
-            console.debug('Chrome DNR API unavailable:', error.message);
+            engineLogger.debug('Chrome DNR API unavailable', { error: error.message });
         }
 
         // Die Zählung basiert nun ausschließlich auf der getMatchedRules API.
@@ -150,12 +158,13 @@ export class BlockerEngine {
             if (Array.isArray(this._disabledDomains)) {
                 return this._disabledDomains;
             }
-            const result = await chrome.storage.local.get('disabledDomains');
-            const domains = Array.isArray(result?.disabledDomains) ? result.disabledDomains : [];
+            const DISABLED_KEY = EXTENSION_CONFIG.STORAGE_KEYS.DISABLED_DOMAINS;
+            const value = await this._storage.get(DISABLED_KEY);
+            const domains = Array.isArray(value) ? value : [];
             this._updateDisabledDomainsCache(domains);
             return this._disabledDomains;
         } catch (error) {
-            console.error('Failed to retrieve disabled domains:', error);
+            engineLogger.error('Failed to retrieve disabled domains', { error: error.message });
             this._updateDisabledDomainsCache([]);
             return this._disabledDomains;
         } finally {
@@ -167,10 +176,11 @@ export class BlockerEngine {
         const release = await this._acquireLock();
         try {
             const domainsToSet = Array.isArray(domains) ? domains : [];
-            await chrome.storage.local.set({ disabledDomains: domainsToSet });
+            const DISABLED_KEY = EXTENSION_CONFIG.STORAGE_KEYS.DISABLED_DOMAINS;
+            await this._storage.set(DISABLED_KEY, domainsToSet);
             this._updateDisabledDomainsCache(domainsToSet);
         } catch (error) {
-            console.error('Failed to save disabled domains:', error);
+            engineLogger.error('Failed to save disabled domains', { error: error.message });
         } finally {
             release();
         }
@@ -179,14 +189,16 @@ export class BlockerEngine {
     async addDisabledDomain(domain) {
         const release = await this._acquireLock();
         try {
-            const { disabledDomains: currentDomains = [] } = await chrome.storage.local.get('disabledDomains');
+            const DISABLED_KEY = EXTENSION_CONFIG.STORAGE_KEYS.DISABLED_DOMAINS;
+            const currentValue = await this._storage.get(DISABLED_KEY);
+            const currentDomains = Array.isArray(currentValue) ? currentValue : [];
             if (this.isValidDomain(domain) && !currentDomains.includes(domain)) {
                 const updatedDomains = [...currentDomains, domain];
-                await chrome.storage.local.set({ disabledDomains: updatedDomains });
+                await this._storage.set(DISABLED_KEY, updatedDomains);
                 this._updateDisabledDomainsCache(updatedDomains);
             }
         } catch (error) {
-            console.error('Error adding disabled domain:', error);
+            engineLogger.error('Error adding disabled domain', { error: error.message });
         } finally {
             release();
         }
@@ -195,14 +207,16 @@ export class BlockerEngine {
     async removeDisabledDomain(domain) {
         const release = await this._acquireLock();
         try {
-            const { disabledDomains: currentDomains = [] } = await chrome.storage.local.get('disabledDomains');
+            const DISABLED_KEY = EXTENSION_CONFIG.STORAGE_KEYS.DISABLED_DOMAINS;
+            const currentValue = await this._storage.get(DISABLED_KEY);
+            const currentDomains = Array.isArray(currentValue) ? currentValue : [];
             if (currentDomains.includes(domain)) {
                 const updatedDomains = currentDomains.filter(d => d !== domain);
-                await chrome.storage.local.set({ disabledDomains: updatedDomains });
+                await this._storage.set(DISABLED_KEY, updatedDomains);
                 this._updateDisabledDomainsCache(updatedDomains);
             }
         } catch (error) {
-            console.error('Error removing disabled domain:', error);
+            engineLogger.error('Error removing disabled domain', { error: error.message });
         } finally {
             release();
         }
@@ -228,7 +242,7 @@ export class BlockerEngine {
                 return Array.isArray(json) ? json : [];
             }
         } catch (error) {
-            console.warn('Could not load precompiled filter list:', error);
+            engineLogger.warn('Could not load precompiled filter list', { error: error.message });
         }
 
         // Fallback: optimierte Textliste für Notfälle (nur zur Anzeige/Zählung)
@@ -247,7 +261,7 @@ export class BlockerEngine {
                 return lines;
             }
         } catch (error) {
-            console.warn('Could not load optimized filter list:', error);
+            engineLogger.warn('Could not load optimized filter list', { error: error.message });
         }
 
         return [];
@@ -258,8 +272,8 @@ export class BlockerEngine {
         this.filterRules = [];
         this._disabledDomains = null;
         this._disabledDomainsSet = null;
-        // Hinweis in der Konsole zur Bereinigung
-        console.log('Blocker engine destroyed');
+        // Hinweis zur Bereinigung
+        engineLogger.info('Blocker engine destroyed');
     }
 
     // Interne Hilfsfunktion zur Cache-Aktualisierung

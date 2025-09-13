@@ -258,7 +258,13 @@ export function generateId() {
  */
 export function isExtensionContextValid() {
     try {
-        return chrome?.runtime?.id !== undefined;
+        // Gültig, wenn eine Runtime vorhanden ist und entweder eine ID
+        // oder zumindest getURL (z. B. in Testumgebungen) verfügbar ist
+        return !!(
+            typeof chrome !== 'undefined' &&
+            chrome?.runtime &&
+            (chrome.runtime.id !== undefined || typeof chrome.runtime.getURL === 'function')
+        );
     } catch (error) {
         return false;
     }
