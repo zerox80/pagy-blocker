@@ -40,7 +40,6 @@ Done. The icon appears in the toolbar. Use the popup to enable/disable Pagy Bloc
 - Static rules: [`filter_lists/filter_precompiled.json`](filter_lists/filter_precompiled.json) is loaded as DNR ruleset via [`manifest.json`](manifest.json).
 - Domain pause: When disabled for a domain, dynamic "ALLOW" rules are set (without `main_frame`) via [updateDynamicRules](https://developer.chrome.com/docs/extensions/reference/declarativeNetRequest/#method-updateDynamicRules), allowing requests from that domain to pass through.
 - Counts/Stats: The popup uses – if available – [`declarativeNetRequest.getMatchedRules`](https://developer.chrome.com/docs/extensions/reference/declarativeNetRequest/#method-getMatchedRules) and otherwise shows a realistic, low estimate.
-- Zählungen/Stats: Das Popup nutzt – falls verfügbar – [`declarativeNetRequest.getMatchedRules`](https://developer.chrome.com/docs/extensions/reference/declarativeNetRequest/#method-getMatchedRules) und zeigt andernfalls eine realistische, niedrige Schätzung an.
 
 ## Maintaining Filter Lists
 

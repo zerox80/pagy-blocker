@@ -113,4 +113,4 @@ Richtlinien in [`CONTRIBUTING.md`](CONTRIBUTING.md). Kleine, fokussierte PRs bev
 
 ## Lizenz
 
-MIT – siehe [`LICENCE`](LICENCE)
+MIT – siehe [`LICENSE`](LICENSE)

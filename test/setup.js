@@ -17,9 +17,15 @@ global.chrome = {
     },
   },
   storage: {
+    onChanged: {
+      addListener: jest.fn(),
+    },
     local: {
       get: jest.fn(),
       set: jest.fn(),
+      remove: jest.fn(),
+      clear: jest.fn(),
+      getBytesInUse: jest.fn(async () => 0),
       onChanged: {
         addListener: jest.fn(),
       },
@@ -41,13 +47,14 @@ global.chrome = {
     },
   },
   declarativeNetRequest: {
-    getDynamicRules: jest.fn(),
-    updateDynamicRules: jest.fn(),
+    getDynamicRules: jest.fn(async () => []),
+    updateDynamicRules: jest.fn(async () => {}),
     getMatchedRules: jest.fn(),
   },
   action: {
     setIcon: jest.fn(),
     setBadgeText: jest.fn(),
+    setBadgeBackgroundColor: jest.fn(),
   },
 };
 
@@ -60,6 +67,13 @@ global.performance = {
     jsHeapSizeLimit: 5000000,
   },
 };
+
+// Minimal fetch stub used by background/blocker-engine
+global.fetch = jest.fn(async () => ({
+  ok: true,
+  json: async () => ([]),
+  text: async () => ('')
+}));
 
 // Mock console for cleaner test output
 global.console = {

@@ -2,6 +2,7 @@
 import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { EXTENSION_CONFIG } from '../core/config.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -14,8 +15,8 @@ const SHOW_STATS = process.argv.includes('--stats');
 // RE2-safe escape for regex (used by Chrome DNR)
 function escapeRegex(str) {
   // Escape characters that have special meaning in RE2/JS regex
-  // Canonical pattern from MDN: /[.*+?^${}()|[\]\\]/g
-  return str.replace(/[.*+?^${}()|[\]\\]/g, '\$&');
+  // Canonical pattern from MDN: /[.*+?^${}()|[^\\]\\]/g
+  return str.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&');
 }
 
 // Resource types to consider (exclude main_frame for safety/perf)
@@ -194,6 +195,7 @@ async function main() {
         regexFilter: regex,
         isUrlFilterCaseSensitive: false,
         resourceTypes: DEFAULT_RESOURCE_TYPES,
+        domainType: 'thirdParty',
       }
     });
     stats.regexCount++;
@@ -223,8 +225,8 @@ async function main() {
     rules.push(r);
   }
 
-  // Cap rules to Chrome's typical static rules limit (~30k)
-  const MAX_RULES = 30000;
+  // Cap rules to limit defined in config (default ~30k)
+  const MAX_RULES = EXTENSION_CONFIG.LIMITS.MAX_RULES_COUNT;
   const finalRules = rules.slice(0, MAX_RULES);
 
   const PRETTY = process.argv.includes('--pretty');

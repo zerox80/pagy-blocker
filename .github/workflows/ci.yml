@@ -30,17 +30,15 @@ jobs:
     - name: Run tests
       run: npm test
 
+    - name: Run coverage (optional)
+      run: npm run test:coverage
+
     - name: Build filters
       run: npm run build:filters
 
     - name: Check filter compilation
       run: |
-        if [ ! -f "filter_lists/filter_precompiled.json" ]; then
-          echo "Filter compilation failed"
-          exit 1
-        fi
-        FILTER_COUNT=$(jq length filter_lists/filter_precompiled.json)
-        echo "Compiled $FILTER_COUNT filter rules"
+        node -e "const fs=require('fs');const p='filter_lists/filter_precompiled.json';if(!fs.existsSync(p)){console.error('Filter compilation failed: file missing');process.exit(1);}const a=JSON.parse(fs.readFileSync(p,'utf8'));if(!Array.isArray(a)){console.error('Invalid filter file format');process.exit(1);}console.log('Compiled',a.length,'filter rules');"
 
   lint:
     runs-on: ubuntu-latest

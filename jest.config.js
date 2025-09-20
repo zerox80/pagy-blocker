@@ -13,7 +13,7 @@ export default {
   setupFilesAfterEnv: ['<rootDir>/test/setup.js'],
   collectCoverageFrom: [
     'core/**/*.js',
-    '!core/logger.js', // Logger könnte schwierig zu testen sein
+    'background/**/*.js',
   ],
   testMatch: [
     '<rootDir>/test/**/*.test.js',
