@@ -6,6 +6,9 @@ module.exports = {
     jest: true,
     node: true,
   },
+  globals: {
+    chrome: 'readonly',
+  },
   extends: [
     'eslint:recommended',
     'plugin:jest/recommended',

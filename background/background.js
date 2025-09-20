@@ -1,7 +1,7 @@
 /**
  * @file background.js
  * @description Service Worker für Pagy Blocker - Domain-basierte Filtersteuerung
- * @version 10.5
+ * @version 11.0
  */
 
 import { EXTENSION_CONFIG, RULE_CONFIG } from '../core/config.js';
@@ -12,6 +12,34 @@ import { blockerEngine } from '../core/blocker-engine.js';
 // Vorberechnete, gewünschte Ressourcentypen für dynamische Allow-Regeln (ohne main_frame)
 const DYNAMIC_RESOURCE_TYPES = (RULE_CONFIG.RESOURCE_TYPES || []).filter(t => t !== 'main_frame');
 const DYNAMIC_RESOURCE_TYPES_SET = new Set(DYNAMIC_RESOURCE_TYPES);
+
+// Zugelassene Nachrichten-Befehle strikt einschränken
+const ALLOWED_COMMANDS = new Set(['getPopupData', 'getState', 'toggleDomainState']);
+
+// Vertrauenswürdige Sender erkennen (eigene Inhalte oder Extension-Pages)
+function isTrustedSender(sender) {
+    try {
+        // Nachrichten sind vertrauenswürdig, wenn sie aus diesem Addon stammen
+        // oder von einem Tab (Content Script) innerhalb des Browsers kommen
+        return !!(sender && (sender.id === chrome.runtime.id || sender.tab));
+    } catch (_) {
+        return false;
+    }
+}
+
+// Validierung für Toggle-Payload
+function validateTogglePayload(message) {
+    if (typeof message !== 'object' || message === null) {
+        throw new Error('Invalid message payload');
+    }
+    const { domain, isPaused } = message;
+    if (typeof domain !== 'string' || !blockerEngine.isValidDomain(domain)) {
+        throw new Error('Invalid domain provided');
+    }
+    if (typeof isPaused !== 'boolean') {
+        throw new Error('Invalid isPaused flag');
+    }
+}
 
 // Reaktives, aber nicht übertriebenes Debounce für Icon-Updates
 const ICON_DEBOUNCE_MS = Math.min(EXTENSION_CONFIG.PERFORMANCE?.DEBOUNCE_DELAY ?? 150, 150);
@@ -251,6 +279,7 @@ const updateIcon = debounce(async (tabId) => {
         const isPausedForDomain = await blockerEngine.isDomainDisabled(domain);
         const iconPath = isPausedForDomain ? EXTENSION_CONFIG.ICONS.DISABLED : EXTENSION_CONFIG.ICONS.DEFAULT;
         const badgeText = isPausedForDomain ? '⏸' : '';
+        const badgeBg = isPausedForDomain ? [120, 120, 120, 255] : [0, 0, 0, 0];
 
         // Redundante Updates vermeiden
         const prev = state.tabIconCache.get(tabId);
@@ -259,6 +288,8 @@ const updateIcon = debounce(async (tabId) => {
         }
         if (!prev || prev.badgeText !== badgeText) {
             await chrome.action.setBadgeText({ text: badgeText, tabId });
+            // Badge-Hintergrundfarbe passend zum Status setzen
+            await chrome.action.setBadgeBackgroundColor({ color: badgeBg, tabId });
         }
 
         state.tabIconCache.set(tabId, { domain, iconPath, badgeText });
@@ -370,6 +401,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         try {
             let result;
 
+            // Eingehende Nachricht validieren
+            if (!ALLOWED_COMMANDS.has(message?.command) || !isTrustedSender(sender)) {
+                throw new Error('Untrusted or unknown message');
+            }
+
             switch (message.command) {
                 case 'getPopupData':
                     result = await MessageHandler.handleGetPopupData();
@@ -378,7 +414,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                     result = await MessageHandler.handleGetState(sender);
                     break;
                 case 'toggleDomainState':
-                    result = await MessageHandler.handleToggleDomainState(message);
+                    // Payload absichern und validieren
+                    const safeMessage = {
+                        domain: String(message.domain || ''),
+                        isPaused: Boolean(message.isPaused)
+                    };
+                    validateTogglePayload(safeMessage);
+                    result = await MessageHandler.handleToggleDomainState(safeMessage);
                     break;
                 default:
                     throw new Error(`Unknown command: ${message.command}`);

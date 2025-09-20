@@ -1,7 +1,7 @@
 /**
  * @file core/ruleParser.js
  * @description Umfassender Regelparser mit erweiterter Syntaxvalidierung.
- * @version 10.5
+ * @version 11.0
 
  */
 

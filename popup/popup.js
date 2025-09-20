@@ -1,7 +1,7 @@
 /**
  * @file popup.js
  * @description Popup-Oberfläche für Pagy Blocker
- * @version 10.5
+ * @version 11.0
  */
 
 import { EXTENSION_CONFIG } from '../core/config.js';
@@ -173,11 +173,11 @@ class PagyPopup {
                 const blockedCount = blockedRequests || 0;
                 this.elements.blockedCountEl.textContent = blockedCount.toLocaleString();
                 
-                // Add animation effect for count changes
-                this.elements.blockedCountEl.style.transform = 'scale(1.1)';
-                setTimeout(() => {
-                    this.elements.blockedCountEl.style.transform = 'scale(1)';
-                }, 200);
+                // Add animation effect for count changes using CSS class
+                this.elements.blockedCountEl.classList.remove('bump');
+                // Force reflow to restart animation
+                void this.elements.blockedCountEl.offsetWidth;
+                this.elements.blockedCountEl.classList.add('bump');
             }
             
             // Update runtime display
@@ -199,7 +199,7 @@ class PagyPopup {
                         <small class="detail-muted">⚡ Session aktiv seit ${Math.floor(runtime / 60000)}min</small>
                     </div>
                 `;
-                this.elements.statsEl.style.display = 'block';
+                this.elements.statsEl.classList.add('is-visible');
             }
         }
     }

@@ -1,7 +1,7 @@
 /**
  * @file core/utilities.js
  * @description Zentrale Hilfsfunktionen für Pagy Blocker
- * @version 10.5
+ * @version 11.0
  */
 
 import { EXTENSION_CONFIG } from './config.js';

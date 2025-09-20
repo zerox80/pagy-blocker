@@ -1,7 +1,7 @@
 /**
  * @file content.js
  * @description Content Script für Pagy Blocker - Status-Updates und Monitoring
- * @version 10.5
+ * @version 11.0
  */
 
 import { contentLogger } from '../core/logger.js';

@@ -1,18 +1,24 @@
 {
     "manifest_version": 3,
     "name": "Pagy Blocker",
-    "version": "10.5",
+    "version": "11.0",
     "description": "Effizienter Werbeblocker für Chrome mit nativer declarativeNetRequest API für bessere Performance und Privatsphäre.",
     "author": "Pagy Team",
     "permissions": ["storage", "declarativeNetRequest", "declarativeNetRequestFeedback", "tabs"],
-    "host_permissions": ["<all_urls>"],
+    "host_permissions": [
+        "http://*/*",
+        "https://*/*"
+    ],
     "background": {
         "service_worker": "background/background.js",
         "type": "module"
     },
     "content_scripts": [
         {
-            "matches": ["<all_urls>"],
+            "matches": [
+                "http://*/*",
+                "https://*/*"
+            ],
             "js": ["content/content-wrapper.js"],
             "run_at": "document_start"
         }
@@ -43,10 +49,13 @@
                 "core/utilities.js",
                 "core/config.js"
             ],
-            "matches": ["<all_urls>"]
+            "matches": [
+                "http://*/*",
+                "https://*/*"
+            ]
         }
     ],
     "content_security_policy": {
-        "extension_pages": "script-src 'self'; object-src 'none'; base-uri 'self';"
+        "extension_pages": "script-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none';"
     }
 }

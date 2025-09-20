@@ -1,7 +1,7 @@
 /**
  * @file popup.css
  * @description Minimal, modern dark UI for Pagy Blocker
- * @version 10.5
+ * @version 11.0
  */
 
 /* Dark theme tokens */
@@ -104,7 +104,8 @@ body {
 .stat-item { text-align: center; background: var(--surface-2); border-radius: var(--r-sm); padding: 6px 4px; border: 1px solid var(--border); }
 .stat-value { font-size: 14px; font-weight: 700; color: var(--text-strong); }
 .stat-label { font-size: 10px; color: var(--text-dim); text-transform: uppercase; letter-spacing: .3px; }
-.detailed-stats { margin-top: 6px; color: var(--text-dim); font-size: 11px; }
+.detailed-stats { margin-top: 6px; color: var(--text-dim); font-size: 11px; display: none; }
+.detailed-stats.is-visible { display: block; }
 .detail-muted { color: var(--text-dim); font-size: 11px; }
 
 /* Footer */
@@ -122,6 +123,16 @@ body {
 
 /* Motion */
 @keyframes pulse { 0%,100%{ transform: scale(1); opacity: 1;} 50%{ transform: scale(1.15); opacity:.8;} }
+
+/* Bump animation for numbers (replaces inline styles) */
+@keyframes bump {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+  100% { transform: scale(1); }
+}
+.bump {
+  animation: bump var(--t-med) var(--easing) 1;
+}
 
 /* Responsive */
 @media (max-width: 400px){
