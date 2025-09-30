@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'; script-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none';">
+    <meta http-equiv="X-Content-Type-Options" content="nosniff">
+    <title>Pagy Blocker</title>
+    <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header with modern gradient -->
+        <div class="header-section">
+            <div class="logo-container">
+                <div class="shield-icon">🛡️</div>
+                <div class="brand-info">
+                    <h1 class="app-title">Pagy Blocker</h1>
+                    <span class="version-tag" id="version-text">v</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Control Card -->
+        <div class="control-card">
+            <div class="status-section">
+                <div class="status-info">
+                    <div class="status-badge">
+                        <span class="status-dot"></span>
+                        <span id="status-text" class="status-label">Status wird geladen...</span>
+                    </div>
+                    <div class="domain-info">
+                        <span class="domain-label">Domain:</span>
+                        <span id="domain-text" class="domain-value">...</span>
+                    </div>
+                </div>
+                
+                <div class="toggle-section">
+                    <div class="toggle-container">
+                        <input type="checkbox" id="enable-switch" class="modern-toggle" disabled>
+                        <label for="enable-switch" class="toggle-label">
+                            <span class="toggle-slider">
+                                <span class="toggle-knob"></span>
+                            </span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Statistics Card -->
+        <div class="stats-card">
+            <div class="stats-header">
+                <div class="stats-icon">📊</div>
+                <h3 class="stats-title">Statistiken</h3>
+            </div>
+            
+            <div class="stats-grid">
+                <div class="stat-item">
+                    <div class="stat-value" id="blocked-count">0</div>
+                    <div class="stat-label">Blockiert</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="filter-count">...</div>
+                    <div class="stat-label">Filter</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="runtime-display">0s</div>
+                    <div class="stat-label">Laufzeit</div>
+                </div>
+            </div>
+            
+            <div id="stats" class="detailed-stats"></div>
+        </div>
+
+        <!-- Footer -->
+        <div class="footer-section">
+            <div class="performance-indicator">
+                <div class="pulse-dot"></div>
+                <span class="performance-text">Extension aktiv</span>
+            </div>
+        </div>
+    </div>
+    <script type="module" src="popup.js"></script>
+</body>
+</html>

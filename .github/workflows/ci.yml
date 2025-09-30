@@ -1,0 +1,104 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: [16.x, 18.x, 20.x]
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ matrix.node-version }}
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Run tests
+      run: npm test
+
+    - name: Run coverage (optional)
+      run: npm run test:coverage
+
+    - name: Build filters
+      run: npm run build:filters
+
+    - name: Check filter compilation
+      run: |
+        node -e "const fs=require('fs');const p='filter_lists/filter_precompiled.json';if(!fs.existsSync(p)){console.error('Filter compilation failed: file missing');process.exit(1);}const a=JSON.parse(fs.readFileSync(p,'utf8'));if(!Array.isArray(a)){console.error('Invalid filter file format');process.exit(1);}console.log('Compiled',a.length,'filter rules');"
+
+  lint:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: 18.x
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Run ESLint (if available)
+      run: |
+        if command -v eslint &> /dev/null; then
+          npx eslint core/ background/ content/ popup/ tools/ --ext .js,.mjs
+        else
+          echo "ESLint not configured, skipping lint check"
+        fi
+      continue-on-error: true
+
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: 18.x
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Build extension
+      run: npm run build
+
+    - name: Validate manifest.json
+      run: |
+        if ! jq empty manifest.json; then
+          echo "Invalid manifest.json"
+          exit 1
+        fi
+        echo "manifest.json is valid"
+
+    - name: Check for required files
+      run: |
+        REQUIRED_FILES=("manifest.json" "background/background.js" "popup/popup.html" "popup/popup.js")
+        for file in "${REQUIRED_FILES[@]}"; do
+          if [ ! -f "$file" ]; then
+            echo "Missing required file: $file"
+            exit 1
+          fi
+        done
+        echo "All required files present"

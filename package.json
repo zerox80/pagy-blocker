@@ -1,0 +1,32 @@
+{
+  "name": "pagy-blocker-devtools",
+  "version": "11.0.0",
+  "private": true,
+  "description": "Build tools for Pagy Blocker",
+  "type": "module",
+  "scripts": {
+    "build:filters": "node tools/precompile-filters.mjs",
+    "dedupe:filters": "node tools/dedupe-filters.mjs",
+    "dedupe:filters:inplace": "node tools/dedupe-filters.mjs --in-place",
+    "build": "npm run build:filters",
+    "test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest",
+    "test:watch": "cross-env NODE_OPTIONS=--experimental-vm-modules jest --watch",
+    "test:coverage": "cross-env NODE_OPTIONS=--experimental-vm-modules jest --coverage",
+    "lint": "eslint core/ background/ content/ popup/ tools/ --ext .js,.mjs",
+    "lint:fix": "npm run lint -- --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "engines": {
+    "node": ">=16"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "jest-environment-jsdom": "^29.7.0",
+    "cross-env": "^7.0.3",
+    "eslint": "^8.57.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-jest": "^27.9.0",
+    "prettier": "^3.3.3"
+  }
+}
