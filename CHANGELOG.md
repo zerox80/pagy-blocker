@@ -1,5 +1,10 @@
 # Changelog
 
+## 11.1 (2025-10-09)
+
+- Version bump to `11.1` in `manifest.json`, `package.json`, and `core/config.js`.
+- Updated `@version` headers across source files to match 11.1.
+
 ## 11.0 (2025-09-20)
 
 - Version bump to `11.0` in `manifest.json` and central config `core/config.js` (`EXTENSION_CONFIG.VERSION`).

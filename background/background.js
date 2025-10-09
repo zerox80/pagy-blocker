@@ -1,7 +1,7 @@
 /**
  * @file background.js
  * @description Service Worker für Pagy Blocker - Domain-basierte Filtersteuerung
- * @version 11.0
+ * @version 11.1
  */
 
 import { EXTENSION_CONFIG, RULE_CONFIG } from '../core/config.js';

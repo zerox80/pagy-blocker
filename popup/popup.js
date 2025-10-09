@@ -1,7 +1,7 @@
 /**
  * @file popup.js
  * @description Popup-Oberfläche für Pagy Blocker
- * @version 11.0
+ * @version 11.1
  */
 
 import { EXTENSION_CONFIG } from '../core/config.js';

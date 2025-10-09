@@ -1,13 +1,13 @@
 /**
  * @file core/config.js
  * @description Zentrale Konfiguration für Pagy Blocker
- * @version 11.0
+ * @version 11.1
  */
 
 // Extension configuration
 export const EXTENSION_CONFIG = Object.freeze({
     NAME: 'Pagy Blocker',
-    VERSION: '11.0',
+    VERSION: '11.1',
     STORAGE_KEYS: {
         DISABLED_DOMAINS: 'disabledDomains',
         USER_SETTINGS: 'userSettings',

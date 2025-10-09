@@ -1,7 +1,7 @@
 /**
  * @file content-wrapper.js
  * @description Content Script Wrapper für ES Module Support
- * @version 11.0
+ * @version 11.1
  */
 
 // Dynamic import of the ES module content script

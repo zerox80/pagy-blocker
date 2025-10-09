@@ -1,7 +1,7 @@
 /**
  * @file blocker-engine.js
  * @description Schlanke Werbeblocker-Engine auf Basis von Chromes declarativeNetRequest API
- * @version 11.0
+ * @version 11.1
  */
 
 import { getDomainFromUrl as utilGetDomainFromUrl, isValidDomain as utilIsValidDomain } from './utilities.js';

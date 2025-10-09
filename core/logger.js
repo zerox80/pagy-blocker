@@ -1,7 +1,7 @@
 /**
  * @file core/logger.js
  * @description Zentrales Loggingsystem für Pagy Blocker
- * @version 11.0
+ * @version 11.1
  */
 
 import { LOG_CONFIG as IMPORTED_LOG_CONFIG } from './config.js';

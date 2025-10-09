@@ -1,7 +1,7 @@
 /**
  * @file core/storage.js
  * @description Speicher-Abstraktionsschicht für Pagy Blocker
- * @version 11.0
+ * @version 11.1
  */
 
 import { EXTENSION_CONFIG } from './config.js';
