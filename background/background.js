@@ -1,6 +1,5 @@
 /**
- * @file background.js
- * @description Service Worker für Pagy Blocker - Domain-basierte Filtersteuerung
+ * @file Service Worker for Pagy Blocker - Domain-based filter control.
  * @version 11.1
  */
 
@@ -9,25 +8,41 @@ import { backgroundLogger } from '../core/logger.js';
 import { debounce, PerformanceTimer } from '../core/utilities.js';
 import { blockerEngine } from '../core/blocker-engine.js';
 
-// Vorberechnete, gewünschte Ressourcentypen für dynamische Allow-Regeln (ohne main_frame)
+/**
+ * Pre-calculated resource types for dynamic allow rules (excluding main_frame).
+ * @const {string[]}
+ */
 const DYNAMIC_RESOURCE_TYPES = (RULE_CONFIG.RESOURCE_TYPES || []).filter(t => t !== 'main_frame');
+/**
+ * Set of pre-calculated resource types for efficient lookups.
+ * @const {Set<string>}
+ */
 const DYNAMIC_RESOURCE_TYPES_SET = new Set(DYNAMIC_RESOURCE_TYPES);
 
-// Zugelassene Nachrichten-Befehle strikt einschränken
+/**
+ * Set of allowed message commands.
+ * @const {Set<string>}
+ */
 const ALLOWED_COMMANDS = new Set(['getPopupData', 'getState', 'toggleDomainState']);
 
-// Vertrauenswürdige Sender erkennen (eigene Inhalte oder Extension-Pages)
+/**
+ * Checks if a message sender is trusted.
+ * @param {object} sender - The sender of the message.
+ * @returns {boolean} True if the sender is trusted, false otherwise.
+ */
 function isTrustedSender(sender) {
     try {
-        // Nachrichten sind vertrauenswürdig, wenn sie aus diesem Addon stammen
-        // oder von einem Tab (Content Script) innerhalb des Browsers kommen
         return !!(sender && (sender.id === chrome.runtime.id || sender.tab));
     } catch (_) {
         return false;
     }
 }
 
-// Validierung für Toggle-Payload
+/**
+ * Validates the payload for a toggle command.
+ * @param {object} message - The message payload to validate.
+ * @throws {Error} If the payload is invalid.
+ */
 function validateTogglePayload(message) {
     if (typeof message !== 'object' || message === null) {
         throw new Error('Invalid message payload');
@@ -41,27 +56,37 @@ function validateTogglePayload(message) {
     }
 }
 
-// Reaktives, aber nicht übertriebenes Debounce für Icon-Updates
+/**
+ * Debounce time for icon updates in milliseconds.
+ * @const {number}
+ */
 const ICON_DEBOUNCE_MS = Math.min(EXTENSION_CONFIG.PERFORMANCE?.DEBOUNCE_DELAY ?? 150, 150);
 
-// Zustandsverwaltung
+/**
+ * Manages the state of the background script.
+ */
 class BackgroundState {
+    /**
+     * Constructs a new BackgroundState instance.
+     */
     constructor() {
         this.precompiledFilterCount = 0;
         this.isInitialized = false;
         this.activeOperations = new Set();
         this.iconUpdateQueue = new Map();
-        // Cache zuletzt gesetzter Icon-/Badge-States pro Tab zur Vermeidung redundanter Updates
         this.tabIconCache = new Map(); // tabId -> { domain, iconPath, badgeText }
     }
 
+    /**
+     * Initializes the background state.
+     * @returns {Promise<void>}
+     */
     async initialize() {
         if (this.isInitialized) return;
 
         const timer = new PerformanceTimer('Background initialization');
         
         try {
-            // Blocker-Engine initialisieren
             await blockerEngine.initialize();
             
             await this.initializeFilterCount();
@@ -71,7 +96,6 @@ class BackgroundState {
             this.isInitialized = true;
             backgroundLogger.info('Background script initialized successfully');
             
-            // Performance-Werte protokollieren
             const stats = await blockerEngine.getStats();
             backgroundLogger.info('Blocker stats:', stats);
         } catch (error) {
@@ -82,9 +106,12 @@ class BackgroundState {
         }
     }
 
+    /**
+     * Initializes the filter count from the pre-compiled rules.
+     * @returns {Promise<void>}
+     */
     async initializeFilterCount() {
         try {
-            // Bevorzugt das vor-kompilierte JSON-Regelset (wird von DNR aus dem Manifest geladen)
             const resp = await fetch(chrome.runtime.getURL('/filter_lists/filter_precompiled.json'));
             if (resp.ok) {
                 const json = await resp.json();
@@ -95,7 +122,6 @@ class BackgroundState {
         } catch (e) {
             backgroundLogger.warn('Failed to load JSON rules, will try TXT fallback', { error: e?.message });
         }
-        // Fallback: Anzahl aus der TXT-Datei ermitteln
         try {
             const filterRules = await blockerEngine.loadFilterRules();
             this.precompiledFilterCount = Array.isArray(filterRules) ? filterRules.length : 0;
@@ -106,14 +132,16 @@ class BackgroundState {
         }
     }
 
+    /**
+     * Initializes the storage for disabled domains.
+     * @returns {Promise<void>}
+     */
     async initializeStorage() {
         try {
-            // Speicher für deaktivierte Domains initialisieren (no-op, falls nicht verfügbar)
             const disabledDomains = await blockerEngine.getDisabledDomains();
             backgroundLogger.debug('Storage initialized', { disabledDomainsCount: disabledDomains.length });
         } catch (error) {
             backgroundLogger.error('Failed to initialize storage', { error: error.message });
-            // Bei Fehlern mit leerem Array initialisieren
             await blockerEngine.setDisabledDomains([]);
         }
     }
@@ -121,23 +149,24 @@ class BackgroundState {
 
 const state = new BackgroundState();
 
-// Verwaltung dynamischer Regeln (Diff-basiert, vermeidet Full-Replace)
+/**
+ * Manages dynamic rules in a diff-based manner to avoid full replacement.
+ * @returns {Promise<void>}
+ */
 const updateDynamicRules = async () => {
     const operationId = 'updateDynamicRules';
     
-    // Gleichzeitige Ausführungen verhindern
     if (state.activeOperations.has(operationId)) {
         backgroundLogger.debug('Dynamic rules update already in progress');
         return;
     }
     
     state.activeOperations.add(operationId);
-    const timer = new PerformanceTimer('Dynamische Regeln aktualisieren');
+    const timer = new PerformanceTimer('Update dynamic rules');
     
     try {
         const disabledDomains = await blockerEngine.getDisabledDomains();
         
-        // Domains validieren
         const validDomains = disabledDomains
             .filter(domain => blockerEngine.isValidDomain(domain))
             .slice(0, EXTENSION_CONFIG.LIMITS.MAX_DYNAMIC_RULES);
@@ -149,7 +178,6 @@ const updateDynamicRules = async () => {
             });
         }
 
-        // Aktuelle dynamische Regeln lesen und in Map ablegen
         const existingRules = await chrome.declarativeNetRequest.getDynamicRules();
         const domainToRule = new Map();
         const usedIds = new Set();
@@ -159,7 +187,6 @@ const updateDynamicRules = async () => {
             const initiators = rule?.condition?.initiatorDomains;
             const actionType = rule?.action?.type;
             const priority = rule?.priority;
-            // Nur unsere eigenen Allow-Regeln berücksichtigen
             if (
                 Array.isArray(initiators) &&
                 initiators.length === 1 &&
@@ -173,19 +200,15 @@ const updateDynamicRules = async () => {
         const desired = new Set(validDomains);
         const existing = new Set(domainToRule.keys());
 
-        // Für dynamische Allow-Regeln die Ressourcentypen ohne main_frame verwenden (vorberechnet)
         const dynamicResourceTypes = DYNAMIC_RESOURCE_TYPES;
 
-        // Zu entfernende Regeln = existieren, aber nicht mehr gewünscht
         const rulesToRemove = [];
         for (const domain of existing) {
             if (!desired.has(domain)) {
                 rulesToRemove.push(domainToRule.get(domain).id);
             } else {
-                // Falls sich die Ressourcentypen geändert haben, neu anlegen
                 const rule = domainToRule.get(domain);
                 const rt = Array.isArray(rule?.condition?.resourceTypes) ? rule.condition.resourceTypes : [];
-                // Reihenfolge-unabhängiger Vergleich der Ressourcentypen zur Vermeidung unnötiger Updates
                 const rtSet = new Set(rt);
                 const sameRT = rtSet.size === DYNAMIC_RESOURCE_TYPES_SET.size && [...DYNAMIC_RESOURCE_TYPES_SET].every(t => rtSet.has(t));
                 if (!sameRT) {
@@ -195,10 +218,8 @@ const updateDynamicRules = async () => {
             }
         }
 
-        // Zu ergänzende Regeln = gewünscht, aber nicht vorhanden
         const rulesToAdd = [];
 
-        // Kleine Hilfsfunktion: kleinste freie ID finden
         const nextFreeId = () => {
             let id = 1;
             while (usedIds.has(id)) id++;
@@ -227,10 +248,6 @@ const updateDynamicRules = async () => {
             });
         }
 
-        // Hinweis: Automatisches Neuladen von Tabs entfernt, um ungewollte Reloads zu vermeiden.
-        // Die Erweiterung funktioniert ohne erzwungenes Neuladen – Content Scripts
-        // und dynamische Regeln greifen automatisch.
-
         backgroundLogger.info('Dynamic rules updated', {
             removed: rulesToRemove.length,
             added: rulesToAdd.length
@@ -248,10 +265,13 @@ const updateDynamicRules = async () => {
     }
 };
 
-// updateDynamicRules in die State-Klasse hängen
 state.updateDynamicRules = updateDynamicRules;
 
-// Icon-Aktualisierung mit Debounce
+/**
+ * Updates the extension icon with debouncing.
+ * @param {number} tabId - The ID of the tab to update the icon for.
+ * @returns {Promise<void>}
+ */
 const updateIcon = debounce(async (tabId) => {
     const operationId = `updateIcon-${tabId}`;
     
@@ -270,7 +290,6 @@ const updateIcon = debounce(async (tabId) => {
         const tab = await chrome.tabs.get(tabId);
         const domain = blockerEngine.getDomainFromUrl(tab.url);
 
-        // Für Nicht-Web-URLs das Standard-Icon verwenden
         if (!domain) {
             await chrome.action.setIcon({ path: EXTENSION_CONFIG.ICONS.DEFAULT, tabId });
             return;
@@ -281,14 +300,12 @@ const updateIcon = debounce(async (tabId) => {
         const badgeText = isPausedForDomain ? '⏸' : '';
         const badgeBg = isPausedForDomain ? [120, 120, 120, 255] : [0, 0, 0, 0];
 
-        // Redundante Updates vermeiden
         const prev = state.tabIconCache.get(tabId);
         if (!prev || prev.domain !== domain || prev.iconPath !== iconPath) {
             await chrome.action.setIcon({ path: iconPath, tabId });
         }
         if (!prev || prev.badgeText !== badgeText) {
             await chrome.action.setBadgeText({ text: badgeText, tabId });
-            // Badge-Hintergrundfarbe passend zum Status setzen
             await chrome.action.setBadgeBackgroundColor({ color: badgeBg, tabId });
         }
 
@@ -297,23 +314,27 @@ const updateIcon = debounce(async (tabId) => {
         backgroundLogger.debug('Icon updated', { tabId, domain, isPaused: isPausedForDomain });
         
     } catch (error) {
-        // Tab existiert ggf. nicht mehr – normal beim schnellen Wechseln
         if (!error.message.includes('No tab with id')) {
             backgroundLogger.error('Failed to update icon', { tabId, error: error.message });
         }
     } finally {
         state.activeOperations.delete(operationId);
     }
-}, ICON_DEBOUNCE_MS); // Icon-Updates entprellen
+}, ICON_DEBOUNCE_MS);
 
-// Nachrichten-Handler mit verbesserter Fehlerbehandlung
+/**
+ * Handles incoming messages with improved error handling.
+ */
 class MessageHandler {
+    /**
+     * Handles the 'getPopupData' command.
+     * @returns {Promise<object>} A promise that resolves to the popup data.
+     */
     static async handleGetPopupData() {
         const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
         const domain = blockerEngine.getDomainFromUrl(activeTab?.url);
         const isPaused = domain ? await blockerEngine.isDomainDisabled(domain) : false;
         
-        // Erweiterte Blockier-Statistiken abfragen
         const stats = await blockerEngine.getStats();
         
         return {
@@ -324,6 +345,11 @@ class MessageHandler {
         };
     }
 
+    /**
+     * Handles the 'getState' command.
+     * @param {object} sender - The sender of the message.
+     * @returns {Promise<object>} A promise that resolves to the state data.
+     */
     static async handleGetState(sender) {
         const domain = blockerEngine.getDomainFromUrl(sender.tab?.url);
         if (!domain) {
@@ -334,6 +360,13 @@ class MessageHandler {
         return { isPaused, domain };
     }
 
+    /**
+     * Handles the 'toggleDomainState' command.
+     * @param {object} options - The options for toggling the domain state.
+     * @param {string} options.domain - The domain to toggle.
+     * @param {boolean} options.isPaused - The new paused state.
+     * @returns {Promise<object>} A promise that resolves to an object indicating success.
+     */
     static async handleToggleDomainState({ domain, isPaused }) {
         if (!domain || !blockerEngine.isValidDomain(domain)) {
             throw new Error('Invalid domain provided');
@@ -350,7 +383,6 @@ class MessageHandler {
 
             await updateDynamicRules();
 
-            // Alle Content Scripts über den Zustandswechsel informieren
             const tabs = await chrome.tabs.query({});
             const notificationPromises = tabs
                 .filter(tab => blockerEngine.getDomainFromUrl(tab.url) === domain)
@@ -361,13 +393,12 @@ class MessageHandler {
                             isPaused: isPaused
                         });
                     } catch (e) {
-                        // Tab existiert ggf. nicht mehr oder lädt gerade
+                        // Tab may no longer exist or is still loading.
                     }
                 });
 
             await Promise.allSettled(notificationPromises);
 
-            // Nur den aktuell aktiven Tab im aktuellen Fenster neu laden
             try {
                 const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
                 if (activeTab?.id && activeTab?.url) {
@@ -382,7 +413,6 @@ class MessageHandler {
                     }
                 }
             } catch (e) {
-                // Ausführliche Fehlerinformation protokollieren
                 backgroundLogger.error('Active tab reload failed', { 
                     error: e?.message, 
                     stack: e?.stack 
@@ -401,7 +431,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         try {
             let result;
 
-            // Eingehende Nachricht validieren
             if (!ALLOWED_COMMANDS.has(message?.command) || !isTrustedSender(sender)) {
                 throw new Error('Untrusted or unknown message');
             }
@@ -414,7 +443,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                     result = await MessageHandler.handleGetState(sender);
                     break;
                 case 'toggleDomainState':
-                    // Payload absichern und validieren
                     const safeMessage = {
                         domain: String(message.domain || ''),
                         isPaused: Boolean(message.isPaused)
@@ -438,7 +466,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
 });
 
-// Ereignis-Listener
 chrome.runtime.onInstalled.addListener(async (details) => {
     backgroundLogger.info('Extension installed/updated', { reason: details.reason });
 
@@ -460,7 +487,6 @@ chrome.runtime.onStartup.addListener(async () => {
     }
 });
 
-// Tab-Listener mit robuster Fehlerbehandlung
 chrome.tabs.onActivated.addListener((activeInfo) => {
     updateIcon(activeInfo.tabId);
 });
@@ -471,12 +497,10 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
     }
 });
 
-// Tabs aus Cache entfernen, wenn sie geschlossen werden
 chrome.tabs.onRemoved.addListener((tabId) => {
     state.tabIconCache.delete(tabId);
 });
 
-// Sofort initialisieren, falls der Service Worker bereits läuft
 (async () => {
     try {
         await state.initialize();

@@ -1,6 +1,5 @@
 /**
- * @file core/utilities.js
- * @description Zentrale Hilfsfunktionen für Pagy Blocker
+ * @file Central utility functions for Pagy Blocker.
  * @version 11.1
  */
 
@@ -10,7 +9,9 @@ import { createLogger } from './logger.js';
 const logger = createLogger('Utilities');
 
 /**
- * Extrahiert sicher die Domain aus einer URL mit umfassender Validierung
+ * Safely extracts the domain from a URL with comprehensive validation.
+ * @param {string} url - The URL to extract the domain from.
+ * @returns {string|null} The extracted domain or null if the URL is invalid.
  */
 export function getDomainFromUrl(url) {
     if (!url || typeof url !== 'string') {
@@ -21,44 +22,40 @@ export function getDomainFromUrl(url) {
         const parsedUrl = new URL(url.startsWith('http') ? url : `https://${url}`);
         const hostname = parsedUrl.hostname.toLowerCase();
         
-        // Zusätzliche Validierung
         if (!isValidDomain(hostname)) {
             return null;
         }
         
         return hostname;
     } catch (error) {
-        // Ungültige URL protokollieren (Debug)
         logger.debug('Invalid URL provided', { url, error: error.message });
         return null;
     }
 }
 
 /**
- * Validiert Domains über eine zeichenbasierte Prüfung (ReDoS-sicher)
+ * Validates domains using character-based checks (ReDoS-safe).
+ * @param {string} domain - The domain to validate.
+ * @returns {boolean} True if the domain is valid, false otherwise.
  */
 export function isValidDomain(domain) {
     if (!domain || typeof domain !== 'string') {
         return false;
     }
 
-    // Längenprüfungen
     if (domain.length > EXTENSION_CONFIG.LIMITS.MAX_DOMAIN_LENGTH) {
         return false;
     }
 
-    // Grundlegende Formatprüfungen
     if (domain.includes('..') || domain.startsWith('.') || domain.endsWith('.')) {
         return false;
     }
 
-    // Sicherheitsprüfung für localhost und private IPs
     const suspiciousDomains = ['localhost', '127.0.0.1', '0.0.0.0', '::1'];
     if (suspiciousDomains.includes(domain)) {
         return false;
     }
 
-    // Aufteilen und jedes Label prüfen
     const labels = domain.split('.');
     if (labels.length < 2) {
         return false;
@@ -69,9 +66,7 @@ export function isValidDomain(domain) {
             return false;
         }
         
-        // Zeichenprüfung anhand einer Allowlist
         for (let i = 0; i < label.length; i++) {
-            // Erlaubt werden a-z, A-Z, 0-9, -
             const charCode = label.charCodeAt(i);
             if (!((charCode >= 97 && charCode <= 122) || // a-z
                   (charCode >= 65 && charCode <= 90) || // A-Z
@@ -86,7 +81,11 @@ export function isValidDomain(domain) {
 }
 
 /**
- * Prüft einen String gegen einen erlaubten Zeichensatz (ReDoS-sicher)
+ * Validates a string against an allowed character set (ReDoS-safe).
+ * @param {string} input - The string to validate.
+ * @param {string} allowedChars - A string of allowed characters.
+ * @param {number} [maxLength=EXTENSION_CONFIG.LIMITS.MAX_URL_LENGTH] - The maximum allowed length.
+ * @returns {{isValid: boolean, error?: string}} An object indicating if the string is valid and an error message if not.
  */
 export function validateStringChars(input, allowedChars, maxLength = EXTENSION_CONFIG.LIMITS.MAX_URL_LENGTH) {
     if (!input || typeof input !== 'string') {
@@ -107,7 +106,10 @@ export function validateStringChars(input, allowedChars, maxLength = EXTENSION_C
 }
 
 /**
- * Debounce-Funktion zur Performance-Optimierung
+ * Debounce function for performance optimization.
+ * @param {Function} func - The function to debounce.
+ * @param {number} [delay=EXTENSION_CONFIG.PERFORMANCE.DEBOUNCE_DELAY] - The debounce delay in milliseconds.
+ * @returns {Function} The debounced function.
  */
 export function debounce(func, delay = EXTENSION_CONFIG.PERFORMANCE.DEBOUNCE_DELAY) {
     let timeoutId;
@@ -120,7 +122,10 @@ export function debounce(func, delay = EXTENSION_CONFIG.PERFORMANCE.DEBOUNCE_DEL
 }
 
 /**
- * Throttle-Funktion zur Begrenzung der Aufrufrate
+ * Throttle function to limit the rate of function calls.
+ * @param {Function} func - The function to throttle.
+ * @param {number} limit - The throttle limit in milliseconds.
+ * @returns {Function} The throttled function.
  */
 export function throttle(func, limit) {
     let inThrottle;
@@ -134,20 +139,24 @@ export function throttle(func, limit) {
 }
 
 /**
- * Sicheres Parsen von JSON mit Fehlerbehandlung
+ * Safely parses JSON with error handling.
+ * @param {string} jsonString - The JSON string to parse.
+ * @param {*} [fallback=null] - The value to return on parsing failure.
+ * @returns {*} The parsed JSON object or the fallback value.
  */
 export function safeJsonParse(jsonString, fallback = null) {
     try {
         return JSON.parse(jsonString);
     } catch (error) {
-        // Warnung bei fehlgeschlagenem JSON-Parsing
         logger.warn('JSON parsing failed', { jsonString, error: error.message });
         return fallback;
     }
 }
 
 /**
- * Tiefes Klonen eines Objekts (sicher)
+ * Deeply clones an object.
+ * @param {*} obj - The object to clone.
+ * @returns {*} The cloned object.
  */
 export function deepClone(obj) {
     if (obj === null || typeof obj !== 'object') {
@@ -173,7 +182,11 @@ export function deepClone(obj) {
 }
 
 /**
- * Wiederholungsmechanismus für asynchrone Operationen
+ * Retry mechanism for asynchronous operations.
+ * @param {Function} fn - The asynchronous function to retry.
+ * @param {number} [maxRetries=3] - The maximum number of retries.
+ * @param {number} [delay=1000] - The delay between retries in milliseconds.
+ * @returns {Promise<*>} A promise that resolves with the result of the function.
  */
 export async function retryAsync(fn, maxRetries = 3, delay = 1000) {
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
@@ -184,7 +197,6 @@ export async function retryAsync(fn, maxRetries = 3, delay = 1000) {
                 throw error;
             }
             
-            // Hinweis bei fehlgeschlagenem Versuch
             logger.debug(`Retry attempt ${attempt} failed`, { error: error.message });
             await new Promise(resolve => setTimeout(resolve, delay * attempt));
         }
@@ -192,24 +204,32 @@ export async function retryAsync(fn, maxRetries = 3, delay = 1000) {
 }
 
 /**
- * Werkzeug zur Messung von Ausführungszeiten
+ * Tool for measuring execution times.
  */
 export class PerformanceTimer {
+    /**
+     * Constructs a new PerformanceTimer instance.
+     * @param {string} label - The label for the timer.
+     */
     constructor(label) {
         this.label = label;
         this.startTime = performance.now();
     }
 
+    /**
+     * Ends the timer and logs the duration.
+     * @returns {number} The duration in milliseconds.
+     */
     end() {
         const duration = performance.now() - this.startTime;
-        // Zeitmessung protokollieren
         logger.debug(`Performance: ${this.label}`, { duration: `${duration.toFixed(2)}ms` });
         return duration;
     }
 }
 
 /**
- * Überwachung der Speicherauslastung
+ * Monitors memory usage.
+ * @returns {{used: number, total: number, limit: number}|null} An object with memory usage information or null if not available.
  */
 export function getMemoryUsage() {
     if (typeof performance !== 'undefined' && performance.memory) {
@@ -223,7 +243,9 @@ export function getMemoryUsage() {
 }
 
 /**
- * Nutzer-Eingaben bereinigen (XSS-Prävention)
+ * Sanitizes user input (XSS prevention).
+ * @param {string} input - The input string to sanitize.
+ * @returns {string} The sanitized string.
  */
 export function sanitizeInput(input) {
     if (typeof input !== 'string') {
@@ -242,11 +264,12 @@ export function sanitizeInput(input) {
             }
         })
         .trim()
-        .slice(0, 1000); // Maximale Länge begrenzen
+        .slice(0, 1000); // Limit maximum length
 }
 
 /**
- * Eindeutige ID erzeugen
+ * Generates a unique ID.
+ * @returns {string} A unique ID.
  */
 export function generateId() {
     const rand = Math.random().toString(36).slice(2, 11);
@@ -254,12 +277,11 @@ export function generateId() {
 }
 
 /**
- * Prüfen, ob der Erweiterungs-Kontext gültig ist
+ * Checks if the extension context is valid.
+ * @returns {boolean} True if the context is valid, false otherwise.
  */
 export function isExtensionContextValid() {
     try {
-        // Gültig, wenn eine Runtime vorhanden ist und entweder eine ID
-        // oder zumindest getURL (z. B. in Testumgebungen) verfügbar ist
         return !!(
             typeof chrome !== 'undefined' &&
             chrome?.runtime &&
@@ -271,7 +293,11 @@ export function isExtensionContextValid() {
 }
 
 /**
- * Batch-Verarbeitung eines Arrays mit Parallelitätskontrolle
+ * Batch processes an array with concurrency control.
+ * @param {*[]} items - The array of items to process.
+ * @param {Function} processor - The function to process each item.
+ * @param {number} [batchSize=EXTENSION_CONFIG.PERFORMANCE.BATCH_SIZE] - The batch size.
+ * @returns {Promise<*[]>} A promise that resolves to an array of processed items.
  */
 export async function batchProcess(items, processor, batchSize = EXTENSION_CONFIG.PERFORMANCE.BATCH_SIZE) {
     const results = [];
@@ -281,7 +307,6 @@ export async function batchProcess(items, processor, batchSize = EXTENSION_CONFI
         const batchResults = await Promise.all(batch.map(processor));
         results.push(...batchResults);
         
-        // Steuerung kurz abgeben, um Blocking zu vermeiden
         if (i + batchSize < items.length) {
             await new Promise(resolve => setTimeout(resolve, 0));
         }
