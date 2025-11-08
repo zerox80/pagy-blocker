@@ -1,11 +1,13 @@
 /**
- * @file core/ruleParser.js
- * @description Umfassender Regelparser mit erweiterter Syntaxvalidierung.
+ * @file Comprehensive rule parser with advanced syntax validation.
  * @version 11.1
-
  */
 
-// SICHERHEIT: Erkennt URL-codierte Angriffsvektoren.
+/**
+ * Detects URL-encoded attack vectors.
+ * @param {string} input - The string to check.
+ * @returns {boolean} True if the input contains an encoded attack, false otherwise.
+ */
 function isEncodedAttack(input) {
     const dangerousEncodedPatterns = [
         '%3c%73%63%72%69%70%74', // <script
@@ -26,7 +28,10 @@ function isEncodedAttack(input) {
     return dangerousEncodedPatterns.some((pattern) => lowerInput.includes(pattern));
 }
 
-// Filteroptions-Validierung
+/**
+ * Set of valid filter options.
+ * @const {Set<string>}
+ */
 const VALID_OPTIONS = new Set([
     'script',
     'image',
@@ -50,11 +55,13 @@ const VALID_OPTIONS = new Set([
 ]);
 
 /**
- * Verbesserte Domain-Säuberung mit strengerer Validierung.
+ * Improved domain sanitization with stricter validation.
+ * @param {string} domain - The domain to sanitize.
+ * @returns {{isValid: boolean, error?: string, domain?: string}} An object indicating if the domain is valid, an error message if not, and the sanitized domain.
  */
 function sanitizeDomain(domain) {
     if (!domain || typeof domain !== 'string') {
-        return { isValid: false, error: 'Domain muss ein nicht leerer String sein' };
+        return { isValid: false, error: 'Domain must be a non-empty string' };
     }
     const cleaned = domain
         .replace(/[<>'"(){}[\]\\]/g, '')
@@ -69,17 +76,19 @@ function sanitizeDomain(domain) {
         cleaned.includes('0.0.0.0') ||
         cleaned.includes('::1')
     ) {
-        return { isValid: false, error: 'Domain enthält verdächtige Muster' };
+        return { isValid: false, error: 'Domain contains suspicious patterns' };
     }
     return { isValid: true, domain: cleaned };
 }
 
 /**
- * Verbesserte Validierung von URL-Filtermustern mit ReDoS-Schutz.
+ * Improved URL filter pattern validation with ReDoS protection.
+ * @param {string} pattern - The URL pattern to validate.
+ * @returns {{isValid: boolean, error?: string, type?: string}} An object indicating if the pattern is valid, an error message if not, and the pattern type.
  */
 export function validateURLPattern(pattern) {
     if (!pattern || typeof pattern !== 'string') {
-        return { isValid: false, error: 'Muster muss ein nicht leerer String sein' };
+        return { isValid: false, error: 'Pattern must be a non-empty string' };
     }
     const dangerousPatterns = [
         '<script',
@@ -148,7 +157,7 @@ export function validateURLPattern(pattern) {
     const lowerPattern = pattern.toLowerCase();
     for (const dangerous of dangerousPatterns) {
         if (lowerPattern.includes(dangerous.toLowerCase())) {
-            return { isValid: false, error: `Muster enthält gefährlichen Inhalt: ${dangerous}` };
+            return { isValid: false, error: `Pattern contains dangerous content: ${dangerous}` };
         }
     }
     const forbiddenChars = [
@@ -168,20 +177,22 @@ export function validateURLPattern(pattern) {
     ];
     for (const char of forbiddenChars) {
         if (pattern.includes(char)) {
-            return { isValid: false, error: `Muster enthält verbotenes Steuerzeichen` };
+            return { isValid: false, error: `Pattern contains forbidden control character` };
         }
     }
     if (pattern.includes('%') && isEncodedAttack(pattern)) {
-        return { isValid: false, error: 'Muster enthält codierten Angriffsvektor' };
+        return { isValid: false, error: 'Pattern contains encoded attack vector' };
     }
     if (pattern.length > 500) {
-        return { isValid: false, error: 'Muster überschreitet die maximale Länge (500 Zeichen)' };
+        return { isValid: false, error: 'Pattern exceeds maximum length (500 characters)' };
     }
     return { isValid: true, type: 'network' };
 }
 
 /**
- * Validiert Filteroptionen (z.B. $script,third-party).
+ * Validates filter options (e.g., $script,third-party).
+ * @param {string} options - The filter options to validate.
+ * @returns {{isValid: boolean, parsedOptions: object[], errors: string[]}} An object indicating if the options are valid, the parsed options, and any errors.
  */
 export function validateFilterOptions(options) {
     if (!options) {
@@ -195,7 +206,7 @@ export function validateFilterOptions(options) {
         const baseOption = isNegated ? option.slice(1) : option;
         if (baseOption.startsWith('domain=')) {
             if (isNegated) {
-                errors.push('Die Option "domain" darf nicht negiert werden.');
+                errors.push('The "domain" option cannot be negated.');
             } else {
                 const domainValues = [];
                 const domains = baseOption.slice(7).split('|');
@@ -207,7 +218,7 @@ export function validateFilterOptions(options) {
                         const testResult = sanitizeDomain(cleanDomainName);
                         if (!testResult.isValid) {
                             errors.push(
-                                `Ungültige Domain in den Optionen: ${cleanDomainName} - ${testResult.error}`
+                                `Invalid domain in options: ${cleanDomainName} - ${testResult.error}`
                             );
                         } else {
                             domainValues.push({ name: testResult.domain, negated: isDomainNegated });
@@ -221,7 +232,7 @@ export function validateFilterOptions(options) {
         } else if (VALID_OPTIONS.has(baseOption)) {
             parsedOptions.push({ type: 'filter', value: baseOption, negated: isNegated });
         } else {
-            errors.push(`Unbekannte Filteroption: ${baseOption}`);
+            errors.push(`Unknown filter option: ${baseOption}`);
         }
     }
     return {
@@ -232,7 +243,9 @@ export function validateFilterOptions(options) {
 }
 
 /**
- * Verbesserter Regelparser mit umfassender Validierung.
+ * Improved rule parser with comprehensive validation.
+ * @param {string} rule - The rule to parse.
+ * @returns {object|null} The parsed rule object or null if the rule is invalid.
  */
 export function parseRule(rule) {
     if (!rule || typeof rule !== 'string') {
@@ -245,7 +258,6 @@ export function parseRule(rule) {
     if (normalizedRule.startsWith('!') || normalizedRule.startsWith('[')) {
         return null;
     }
-    // Kosmetische Filter werden nicht mehr unterstützt.
     if (
         normalizedRule.includes('##') ||
         normalizedRule.includes('#@#') ||
@@ -263,7 +275,9 @@ export function parseRule(rule) {
 }
 
 /**
- * Parst Regeln für die Netzwerkfilterung.
+ * Parses network filtering rules.
+ * @param {string} rule - The network rule to parse.
+ * @returns {object|null} The parsed rule object or null if the rule is invalid.
  */
 function parseNetworkRule(rule) {
     const isException = rule.startsWith('@@');

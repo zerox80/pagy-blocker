@@ -1,21 +1,24 @@
-// core/ruleValidator.js
-// Thin ES-module wrapper that re-exports the legacy validator implementation.
-// New code should import from "core/ruleValidator". This lets us gradually
-// refactor the heavy validator without breaking existing callers.
-
 /**
- * JSON-Regelvalidierungsmodul für Pagy Blocker
+ * @file JSON rule validation module for Pagy Blocker.
+ * @version 1.0
  *
- * Bietet umfassende Validierung für vorkompilierte JSON-Regelstrukturen
- * Stellt die Regelintegrität sicher, validiert erforderliche Felder und überprüft die
- * Konformität mit den Anforderungen der declarativeNetRequest-API von Chrome.
+ * Provides comprehensive validation for pre-compiled JSON rule structures,
+ * ensuring rule integrity, validating required fields, and checking for
+ * conformance with Chrome's declarativeNetRequest API requirements.
  */
 
-// Validierungskonstanten
+/**
+ * Validation constants.
+ * @const {object}
+ */
 export const VALIDATION_CONFIG = {
+    /** Maximum rule ID. */
     MAX_RULE_ID: 300000,
+    /** Maximum rule priority. */
     MAX_PRIORITY: 2147483647,
+    /** Valid action types. */
     VALID_ACTION_TYPES: ['block', 'allow', 'redirect', 'upgradeScheme', 'modifyHeaders'],
+    /** Valid resource types. */
     VALID_RESOURCE_TYPES: [
         'main_frame',
         'sub_frame',
@@ -33,32 +36,38 @@ export const VALIDATION_CONFIG = {
         'webbundle',
         'other',
     ],
+    /** Maximum length of a URL filter. */
     MAX_URL_FILTER_LENGTH: 2000,
+    /** Maximum number of rules. */
     MAX_RULES_COUNT: 30000,
+    /** Validation timeout in milliseconds. */
     VALIDATION_TIMEOUT_MS: 10000,
 };
 
 /**
- * Validiert die grundlegende Struktur einer einzelne Regel
+ * Validates the basic structure of a single rule.
+ * @param {object} rule - The rule object to validate.
+ * @param {number} index - The index of the rule in the ruleset.
+ * @returns {{isValid: boolean, errors: string[]}} An object indicating if the rule is valid and a list of errors.
  */
 export function validateRuleStructure(rule, index) {
     const errors = [];
     if (!rule || typeof rule !== 'object' || Array.isArray(rule)) {
         return {
             isValid: false,
-            errors: [`Regel an Index ${index} muss ein Objekt sein`],
+            errors: [`Rule at index ${index} must be an object`],
         };
     }
     const requiredFields = ['id', 'priority', 'action', 'condition'];
     for (const field of requiredFields) {
         if (!(field in rule)) {
-            errors.push(`Regel an Index ${index} fehlt das erforderliche Feld: ${field}`);
+            errors.push(`Rule at index ${index} is missing required field: ${field}`);
         }
     }
     if ('id' in rule) {
         if (!Number.isInteger(rule.id) || rule.id < 1 || rule.id > VALIDATION_CONFIG.MAX_RULE_ID) {
             errors.push(
-                `Regel an Index ${index} hat eine ungültige ID: ${rule.id}. Muss eine ganze Zahl zwischen 1 und ${VALIDATION_CONFIG.MAX_RULE_ID} sein`
+                `Rule at index ${index} has an invalid ID: ${rule.id}. Must be an integer between 1 and ${VALIDATION_CONFIG.MAX_RULE_ID}`
             );
         }
     }
@@ -69,20 +78,20 @@ export function validateRuleStructure(rule, index) {
             rule.priority > VALIDATION_CONFIG.MAX_PRIORITY
         ) {
             errors.push(
-                `Regel an Index ${index} hat eine ungültige Priorität: ${rule.priority}. Muss eine ganze Zahl zwischen 1 und ${VALIDATION_CONFIG.MAX_PRIORITY} sein`
+                `Rule at index ${index} has an invalid priority: ${rule.priority}. Must be an integer between 1 and ${VALIDATION_CONFIG.MAX_PRIORITY}`
             );
         }
     }
     if ('action' in rule) {
         if (!rule.action || typeof rule.action !== 'object') {
-            errors.push(`Regel an Index ${index} Aktion muss ein Objekt sein`);
+            errors.push(`Rule at index ${index} action must be an object`);
         } else {
             if (
                 !rule.action.type ||
                 !VALIDATION_CONFIG.VALID_ACTION_TYPES.includes(rule.action.type)
             ) {
                 errors.push(
-                    `Regel an Index ${index} hat einen ungültigen Aktionstyp: ${rule.action.type}. Muss einer von folgenden sein: ${VALIDATION_CONFIG.VALID_ACTION_TYPES.join(', ')}`
+                    `Rule at index ${index} has an invalid action type: ${rule.action.type}. Must be one of: ${VALIDATION_CONFIG.VALID_ACTION_TYPES.join(', ')}`
                 );
             }
         }
@@ -98,14 +107,17 @@ export function validateRuleStructure(rule, index) {
 }
 
 /**
- * Validiert das Bedingungsobjekt einer Regel
+ * Validates the condition object of a rule.
+ * @param {object} condition - The condition object to validate.
+ * @param {number} ruleIndex - The index of the rule in the ruleset.
+ * @returns {{isValid: boolean, errors: string[]}} An object indicating if the condition is valid and a list of errors.
  */
 export function validateRuleCondition(condition, ruleIndex) {
     const errors = [];
     if (!condition || typeof condition !== 'object') {
         return {
             isValid: false,
-            errors: [`Regel an Index ${ruleIndex} Bedingung muss ein Objekt sein`],
+            errors: [`Rule at index ${ruleIndex} condition must be an object`],
         };
     }
     if ('urlFilter' in condition) {
@@ -117,12 +129,12 @@ export function validateRuleCondition(condition, ruleIndex) {
             new RegExp(condition.regexFilter);
         } catch (error) {
             errors.push(
-                `Regel an Index ${ruleIndex} hat einen ungültigen regexFilter: ${error.message}`
+                `Rule at index ${ruleIndex} has an invalid regexFilter: ${error.message}`
             );
         }
         if (condition.regexFilter.length > VALIDATION_CONFIG.MAX_URL_FILTER_LENGTH) {
             errors.push(
-                `Regel an Index ${ruleIndex} regexFilter zu lang: ${condition.regexFilter.length} Zeichen. Maximal: ${VALIDATION_CONFIG.MAX_URL_FILTER_LENGTH}`
+                `Rule at index ${ruleIndex} regexFilter is too long: ${condition.regexFilter.length} characters. Maximum: ${VALIDATION_CONFIG.MAX_URL_FILTER_LENGTH}`
             );
         }
     }
@@ -141,12 +153,12 @@ export function validateRuleCondition(condition, ruleIndex) {
     for (const field of domainFields) {
         if (field in condition) {
             if (!Array.isArray(condition[field])) {
-                errors.push(`Regel an Index ${ruleIndex} condition.${field} muss ein Array sein`);
+                errors.push(`Rule at index ${ruleIndex} condition.${field} must be an array`);
             } else {
                 for (const domain of condition[field]) {
                     if (typeof domain !== 'string' || domain.length === 0) {
                         errors.push(
-                            `Regel an Index ${ruleIndex} condition.${field} enthält eine ungültige Domain: ${domain}`
+                            `Rule at index ${ruleIndex} condition.${field} contains an invalid domain: ${domain}`
                         );
                     }
                 }
@@ -160,26 +172,28 @@ export function validateRuleCondition(condition, ruleIndex) {
 }
 
 /**
- * Validiert das URL-Filtermuster
+ * Validates the URL filter pattern.
+ * @param {string} urlFilter - The URL filter to validate.
+ * @param {number} ruleIndex - The index of the rule in the ruleset.
+ * @returns {{isValid: boolean, errors: string[]}} An object indicating if the URL filter is valid and a list of errors.
  */
 export function validateUrlFilter(urlFilter, ruleIndex) {
     const errors = [];
     if (typeof urlFilter !== 'string') {
-        errors.push(`Regel an Index ${ruleIndex} urlFilter muss eine Zeichenfolge sein`);
+        errors.push(`Rule at index ${ruleIndex} urlFilter must be a string`);
         return { isValid: false, errors };
     }
     if (urlFilter.length === 0) {
-        errors.push(`Regel an Index ${ruleIndex} urlFilter darf nicht leer sein`);
+        errors.push(`Rule at index ${ruleIndex} urlFilter cannot be empty`);
     }
     if (urlFilter.length > VALIDATION_CONFIG.MAX_URL_FILTER_LENGTH) {
         errors.push(
-            `Regel an Index ${ruleIndex} urlFilter zu lang: ${urlFilter.length} Zeichen. Maximal: ${VALIDATION_CONFIG.MAX_URL_FILTER_LENGTH}`
+            `Rule at index ${ruleIndex} urlFilter is too long: ${urlFilter.length} characters. Maximum: ${VALIDATION_CONFIG.MAX_URL_FILTER_LENGTH}`
         );
     }
-        // eslint-disable-next-line no-control-regex
     const invalidChars = urlFilter.match(/[\u0000-\u001F\u007F]/);
     if (invalidChars) {
-        errors.push(`Regel an Index ${ruleIndex} urlFilter enthält ungültige Steuerzeichen`);
+        errors.push(`Rule at index ${ruleIndex} urlFilter contains invalid control characters`);
     }
     return {
         isValid: errors.length === 0,
@@ -188,27 +202,30 @@ export function validateUrlFilter(urlFilter, ruleIndex) {
 }
 
 /**
- * Validiert das Ressourcentyp-Array
+ * Validates the resource types array.
+ * @param {string[]} resourceTypes - The array of resource types to validate.
+ * @param {number} ruleIndex - The index of the rule in the ruleset.
+ * @returns {{isValid: boolean, errors: string[]}} An object indicating if the resource types are valid and a list of errors.
  */
 export function validateResourceTypes(resourceTypes, ruleIndex) {
     const errors = [];
     if (!Array.isArray(resourceTypes)) {
         return {
             isValid: false,
-            errors: [`Regel an Index ${ruleIndex} resourceTypes muss ein Array sein`],
+            errors: [`Rule at index ${ruleIndex} resourceTypes must be an array`],
         };
     }
     if (resourceTypes.length === 0) {
-        errors.push(`Regel an Index ${ruleIndex} resourceTypes darf nicht leer sein`);
+        errors.push(`Rule at index ${ruleIndex} resourceTypes cannot be empty`);
     }
     for (const resourceType of resourceTypes) {
         if (typeof resourceType !== 'string') {
             errors.push(
-                `Regel an Index ${ruleIndex} resourceType muss eine Zeichenfolge sein: ${resourceType}`
+                `Rule at index ${ruleIndex} resourceType must be a string: ${resourceType}`
             );
         } else if (!VALIDATION_CONFIG.VALID_RESOURCE_TYPES.includes(resourceType)) {
             errors.push(
-                `Regel an Index ${ruleIndex} ungültiger resourceType: ${resourceType}. Gültige Typen: ${VALIDATION_CONFIG.VALID_RESOURCE_TYPES.join(', ')}`
+                `Rule at index ${ruleIndex} has an invalid resourceType: ${resourceType}. Valid types are: ${VALIDATION_CONFIG.VALID_RESOURCE_TYPES.join(', ')}`
             );
         }
     }

@@ -1,6 +1,5 @@
 /**
- * @file blocker-engine.js
- * @description Schlanke Werbeblocker-Engine auf Basis von Chromes declarativeNetRequest API
+ * @file Blocker engine based on Chrome's declarativeNetRequest API.
  * @version 11.1
  */
 
@@ -12,28 +11,34 @@ import { createLogger } from './logger.js';
 const engineLogger = createLogger('Engine');
 
 /**
- * Zentrale Blocker-Engine, die Chromes native declarativeNetRequest API nutzt
+ * Core blocker engine using Chrome's native declarativeNetRequest API.
  */
 export class BlockerEngine {
+    /**
+     * Constructs a new BlockerEngine instance.
+     */
     constructor() {
         this.isInitialized = false;
         this.startTime = Date.now();
         this.filterRules = [];
-        // Cache für deaktivierte Domains (beschleunigt häufige Nachfragen)
+        /** @private @type {string[]|null} */
         this._disabledDomains = null;
+        /** @private @type {Set<string>|null} */
         this._disabledDomainsSet = null;
+        /** @private */
         this._storageListenerAttached = false;
-        // Leichter Stats-Cache, um wiederholte teure Abfragen zu vermeiden
+        /** @private */
         this._statsCache = { time: 0, blockedRequests: 0 };
-        // Promise-basiertes Lock für Domain-Änderungen
+        /** @private */
         this._domainLock = Promise.resolve();
-        // Zentrale Storage-Instanz
+        /** @private */
         this._storage = new StorageManager();
     }
 
     /**
-     * Erwirbt das Lock, um atomare Domain-Änderungen sicherzustellen.
-     * @returns {Promise<Function>} Eine Promise, die zu einer release-Funktion auflöst.
+     * Acquires a lock to ensure atomic domain changes.
+     * @private
+     * @returns {Promise<Function>} A promise that resolves to a release function.
      */
     _acquireLock() {
         let release;
@@ -45,14 +50,16 @@ export class BlockerEngine {
         return oldLock.then(() => release);
     }
 
+    /**
+     * Initializes the blocker engine.
+     * @returns {Promise<boolean>} A promise that resolves to true if initialization is successful, false otherwise.
+     */
     async initialize() {
         const initStart = Date.now();
         
         try {
-            // Filterregeln laden (nur zur Anzeige/Zählung)
             this.filterRules = await this.loadFilterRules();
 
-            // Storage-Listener nur einmal registrieren
             if (!this._storageListenerAttached && chrome?.storage?.onChanged) {
                 try {
                     const DISABLED_KEY = EXTENSION_CONFIG.STORAGE_KEYS.DISABLED_DOMAINS;
@@ -66,26 +73,25 @@ export class BlockerEngine {
                     });
                     this._storageListenerAttached = true;
                 } catch (_) {
-                    // Listener optional – keine harten Abhängigkeiten
+                    // Listener is optional, no hard dependencies.
                 }
             }
             
             this.isInitialized = true;
             
             const initTime = Date.now() - initStart;
-            // Hinweis zur Initialisierungsdauer
             engineLogger.info(`Blocker engine initialized in ${initTime.toFixed(2)}ms`);
             
             return true;
         } catch (error) {
-            // Fehlermeldung bei gescheiterter Initialisierung
             engineLogger.error('Failed to initialize blocker engine', { error: error.message });
             return false;
         }
     }
 
     /**
-     * Liefert zusammengefasste Sperr-/Blockierstatistiken
+     * Retrieves blocking and filtering statistics.
+     * @returns {Promise<object>} A promise that resolves to an object with statistics.
      */
     async getStats() {
         if (!this.isInitialized) {
@@ -100,7 +106,6 @@ export class BlockerEngine {
         const runtime = Date.now() - this.startTime;
         let blockedCount = 0;
 
-        // Kurzer TTL-Cache (1.5s), reduziert Last bei schnellen UI-Updates
         const now = Date.now();
         if (now - this._statsCache.time < 1500) {
             return {
@@ -111,7 +116,6 @@ export class BlockerEngine {
             };
         }
         
-        // Methode 1: Echte Daten über Chromes declarativeNetRequest API abrufen
         try {
             if (typeof chrome?.declarativeNetRequest?.getMatchedRules === 'function') {
                 const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -126,9 +130,6 @@ export class BlockerEngine {
             engineLogger.debug('Chrome DNR API unavailable', { error: error.message });
         }
 
-        // Die Zählung basiert nun ausschließlich auf der getMatchedRules API.
-        // Die Schätzung wurde entfernt, um die Code-Komplexität zu reduzieren
-        // und eine irreführende, ungenaue Statistik zu vermeiden.
         const result = {
             initialized: true,
             filterCount: this.filterRules.length,
@@ -136,22 +137,32 @@ export class BlockerEngine {
             blockedRequests: blockedCount
         };
 
-        // Cache aktualisieren
         this._statsCache = { time: now, blockedRequests: blockedCount };
         return result;
     }
 
     /**
-     * Funktionen zur Domain-Verarbeitung
+     * Extracts the domain from a URL.
+     * @param {string} url - The URL to extract the domain from.
+     * @returns {string|null} The extracted domain or null if the URL is invalid.
      */
     getDomainFromUrl(url) {
         return utilGetDomainFromUrl(url);
     }
 
+    /**
+     * Checks if a domain is valid.
+     * @param {string} domain - The domain to validate.
+     * @returns {boolean} True if the domain is valid, false otherwise.
+     */
     isValidDomain(domain) {
         return utilIsValidDomain(domain);
     }
 
+    /**
+     * Retrieves the list of disabled domains.
+     * @returns {Promise<string[]>} A promise that resolves to an array of disabled domains.
+     */
     async getDisabledDomains() {
         const release = await this._acquireLock();
         try {
@@ -172,6 +183,11 @@ export class BlockerEngine {
         }
     }
 
+    /**
+     * Sets the list of disabled domains.
+     * @param {string[]} domains - An array of domains to disable.
+     * @returns {Promise<void>}
+     */
     async setDisabledDomains(domains) {
         const release = await this._acquireLock();
         try {
@@ -186,6 +202,11 @@ export class BlockerEngine {
         }
     }
 
+    /**
+     * Adds a domain to the list of disabled domains.
+     * @param {string} domain - The domain to add.
+     * @returns {Promise<void>}
+     */
     async addDisabledDomain(domain) {
         const release = await this._acquireLock();
         try {
@@ -204,6 +225,11 @@ export class BlockerEngine {
         }
     }
 
+    /**
+     * Removes a domain from the list of disabled domains.
+     * @param {string} domain - The domain to remove.
+     * @returns {Promise<void>}
+     */
     async removeDisabledDomain(domain) {
         const release = await this._acquireLock();
         try {
@@ -222,8 +248,12 @@ export class BlockerEngine {
         }
     }
 
+    /**
+     * Checks if a domain is disabled.
+     * @param {string} domain - The domain to check.
+     * @returns {Promise<boolean>} A promise that resolves to true if the domain is disabled, false otherwise.
+     */
     async isDomainDisabled(domain) {
-        // Schneller Lookup über Set
         if (!this._disabledDomainsSet) {
             await this.getDisabledDomains();
         }
@@ -231,10 +261,10 @@ export class BlockerEngine {
     }
 
     /**
-     * Lädt Filterregeln aus den mitgelieferten Dateien
+     * Loads filter rules from the packaged files.
+     * @returns {Promise<Array<object|string>>} A promise that resolves to an array of filter rules.
      */
     async loadFilterRules() {
-        // Bevorzugt das vor-kompilierte JSON (schneller, kleiner, MV3-freundlich)
         try {
             const response = await fetch(chrome.runtime.getURL('/filter_lists/filter_precompiled.json'));
             if (response.ok) {
@@ -245,7 +275,6 @@ export class BlockerEngine {
             engineLogger.warn('Could not load precompiled filter list', { error: error.message });
         }
 
-        // Fallback: optimierte Textliste für Notfälle (nur zur Anzeige/Zählung)
         try {
             const response = await fetch(chrome.runtime.getURL('/filter_lists/filter_optimized.txt'));
             if (response.ok) {
@@ -253,10 +282,10 @@ export class BlockerEngine {
                 const lines = text.split('\n')
                     .map(line => line.trim())
                     .filter(line => line &&
-                        !line.startsWith('!') && // Kommentare
-                        !line.startsWith('[') && // Metadaten
-                        !line.startsWith('@@') && // Ausnahmen
-                        !line.includes('##') && !line.includes('#@#') && !line.includes('#?#') // kosmetisch
+                        !line.startsWith('!') &&
+                        !line.startsWith('[') &&
+                        !line.startsWith('@@') &&
+                        !line.includes('##') && !line.includes('#@#') && !line.includes('#?#')
                     );
                 return lines;
             }
@@ -267,16 +296,22 @@ export class BlockerEngine {
         return [];
     }
 
+    /**
+     * Destroys the blocker engine instance.
+     */
     destroy() {
         this.isInitialized = false;
         this.filterRules = [];
         this._disabledDomains = null;
         this._disabledDomainsSet = null;
-        // Hinweis zur Bereinigung
         engineLogger.info('Blocker engine destroyed');
     }
 
-    // Interne Hilfsfunktion zur Cache-Aktualisierung
+    /**
+     * Updates the cache for disabled domains.
+     * @private
+     * @param {string[]} domains - An array of domains to cache.
+     */
     _updateDisabledDomainsCache(domains) {
         const list = Array.isArray(domains) ? domains.slice(0) : [];
         this._disabledDomains = list;

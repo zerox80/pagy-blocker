@@ -1,6 +1,5 @@
 /**
- * @file popup.js
- * @description Popup-Oberfläche für Pagy Blocker
+ * @file Popup UI for Pagy Blocker.
  * @version 11.1
  */
 
@@ -8,7 +7,13 @@ import { EXTENSION_CONFIG } from '../core/config.js';
 import { popupLogger } from '../core/logger.js';
 import { debounce, sanitizeInput, isValidDomain, isExtensionContextValid } from '../core/utilities.js';
 
+/**
+ * Manages the popup UI and its interactions.
+ */
 class PagyPopup {
+    /**
+     * Constructs a new PagyPopup instance.
+     */
     constructor() {
         this.elements = {
             enableSwitch: document.getElementById('enable-switch'),
@@ -31,9 +36,11 @@ class PagyPopup {
         this.init();
     }
 
+    /**
+     * Initializes the popup.
+     */
     init() {
         try {
-            // Version im Header synchronisieren
             if (this.elements.versionTextEl) {
                 this.elements.versionTextEl.textContent = `v${EXTENSION_CONFIG.VERSION}`;
             }
@@ -41,26 +48,29 @@ class PagyPopup {
             this.setupEventListeners();
             this.updateUI();
         } catch (error) {
-            // Initialisierung fehlgeschlagen – Fehlermeldung protokollieren
             popupLogger.error('Failed to initialize popup', { error: error.message });
-            this.showError('Initialisierungsfehler');
+            this.showError('Initialization Error');
         }
     }
 
+    /**
+     * Validates that all required DOM elements are present.
+     * @throws {Error} If a required element is not found.
+     */
     validateElements() {
         for (const [name, element] of Object.entries(this.elements)) {
             if (!element) {
-                // Pflicht-Element wurde im DOM nicht gefunden
                 throw new Error(`Required element not found: ${name}`);
             }
         }
     }
 
+    /**
+     * Sets up event listeners for the popup.
+     */
     setupEventListeners() {
         this.elements.enableSwitch.addEventListener('change', this.debouncedToggle);
 
-        // Auf Fokus erneut versuchen, falls vorher ein Fehler vorlag
-        // Speichere den Listener, damit er beim Aufräumen korrekt entfernt werden kann
         this._onWindowFocus = () => {
             if (!this.state.isUpdating) {
                 this.updateUI();
@@ -69,24 +79,25 @@ class PagyPopup {
         window.addEventListener('focus', this._onWindowFocus);
     }
 
+    /**
+     * Updates the UI with data from the background script.
+     * @returns {Promise<void>}
+     */
     async updateUI() {
         const maxRetries = 3;
         
         for (let attempt = 1; attempt <= maxRetries; attempt++) {
             try {
                 if (!isExtensionContextValid()) {
-                    // Erweiterungs-Kontext ungültig (z. B. beim schnellen Schließen)
                     throw new Error('Extension context invalid');
                 }
 
-                // Antwort vom Background-Script mit Timeout anfordern
                 const data = await Promise.race([
                     chrome.runtime.sendMessage({ command: 'getPopupData' }),
                     new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 2000))
                 ]);
                 
                 if (!data) {
-                    // Unerwartet: keine Daten vom Hintergrundskript
                     throw new Error('No data received from background script');
                 }
 
@@ -95,7 +106,7 @@ class PagyPopup {
                 }
 
                 this.renderUI(data);
-                this.state.retryCount = 0; // Zähler nach erfolgreichem Laden zurücksetzen
+                this.state.retryCount = 0;
                 popupLogger.debug('UI updated successfully', { domain: data.domain });
                 return;
                 
@@ -103,16 +114,19 @@ class PagyPopup {
                 popupLogger.warn(`UI update attempt ${attempt} failed`, { error: error.message });
                 
                 if (attempt === maxRetries) {
-                    this.showError('Fehler beim Laden der Daten');
+                    this.showError('Error loading data');
                     popupLogger.error('All UI update attempts failed', { error: error.message });
                 } else {
-                    // Kurz warten, dann erneut versuchen
                     await new Promise(resolve => setTimeout(resolve, 100 * attempt));
                 }
             }
         }
     }
 
+    /**
+     * Renders the UI with the provided data.
+     * @param {object} data - The data to render.
+     */
     renderUI(data) {
         const { isPaused, domain, filterCount } = data;
         this.state.currentDomain = domain;
@@ -125,38 +139,47 @@ class PagyPopup {
 
         this.updateFilterCount(filterCount);
         
-        // Blocker-Statistiken anzeigen (falls vorhanden)
         if (data.stats) {
             this.updateStats(data.stats);
         }
     }
 
+    /**
+     * Updates the UI for a valid domain.
+     * @param {string} domain - The domain to update for.
+     * @param {boolean} isPaused - Whether the blocker is paused for the domain.
+     */
     updateForValidDomain(domain, isPaused) {
         this.elements.enableSwitch.disabled = false;
         this.elements.enableSwitch.checked = !isPaused;
-        this.elements.statusText.textContent = isPaused ? 'Deaktiviert' : 'Aktiv';
+        this.elements.statusText.textContent = isPaused ? 'Disabled' : 'Active';
         this.elements.domainText.textContent = sanitizeInput(domain);
         
-        // Status-Badge optisch anpassen
         const statusBadge = this.elements.statusText.closest('.status-badge');
         if (statusBadge) {
             statusBadge.className = 'status-badge ' + (isPaused ? 'status-disabled' : 'status-active');
         }
     }
 
+    /**
+     * Updates the UI for an invalid domain.
+     */
     updateForInvalidDomain() {
         this.elements.enableSwitch.disabled = true;
         this.elements.enableSwitch.checked = false;
-        this.elements.statusText.textContent = 'Keine gültige Webseite';
-        this.elements.domainText.textContent = 'Nicht verfügbar';
+        this.elements.statusText.textContent = 'No valid website';
+        this.elements.domainText.textContent = 'Not available';
         
-        // Status-Badge optisch anpassen
         const statusBadge = this.elements.statusText.closest('.status-badge');
         if (statusBadge) {
             statusBadge.className = 'status-badge status-neutral';
         }
     }
 
+    /**
+     * Updates the filter count in the UI.
+     * @param {number} filterCount - The number of filters.
+     */
     updateFilterCount(filterCount) {
         const displayCount = typeof filterCount === 'number' 
             ? filterCount.toLocaleString() 
@@ -164,23 +187,23 @@ class PagyPopup {
         this.elements.filterCountEl.textContent = displayCount;
     }
 
+    /**
+     * Updates the stats in the UI.
+     * @param {object} stats - The stats to display.
+     */
     updateStats(stats) {
         const { initialized, runtime, blockedRequests } = stats;
         
         if (initialized) {
-            // Update blocked count
             if (this.elements.blockedCountEl) {
                 const blockedCount = blockedRequests || 0;
                 this.elements.blockedCountEl.textContent = blockedCount.toLocaleString();
                 
-                // Add animation effect for count changes using CSS class
                 this.elements.blockedCountEl.classList.remove('bump');
-                // Force reflow to restart animation
                 void this.elements.blockedCountEl.offsetWidth;
                 this.elements.blockedCountEl.classList.add('bump');
             }
             
-            // Update runtime display
             if (this.elements.runtimeDisplayEl) {
                 const runtimeSeconds = Math.floor(runtime / 1000);
                 const runtimeDisplay = runtimeSeconds < 60 ? 
@@ -192,11 +215,10 @@ class PagyPopup {
                 this.elements.runtimeDisplayEl.textContent = runtimeDisplay;
             }
             
-            // Detail-Infos anzeigen, wenn Werte vorliegen
             if (this.elements.statsEl && blockedRequests > 0) {
                 this.elements.statsEl.innerHTML = `
                     <div class="detailed-info">
-                        <small class="detail-muted">⚡ Session aktiv seit ${Math.floor(runtime / 60000)}min</small>
+                        <small class="detail-muted">⚡ Session active for ${Math.floor(runtime / 60000)}min</small>
                     </div>
                 `;
                 this.elements.statsEl.classList.add('is-visible');
@@ -204,6 +226,10 @@ class PagyPopup {
         }
     }
 
+    /**
+     * Handles the toggle switch change event.
+     * @returns {Promise<void>}
+     */
     async handleToggle() {
         if (!this.state.currentDomain || this.state.isUpdating) {
             popupLogger.debug('Toggle ignored', { 
@@ -224,7 +250,6 @@ class PagyPopup {
         try {
             this.setLoadingState();
 
-            // Toggle-Request mit Timeout absichern
             const response = await Promise.race([
                 chrome.runtime.sendMessage({
                     command: 'toggleDomainState',
@@ -238,13 +263,11 @@ class PagyPopup {
                 throw new Error(response.error);
             }
 
-            // Erfolgreich zwischen aktiviert/deaktiviert umgeschaltet
             popupLogger.info('Domain state toggled successfully', { 
                 domain: this.state.currentDomain,
                 newState: !this.elements.enableSwitch.checked ? 'disabled' : 'enabled'
             });
 
-            // Popup schließen, damit der aktive Tab ggf. neu laden kann, ohne Fokusprobleme
             try {
                 window.close();
             } catch (_) {}
@@ -256,21 +279,23 @@ class PagyPopup {
             });
             
             this.restoreState(originalState);
-            this.showError('Fehler beim Ändern des Status');
+            this.showError('Error changing status');
             
-            // UI nach kurzer Zeit zurücksetzen
             setTimeout(() => {
                 if (!this.state.isUpdating) {
                     this.updateUI();
                 }
             }, 2000);
         } finally {
-            // Sicherstellen, dass die UI nicht hängen bleibt, falls das Popup offen bleibt
             this.state.isUpdating = false;
             this.elements.enableSwitch.disabled = false;
         }
     }
 
+    /**
+     * Captures the current state of the UI.
+     * @returns {object} The current UI state.
+     */
     captureCurrentState() {
         return {
             statusText: this.elements.statusText.textContent,
@@ -280,12 +305,19 @@ class PagyPopup {
         };
     }
 
+    /**
+     * Sets the UI to a loading state.
+     */
     setLoadingState() {
-        this.elements.statusText.textContent = 'Wird geändert...';
+        this.elements.statusText.textContent = 'Changing...';
         this.elements.statusText.className = 'status-label status-updating';
         this.elements.enableSwitch.disabled = true;
     }
 
+    /**
+     * Restores the UI to a previous state.
+     * @param {object} state - The state to restore to.
+     */
     restoreState(state) {
         this.elements.statusText.textContent = state.statusText;
         this.elements.statusText.className = state.statusClass;
@@ -294,6 +326,10 @@ class PagyPopup {
         this.state.isUpdating = false;
     }
 
+    /**
+     * Displays an error message in the UI.
+     * @param {string} message - The error message to display.
+     */
     showError(message) {
         this.elements.statusText.textContent = sanitizeInput(message);
         this.elements.statusText.className = 'status-label status-error';
@@ -304,15 +340,14 @@ class PagyPopup {
         this.state.isUpdating = false;
     }
 
-    
-
-    // Aufräumen zur sauberen Ressourcenfreigabe
+    /**
+     * Cleans up resources to prevent memory leaks.
+     */
     destroy() {
         if (this.debouncedToggle) {
             this.debouncedToggle.cancel?.();
         }
         
-        // Event-Listener entfernen
         this.elements.enableSwitch?.removeEventListener('change', this.debouncedToggle);
         if (this._onWindowFocus) {
             window.removeEventListener('focus', this._onWindowFocus);
@@ -322,17 +357,14 @@ class PagyPopup {
     }
 }
 
-// Popup initialisieren, sobald der DOM geladen ist
 document.addEventListener('DOMContentLoaded', () => {
     try {
-        // Referenz behalten, um vor dem Unload aufzuräumen
         window.pagyPopup = new PagyPopup();
     } catch (error) {
         console.error('[Pagy Popup] Failed to initialize:', error);
     }
 });
 
-// Beim Unload aufräumen
 window.addEventListener('beforeunload', () => {
     if (window.pagyPopup) {
         window.pagyPopup.destroy();

@@ -2,115 +2,109 @@
 
 [![Chrome MV3](https://img.shields.io/badge/Chrome%20MV3-supported-brightgreen)](https://developer.chrome.com/docs/extensions/mv3/) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-Ein schneller, schlanker Werbeblocker für Chromium-Browser. Pagy Blocker nutzt die native [declarativeNetRequest API](https://developer.chrome.com/docs/extensions/reference/declarativeNetRequest/) (Manifest V3) für hervorragende Performance, geringe Speicherlast und maximale Privatsphäre – ohne Telemetrie oder externe Dienste.
-
-– Sprache: Deutsch
+A fast, lightweight ad blocker for Chromium browsers. Pagy Blocker utilizes the native [declarativeNetRequest API](https://developer.chrome.com/docs/extensions/reference/declarativeNetRequest/) (Manifest V3) for excellent performance, low memory usage, and maximum privacy – without telemetry or external services.
 
 ## Highlights
 
-- Performance: Statische, vor‑kompilierte Regeln (JSON) für schnelle Initialisierung und geringe CPU-/RAM‑Last.
-- MV3 nativ: Nutzt `declarativeNetRequest` ohne Content-Overhead oder WebRequest-Hooks.
-- Datenschutz: Keine Serveranfragen, kein Tracking, keine Telemetrie. Alles läuft lokal.
-- Einfache Steuerung: Domainweise aktivieren/deaktivieren direkt im Popup (mit Icon-/Badge‑Anzeige).
-- Saubere Regeln: Unterstützt ABP‑ähnliche Netzwerkregeln, kosmetische Filter werden bewusst nicht geladen.
-- Robuste Tools: Skripte zum Deduplizieren und Vor‑Kompilieren der Filterlisten enthalten.
+-   **Performance**: Static, pre-compiled rules (JSON) for fast initialization and low CPU/RAM usage.
+-   **MV3 Native**: Uses `declarativeNetRequest` without content script overhead or WebRequest hooks.
+-   **Privacy**: No server requests, no tracking, no telemetry. Everything runs locally.
+-   **Easy Control**: Enable/disable per domain directly in the popup (with icon/badge display).
+-   **Clean Rules**: Supports ABP-like network rules; cosmetic filters are deliberately not loaded.
+-   **Robust Tools**: Scripts for deduplicating and pre-compiling filter lists included.
 
-## Installation (manuell, aus dem Quellcode)
+## Manual Installation (from source code)
 
-1) [Repository](https://github.com/zerox80/pagy-blocker) herunterladen oder klonen.
-2) Optional: Filterliste bauen (empfohlen, wenn du `filter_optimized.txt` geändert hast):
+1.  Download or clone the [repository](https://github.com/zerox80/pagy-blocker).
+2.  Optionally build the filter list (recommended if you changed `filter_optimized.txt`):
+    ```bash
+    npm run build:filters
+    ```
+3.  Open `chrome://extensions` in Chrome/Chromium and enable Developer mode.
+4.  Choose "Load unpacked extension" and select the folder of this repository.
 
-```
-npm run build:filters
-```
+Done. The icon will appear in the toolbar. Use the popup to enable/disable Pagy Blocker per domain.
 
-3) In Chrome/Chromium `chrome://extensions` öffnen, Entwicklermodus aktivieren.
-4) „Entpackte Erweiterung laden“ wählen und den Ordner dieses Repos auswählen.
+## Usage
 
-Fertig. Das Symbol erscheint in der Toolbar. Über das Popup kannst du Pagy Blocker pro Domain ein-/ausschalten.
+-   **Open Popup**: Shows the status, current domain, filter count, and (conservative) block statistics.
+-   **Toggle per Domain**: The switch enables/disables filters for the active domain. The icon/badge shows the status.
+-   After toggling, the active tab may reload automatically to apply changes immediately.
 
-## Nutzung
+## How It Works
 
-- Popup öffnen: Zeigt Status, aktuelle Domain, Filteranzahl sowie eine (konservative) Block‑Statistik.
-- Umschalten pro Domain: Der Schalter aktiviert/deaktiviert die Filter für die aktive Domain. Das Icon/Badge zeigt den Status.
-- Nach Umschalten lädt der aktive Tab ggf. einmal neu, damit Änderungen sofort greifen.
+-   **Static Rules**: [`filter_lists/filter_precompiled.json`](filter_lists/filter_precompiled.json) is loaded as a DNR ruleset via [`manifest.json`](manifest.json).
+-   **Domain Pause**: When disabled for a domain, dynamic "ALLOW" rules are set (without `main_frame`) via [updateDynamicRules](https://developer.chrome.com/docs/extensions/reference/declarativeNetRequest/#method-updateDynamicRules), allowing requests from that domain to pass through.
+-   **Counts/Stats**: The popup uses [`declarativeNetRequest.getMatchedRules`](https://developer.chrome.com/docs/extensions/reference/declarativeNetRequest/#method-getMatchedRules) when available.
 
-## Wie es funktioniert
+## Maintaining Filter Lists
 
-- Statische Regeln: [`filter_lists/filter_precompiled.json`](filter_lists/filter_precompiled.json) wird über [`manifest.json`](manifest.json) als DNR‑Ruleset geladen.
-- Domain‑Pause: Beim Deaktivieren für eine Domain werden dynamische „ALLOW“-Regeln gesetzt (ohne `main_frame`) über [updateDynamicRules](https://developer.chrome.com/docs/extensions/reference/declarativeNetRequest/#method-updateDynamicRules), damit Anfragen dieser Domain ungehindert passieren.
-- Zählungen/Stats: Das Popup nutzt – falls verfügbar – [`declarativeNetRequest.getMatchedRules`](https://developer.chrome.com/docs/extensions/reference/declarativeNetRequest/#method-getMatchedRules) und zeigt andernfalls eine realistische, niedrige Schätzung an.
+The source list is located at [`filter_lists/filter_optimized.txt`](filter_lists/filter_optimized.txt).
 
-## Filterlisten pflegen
+-   Comments with `!` and metadata `[ ... ]` are ignored.
+-   Exception rules `@@` and cosmetic filters (`##`, `#@#`, `#?#`) are not included for MV3/DNR.
+-   Pure domain entries like `||example.com^` are compiled as fast domain rules.
+-   All other patterns are converted to RE2-safe regex DNR rules for typical resource types (without `main_frame`).
+-   The upper limit is approximately 30,000 rules (a hard limit in Chrome).
 
-Quellliste: [`filter_lists/filter_optimized.txt`](filter_lists/filter_optimized.txt)
+### Commands
 
-- Kommentare mit `!` und Metadaten `[ ... ]` werden ignoriert.
-- Ausnahme‑Regeln `@@` sowie kosmetische Filter (`##`, `#@#`, `#?#`) werden für MV3/DNR nicht übernommen.
-- Reine Domain‑Einträge wie `||example.com^` werden als schnelle Domain‑Regeln kompiliert.
-- Alle anderen Muster werden (RE2‑sicher) in Regex‑DNR‑Regeln konvertiert; nur typische Ressourcentypen (ohne `main_frame`).
-- Obergrenze: ca. 30.000 Regeln (hart begrenzt in Chrome, Datei wird entsprechend gekappt).
+-   Deduplicate/remove duplicates in the source list:
+    ```bash
+    npm run dedupe:filters -- --stats
+    ```
+-   Remove duplicates in-place:
+    ```bash
+    npm run dedupe:filters:inplace
+    ```
+-   Compile the list into DNR-JSON for the extension:
+    ```bash
+    npm run build:filters
+    ```
+    The output is `filter_lists/filter_precompiled.json`, which is loaded by the manifest.
 
-Befehle:
+## Development
 
-```
-# Duplikate in der Quellliste erkennen/entfernen
-npm run dedupe:filters -- --stats
+-   **Requirements**: Node.js >= 16 (for build scripts only); the extension does not require a build step at runtime.
+-   **Important Directories**:
+    -   [`background/`](background/): Service Worker (background logic, DNR updates, icon/badge status).
+    -   [`content/`](content/): Content Script for status/events.
+    -   [`popup/`](popup/): Popup UI (status, toggles, statistics).
+    -   [`core/`](core/): Configuration, Logger, Utilities, Blocker Engine.
+    -   [`filter_lists/`](filter_lists/): Filter source (`filter_optimized.txt`) and pre-compiled rules (`filter_precompiled.json`).
+    -   [`tools/`](tools/): Scripts for deduplicating and pre-compiling.
 
-# Duplikate in-place entfernen
-npm run dedupe:filters:inplace
+### Local Testing
 
-# Liste in DNR‑JSON kompilieren (für die Extension)
-npm run build:filters
-```
+1.  Rebuild the rules:
+    ```bash
+    npm run build:filters
+    ```
+2.  Reload the extension in `chrome://extensions`.
 
-Ausgabe: `filter_lists/filter_precompiled.json` (wird vom Manifest geladen).
+## Permissions
 
-## Entwicklung
+-   [`declarativeNetRequest`](https://developer.chrome.com/docs/extensions/reference/declarativeNetRequest/): Core of MV3 blocking (loads rules, blocks requests).
+-   [`declarativeNetRequestFeedback`](https://developer.chrome.com/docs/extensions/reference/declarativeNetRequest/): Provides match info for statistics in the popup.
+-   `storage`: Stores locally disabled domains and error logs (no telemetry).
+-   `tabs` + `"<all_urls>"`: Determines the domain/URL of the active tab and sets dynamic exception rules per domain.
 
-- Voraussetzungen: Node.js >= 16 (nur für die Build‑Skripte); die Extension benötigt keinen Build‑Step zur Laufzeit.
-- Wichtige Verzeichnisse:
-  - [`background/`](background/): Service Worker (Hintergrundlogik, DNR‑Updates, Icon/Badge‑Status)
-  - [`content/`](content/): Content‑Script für Status/Events
-  - [`popup/`](popup/): Popup‑UI (Status, Umschalter, Statistiken)
-  - [`core/`](core/): Konfiguration, Logger, Utilities, Blocker‑Engine
-  - [`filter_lists/`](filter_lists/): Filterquelle (`filter_optimized.txt`) und vor‑kompilierte Regeln (`filter_precompiled.json`)
-  - [`tools/`](tools/): Skripte zum Deduplizieren und Vor‑Kompilieren
+No communication with external servers occurs. See the privacy section for details.
 
-Lokales Testen:
+## Privacy
 
-```
-# Regeln neu bauen und Extension neu laden
-npm run build:filters
-```
+Transparency is central: There is no telemetry, no tracking, and no server communication. See [`DATENSCHUTZ.md`](DATENSCHUTZ.md) for all details.
 
-Anschließend in `chrome://extensions` die Erweiterung neu laden.
+## Troubleshooting
 
-## Berechtigungen (Warum?)
+-   **Popup shows "Error loading"**: Reload the extension in `chrome://extensions` and refresh the tab.
+-   **Filter count is 0**: Run `npm run build:filters` and reload the extension.
+-   **Toggle without effect**: After toggling, reload the active tab (this usually happens automatically).
 
-- [`declarativeNetRequest`](https://developer.chrome.com/docs/extensions/reference/declarativeNetRequest/): Kern der MV3‑Blockierung (lädt Regeln, blockiert Anfragen).
-- [`declarativeNetRequestFeedback`](https://developer.chrome.com/docs/extensions/reference/declarativeNetRequest/): Liefert (wo möglich) Match‑Infos für die Statistik im Popup.
-- `storage`: Speichert lokal deaktivierte Domains und Fehlerprotokolle (keine Telemetrie).
-- `tabs` + `"<all_urls>"`: Ermittelt Domain/URL des aktiven Tabs und setzt dynamische Ausnahmeregeln pro Domain.
+## Contributions
 
-Es findet keine Kommunikation mit externen Servern statt. Details siehe Datenschutz.
+Contributions are welcome! Please follow the guidelines in [`CONTRIBUTING.md`](CONTRIBUTING.md). Small, focused PRs are preferred. Please respect the behavior outlined in the [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md).
 
-## Datenschutz
+## License
 
-Transparenz ist zentral: Es gibt keine Telemetrie, kein Tracking, keine Serverkommunikation. Siehe [`DATENSCHUTZ.md`](DATENSCHUTZ.md) für alle Details.
-
-- Datei: [`DATENSCHUTZ.md`](DATENSCHUTZ.md)
-
-## Fehlerbehebung (Kurz)
-
-- Popup zeigt „Fehler beim Laden“: Extension in `chrome://extensions` neu laden und Tab aktualisieren.
-- Filteranzahl ist 0: `npm run build:filters` ausführen und die Extension neu laden.
-- Umschalten ohne Wirkung: Nach dem Umschalten den aktiven Tab neu laden (passiert meist automatisch).
-
-## Beiträge willkommen
-
-Richtlinien in [`CONTRIBUTING.md`](CONTRIBUTING.md). Kleine, fokussierte PRs bevorzugt. Bitte Verhalten in [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) beachten.
-
-## Lizenz
-
-MIT – siehe [`LICENSE`](LICENSE)
+MIT – see [`LICENSE`](LICENSE)

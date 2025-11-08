@@ -1,13 +1,18 @@
 /**
- * @file content.js
- * @description Content Script für Pagy Blocker - Status-Updates und Monitoring
+ * @file Content script for Pagy Blocker - status updates and monitoring.
  * @version 11.1
  */
 
 import { contentLogger } from '../core/logger.js';
 import { isExtensionContextValid, debounce } from '../core/utilities.js';
 
+/**
+ * Manages the content script's state and interactions.
+ */
 class PagyContentScript {
+    /**
+     * Constructs a new PagyContentScript instance.
+     */
     constructor() {
         this.state = {
             isPaused: false,
@@ -20,8 +25,10 @@ class PagyContentScript {
         this.init();
     }
 
+    /**
+     * Initializes the content script.
+     */
     init() {
-        // Initialize based on document ready state
         if (document.readyState === 'loading') {
             document.addEventListener('DOMContentLoaded', this.debouncedInitialize, { once: true });
         } else {
@@ -29,14 +36,15 @@ class PagyContentScript {
         }
     }
 
+    /**
+     * Sets up event listeners for messages and visibility changes.
+     */
     setupEventListeners() {
-        // Listen for messages from background script
         chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             this.handleMessage(message, sender, sendResponse);
-            return true; // Keep message channel open for async response
+            return true;
         });
 
-        // Handle page visibility changes
         document.addEventListener('visibilitychange', () => {
             if (!document.hidden && !this.state.isInitialized) {
                 this.debouncedInitialize();
@@ -44,6 +52,10 @@ class PagyContentScript {
         });
     }
 
+    /**
+     * Initializes the content script by getting the state from the background script.
+     * @returns {Promise<void>}
+     */
     async initialize() {
         try {
             if (!isExtensionContextValid()) {
@@ -51,7 +63,6 @@ class PagyContentScript {
                 return;
             }
 
-            // Try to get state from background with timeout
             const state = await Promise.race([
                 chrome.runtime.sendMessage({ command: 'getState' }),
                 new Promise((_, reject) => 
@@ -72,21 +83,22 @@ class PagyContentScript {
             });
 
         } catch (error) {
-            // Extension context might be lost during page reload - this is normal
             if (error.message.includes('Extension context invalid') || 
                 error.message.includes('Timeout') ||
                 error.message.includes('message port closed')) {
                 contentLogger.debug('Extension context lost or timeout during initialization');
-                // Set safe defaults
                 this.updateState({ isPaused: false, domain: null });
             } else {
                 contentLogger.warn('Failed to initialize content script', { error: error.message });
-                // Set safe defaults on any error
                 this.updateState({ isPaused: false, domain: null });
             }
         }
     }
 
+    /**
+     * Updates the state of the content script.
+     * @param {object} newState - The new state to apply.
+     */
     updateState(newState) {
         const wasChanged = this.state.isPaused !== newState.isPaused;
         
@@ -98,16 +110,21 @@ class PagyContentScript {
         }
     }
 
+    /**
+     * Handles state changes.
+     */
     onStateChange() {
-        const status = this.state.isPaused ? 'deaktiviert' : 'aktiviert';
-        contentLogger.info(`Pagy Blocker ${status} für diese Domain`, { 
+        const status = this.state.isPaused ? 'disabled' : 'enabled';
+        contentLogger.info(`Pagy Blocker ${status} for this domain`, {
             domain: this.state.domain 
         });
 
-        // Dispatch custom event for potential integrations
         this.dispatchStatusEvent();
     }
 
+    /**
+     * Dispatches a custom event with the current state.
+     */
     dispatchStatusEvent() {
         try {
             const event = new CustomEvent('pagyBlockerStateChange', {
@@ -123,6 +140,12 @@ class PagyContentScript {
         }
     }
 
+    /**
+     * Handles incoming messages from the background script.
+     * @param {object} message - The message object.
+     * @param {object} sender - The sender of the message.
+     * @param {Function} sendResponse - The function to call to send a response.
+     */
     handleMessage(message, sender, sendResponse) {
         try {
             if (!isExtensionContextValid()) {
@@ -153,6 +176,11 @@ class PagyContentScript {
         }
     }
 
+    /**
+     * Handles the 'updatePauseState' command.
+     * @param {object} message - The message object.
+     * @param {Function} sendResponse - The function to call to send a response.
+     */
     handleUpdatePauseState(message, sendResponse) {
         const newState = {
             isPaused: Boolean(message.isPaused),
@@ -163,6 +191,10 @@ class PagyContentScript {
         sendResponse({ success: true });
     }
 
+    /**
+     * Handles the 'getContentState' command.
+     * @param {Function} sendResponse - The function to call to send a response.
+     */
     handleGetContentState(sendResponse) {
         sendResponse({
             isPaused: this.state.isPaused,
@@ -171,7 +203,9 @@ class PagyContentScript {
         });
     }
 
-    // Performance monitoring (optional)
+    /**
+     * Reports performance metrics.
+     */
     reportPerformance() {
         if (typeof performance !== 'undefined' && performance.memory) {
             const memory = {
@@ -183,11 +217,12 @@ class PagyContentScript {
         }
     }
 
-    // Cleanup method
+    /**
+     * Cleans up the content script.
+     */
     destroy() {
         this.state.isInitialized = false;
         
-        // Cancel any pending debounced calls
         if (this.debouncedInitialize?.cancel) {
             this.debouncedInitialize.cancel();
         }
@@ -196,13 +231,10 @@ class PagyContentScript {
     }
 }
 
-// Initialize content script
 const pagyContent = new PagyContentScript();
 
-// Cleanup on page unload
 window.addEventListener('beforeunload', () => {
     pagyContent.destroy();
 });
 
-// Export for testing/debugging
 window.pagyContent = pagyContent;
