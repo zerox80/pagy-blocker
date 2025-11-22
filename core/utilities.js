@@ -1,6 +1,6 @@
 /**
  * @file Central utility functions for Pagy Blocker.
- * @version 11.1
+ * @version 11.2
  */
 
 import { EXTENSION_CONFIG } from './config.js';
@@ -21,11 +21,11 @@ export function getDomainFromUrl(url) {
     try {
         const parsedUrl = new URL(url.startsWith('http') ? url : `https://${url}`);
         const hostname = parsedUrl.hostname.toLowerCase();
-        
+
         if (!isValidDomain(hostname)) {
             return null;
         }
-        
+
         return hostname;
     } catch (error) {
         logger.debug('Invalid URL provided', { url, error: error.message });
@@ -65,17 +65,17 @@ export function isValidDomain(domain) {
         if (!label || label.length > EXTENSION_CONFIG.LIMITS.MAX_LABEL_LENGTH) {
             return false;
         }
-        
+
         for (let i = 0; i < label.length; i++) {
             const charCode = label.charCodeAt(i);
             if (!((charCode >= 97 && charCode <= 122) || // a-z
-                  (charCode >= 65 && charCode <= 90) || // A-Z
-                  (charCode >= 48 && charCode <= 57) || // 0-9
-                  charCode === 45)) { // -
+                (charCode >= 65 && charCode <= 90) || // A-Z
+                (charCode >= 48 && charCode <= 57) || // 0-9
+                charCode === 45)) { // -
                 return false;
             }
         }
-        
+
         return true;
     });
 }
@@ -162,22 +162,22 @@ export function deepClone(obj) {
     if (obj === null || typeof obj !== 'object') {
         return obj;
     }
-    
+
     if (obj instanceof Date) {
         return new Date(obj.getTime());
     }
-    
+
     if (Array.isArray(obj)) {
         return obj.map(item => deepClone(item));
     }
-    
+
     const cloned = {};
     for (const key in obj) {
         if (obj.hasOwnProperty(key)) {
             cloned[key] = deepClone(obj[key]);
         }
     }
-    
+
     return cloned;
 }
 
@@ -196,7 +196,7 @@ export async function retryAsync(fn, maxRetries = 3, delay = 1000) {
             if (attempt === maxRetries) {
                 throw error;
             }
-            
+
             logger.debug(`Retry attempt ${attempt} failed`, { error: error.message });
             await new Promise(resolve => setTimeout(resolve, delay * attempt));
         }
@@ -251,7 +251,7 @@ export function sanitizeInput(input) {
     if (typeof input !== 'string') {
         return '';
     }
-    
+
     return input
         .replace(/[&<>"']/g, (char) => {
             switch (char) {
@@ -301,17 +301,17 @@ export function isExtensionContextValid() {
  */
 export async function batchProcess(items, processor, batchSize = EXTENSION_CONFIG.PERFORMANCE.BATCH_SIZE) {
     const results = [];
-    
+
     for (let i = 0; i < items.length; i += batchSize) {
         const batch = items.slice(i, i + batchSize);
         const batchResults = await Promise.all(batch.map(processor));
         results.push(...batchResults);
-        
+
         if (i + batchSize < items.length) {
             await new Promise(resolve => setTimeout(resolve, 0));
         }
     }
-    
+
     return results;
 }
 

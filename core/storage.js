@@ -1,6 +1,6 @@
 /**
  * @file Storage abstraction layer for Pagy Blocker.
- * @version 11.1
+ * @version 11.2
  */
 
 import { EXTENSION_CONFIG } from './config.js';
@@ -45,17 +45,17 @@ class StorageManager {
         const operation = retryAsync(async () => {
             const result = await chrome.storage.local.get(key);
             const value = result[key];
-            
+
             if (useCache) {
                 this.updateCache(key, value);
             }
-            
+
             logger.debug('Retrieved from storage', { key, hasValue: value !== undefined });
             return value;
         }, 3, 1000);
 
         this.pendingOperations.set(key, operation);
-        
+
         try {
             const result = await operation;
             return result;
@@ -77,9 +77,9 @@ class StorageManager {
 
         await retryAsync(async () => {
             await chrome.storage.local.set({ [key]: value });
-            
+
             this.updateCache(key, value);
-            
+
             logger.debug('Stored to storage', { key, valueType: typeof value });
         }, 3, 1000);
     }
@@ -96,10 +96,10 @@ class StorageManager {
 
         await retryAsync(async () => {
             await chrome.storage.local.remove(key);
-            
+
             this.cache.delete(key);
             this.cacheTimestamps.delete(key);
-            
+
             logger.debug('Removed from storage', { key });
         }, 3, 1000);
     }
@@ -116,7 +116,7 @@ class StorageManager {
         await chrome.storage.local.clear();
         this.cache.clear();
         this.cacheTimestamps.clear();
-        
+
         logger.info('Cleared all storage data');
     }
 
@@ -182,7 +182,7 @@ class StorageManager {
         }
 
         const result = await chrome.storage.local.get(keys);
-        
+
         keys.forEach(key => {
             if (key in result) {
                 this.updateCache(key, result[key]);
@@ -204,7 +204,7 @@ class StorageManager {
         }
 
         await chrome.storage.local.set(data);
-        
+
         Object.entries(data).forEach(([key, value]) => {
             this.updateCache(key, value);
         });

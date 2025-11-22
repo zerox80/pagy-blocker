@@ -1,6 +1,6 @@
 /**
  * @file Content script for Pagy Blocker - status updates and monitoring.
- * @version 11.1
+ * @version 11.2
  */
 
 import { contentLogger } from '../core/logger.js';
@@ -19,7 +19,7 @@ class PagyContentScript {
             domain: null,
             isInitialized: false
         };
-        
+
         this.debouncedInitialize = debounce(this.initialize.bind(this), 100);
         this.setupEventListeners();
         this.init();
@@ -65,25 +65,25 @@ class PagyContentScript {
 
             const state = await Promise.race([
                 chrome.runtime.sendMessage({ command: 'getState' }),
-                new Promise((_, reject) => 
+                new Promise((_, reject) =>
                     setTimeout(() => reject(new Error('Timeout')), 2000)
                 )
             ]);
-            
+
             if (state?.error) {
                 throw new Error(state.error);
             }
 
             this.updateState(state || { isPaused: false, domain: null });
             this.state.isInitialized = true;
-            
-            contentLogger.debug('Content script initialized', { 
+
+            contentLogger.debug('Content script initialized', {
                 domain: this.state.domain,
-                isPaused: this.state.isPaused 
+                isPaused: this.state.isPaused
             });
 
         } catch (error) {
-            if (error.message.includes('Extension context invalid') || 
+            if (error.message.includes('Extension context invalid') ||
                 error.message.includes('Timeout') ||
                 error.message.includes('message port closed')) {
                 contentLogger.debug('Extension context lost or timeout during initialization');
@@ -101,7 +101,7 @@ class PagyContentScript {
      */
     updateState(newState) {
         const wasChanged = this.state.isPaused !== newState.isPaused;
-        
+
         this.state.isPaused = Boolean(newState.isPaused);
         this.state.domain = newState.domain || null;
 
@@ -116,7 +116,7 @@ class PagyContentScript {
     onStateChange() {
         const status = this.state.isPaused ? 'disabled' : 'enabled';
         contentLogger.info(`Pagy Blocker ${status} for this domain`, {
-            domain: this.state.domain 
+            domain: this.state.domain
         });
 
         this.dispatchStatusEvent();
@@ -133,7 +133,7 @@ class PagyContentScript {
                     domain: this.state.domain
                 }
             });
-            
+
             document.dispatchEvent(event);
         } catch (error) {
             contentLogger.warn('Failed to dispatch status event', { error: error.message });
@@ -158,19 +158,19 @@ class PagyContentScript {
                 case 'updatePauseState':
                     this.handleUpdatePauseState(message, sendResponse);
                     break;
-                    
+
                 case 'getContentState':
                     this.handleGetContentState(sendResponse);
                     break;
-                    
+
                 default:
                     contentLogger.debug('Unknown message command', { command: message.command });
                     sendResponse({ error: 'Unknown command' });
             }
         } catch (error) {
-            contentLogger.warn('Error handling message', { 
-                command: message.command, 
-                error: error.message 
+            contentLogger.warn('Error handling message', {
+                command: message.command,
+                error: error.message
             });
             sendResponse({ error: error.message });
         }
@@ -186,7 +186,7 @@ class PagyContentScript {
             isPaused: Boolean(message.isPaused),
             domain: this.state.domain
         };
-        
+
         this.updateState(newState);
         sendResponse({ success: true });
     }
@@ -212,7 +212,7 @@ class PagyContentScript {
                 used: Math.round(performance.memory.usedJSHeapSize / 1024 / 1024),
                 total: Math.round(performance.memory.totalJSHeapSize / 1024 / 1024)
             };
-            
+
             contentLogger.debug('Memory usage', memory);
         }
     }
@@ -222,11 +222,11 @@ class PagyContentScript {
      */
     destroy() {
         this.state.isInitialized = false;
-        
+
         if (this.debouncedInitialize?.cancel) {
             this.debouncedInitialize.cancel();
         }
-        
+
         contentLogger.debug('Content script destroyed');
     }
 }

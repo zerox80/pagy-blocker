@@ -1,6 +1,6 @@
 /**
  * @file Centralized logging system for Pagy Blocker.
- * @version 11.1
+ * @version 11.2
  */
 
 import { LOG_CONFIG as IMPORTED_LOG_CONFIG } from './config.js';
@@ -48,7 +48,7 @@ class Logger {
         const timestamp = new Date().toISOString();
         const levelStr = Object.keys(LOG_CONFIG.LEVELS)[level];
         const contextStr = this.context ? `[${this.context}]` : '';
-        
+
         return {
             formatted: `${LOG_CONFIG.PREFIX} ${contextStr} ${levelStr}: ${message}`,
             timestamp,

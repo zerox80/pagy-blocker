@@ -1,6 +1,6 @@
 /**
  * @file Service Worker for Pagy Blocker - Domain-based filter control.
- * @version 11.1
+ * @version 11.2
  */
 
 import { EXTENSION_CONFIG, RULE_CONFIG } from '../core/config.js';
@@ -85,17 +85,17 @@ class BackgroundState {
         if (this.isInitialized) return;
 
         const timer = new PerformanceTimer('Background initialization');
-        
+
         try {
             await blockerEngine.initialize();
-            
+
             await this.initializeFilterCount();
             await this.initializeStorage();
             await this.updateDynamicRules();
-            
+
             this.isInitialized = true;
             backgroundLogger.info('Background script initialized successfully');
-            
+
             const stats = await blockerEngine.getStats();
             backgroundLogger.info('Blocker stats:', stats);
         } catch (error) {
@@ -155,26 +155,26 @@ const state = new BackgroundState();
  */
 const updateDynamicRules = async () => {
     const operationId = 'updateDynamicRules';
-    
+
     if (state.activeOperations.has(operationId)) {
         backgroundLogger.debug('Dynamic rules update already in progress');
         return;
     }
-    
+
     state.activeOperations.add(operationId);
     const timer = new PerformanceTimer('Update dynamic rules');
-    
+
     try {
         const disabledDomains = await blockerEngine.getDisabledDomains();
-        
+
         const validDomains = disabledDomains
             .filter(domain => blockerEngine.isValidDomain(domain))
             .slice(0, EXTENSION_CONFIG.LIMITS.MAX_DYNAMIC_RULES);
 
         if (validDomains.length !== disabledDomains.length) {
-            backgroundLogger.warn('Invalid domains filtered out', { 
-                original: disabledDomains.length, 
-                valid: validDomains.length 
+            backgroundLogger.warn('Invalid domains filtered out', {
+                original: disabledDomains.length,
+                valid: validDomains.length
             });
         }
 
@@ -254,9 +254,9 @@ const updateDynamicRules = async () => {
         });
 
     } catch (error) {
-        backgroundLogger.error('Failed to update dynamic rules', { 
+        backgroundLogger.error('Failed to update dynamic rules', {
             error: error.message,
-            stack: error.stack 
+            stack: error.stack
         });
         throw error;
     } finally {
@@ -274,13 +274,13 @@ state.updateDynamicRules = updateDynamicRules;
  */
 const updateIcon = debounce(async (tabId) => {
     const operationId = `updateIcon-${tabId}`;
-    
+
     if (state.activeOperations.has(operationId)) {
         return;
     }
-    
+
     state.activeOperations.add(operationId);
-    
+
     try {
         if (!tabId || typeof tabId !== 'number') {
             backgroundLogger.error('Invalid tabId for updateIcon', { tabId });
@@ -310,9 +310,9 @@ const updateIcon = debounce(async (tabId) => {
         }
 
         state.tabIconCache.set(tabId, { domain, iconPath, badgeText });
-        
+
         backgroundLogger.debug('Icon updated', { tabId, domain, isPaused: isPausedForDomain });
-        
+
     } catch (error) {
         if (!error.message.includes('No tab with id')) {
             backgroundLogger.error('Failed to update icon', { tabId, error: error.message });
@@ -334,9 +334,9 @@ class MessageHandler {
         const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
         const domain = blockerEngine.getDomainFromUrl(activeTab?.url);
         const isPaused = domain ? await blockerEngine.isDomainDisabled(domain) : false;
-        
+
         const stats = await blockerEngine.getStats();
-        
+
         return {
             isPaused,
             domain,
@@ -355,7 +355,7 @@ class MessageHandler {
         if (!domain) {
             return { isPaused: false };
         }
-        
+
         const isPaused = await blockerEngine.isDomainDisabled(domain);
         return { isPaused, domain };
     }
@@ -373,7 +373,7 @@ class MessageHandler {
         }
 
         const timer = new PerformanceTimer(`Toggle domain ${domain}`);
-        
+
         try {
             if (isPaused) {
                 await blockerEngine.addDisabledDomain(domain);
@@ -403,19 +403,19 @@ class MessageHandler {
                 const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
                 if (activeTab?.id && activeTab?.url) {
                     const activeTabDomain = blockerEngine.getDomainFromUrl(activeTab.url);
-                    
+
                     if (activeTabDomain === domain) {
                         await chrome.tabs.reload(activeTab.id);
-                        backgroundLogger.info('Active tab reloaded after domain toggle', { 
-                            tabId: activeTab.id, 
-                            domain: domain 
+                        backgroundLogger.info('Active tab reloaded after domain toggle', {
+                            tabId: activeTab.id,
+                            domain: domain
                         });
                     }
                 }
             } catch (e) {
-                backgroundLogger.error('Active tab reload failed', { 
-                    error: e?.message, 
-                    stack: e?.stack 
+                backgroundLogger.error('Active tab reload failed', {
+                    error: e?.message,
+                    stack: e?.stack
                 });
             }
 
@@ -453,12 +453,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 default:
                     throw new Error(`Unknown command: ${message.command}`);
             }
-            
+
             sendResponse(result);
         } catch (error) {
-            backgroundLogger.error('Message handler error', { 
-                command: message.command, 
-                error: error.message 
+            backgroundLogger.error('Message handler error', {
+                command: message.command,
+                error: error.message
             });
             sendResponse({ error: error.message });
         }

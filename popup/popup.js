@@ -1,6 +1,6 @@
 /**
  * @file Popup UI for Pagy Blocker.
- * @version 11.1
+ * @version 11.2
  */
 
 import { EXTENSION_CONFIG } from '../core/config.js';
@@ -25,13 +25,13 @@ class PagyPopup {
             runtimeDisplayEl: document.getElementById('runtime-display'),
             versionTextEl: document.getElementById('version-text')
         };
-        
+
         this.state = {
             currentDomain: null,
             isUpdating: false,
             retryCount: 0
         };
-        
+
         this.debouncedToggle = debounce(this.handleToggle.bind(this), 300);
         this.init();
     }
@@ -85,7 +85,7 @@ class PagyPopup {
      */
     async updateUI() {
         const maxRetries = 3;
-        
+
         for (let attempt = 1; attempt <= maxRetries; attempt++) {
             try {
                 if (!isExtensionContextValid()) {
@@ -96,7 +96,7 @@ class PagyPopup {
                     chrome.runtime.sendMessage({ command: 'getPopupData' }),
                     new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 2000))
                 ]);
-                
+
                 if (!data) {
                     throw new Error('No data received from background script');
                 }
@@ -109,10 +109,10 @@ class PagyPopup {
                 this.state.retryCount = 0;
                 popupLogger.debug('UI updated successfully', { domain: data.domain });
                 return;
-                
+
             } catch (error) {
                 popupLogger.warn(`UI update attempt ${attempt} failed`, { error: error.message });
-                
+
                 if (attempt === maxRetries) {
                     this.showError('Error loading data');
                     popupLogger.error('All UI update attempts failed', { error: error.message });
@@ -138,7 +138,7 @@ class PagyPopup {
         }
 
         this.updateFilterCount(filterCount);
-        
+
         if (data.stats) {
             this.updateStats(data.stats);
         }
@@ -154,7 +154,7 @@ class PagyPopup {
         this.elements.enableSwitch.checked = !isPaused;
         this.elements.statusText.textContent = isPaused ? 'Disabled' : 'Active';
         this.elements.domainText.textContent = sanitizeInput(domain);
-        
+
         const statusBadge = this.elements.statusText.closest('.status-badge');
         if (statusBadge) {
             statusBadge.className = 'status-badge ' + (isPaused ? 'status-disabled' : 'status-active');
@@ -169,7 +169,7 @@ class PagyPopup {
         this.elements.enableSwitch.checked = false;
         this.elements.statusText.textContent = 'No valid website';
         this.elements.domainText.textContent = 'Not available';
-        
+
         const statusBadge = this.elements.statusText.closest('.status-badge');
         if (statusBadge) {
             statusBadge.className = 'status-badge status-neutral';
@@ -181,8 +181,8 @@ class PagyPopup {
      * @param {number} filterCount - The number of filters.
      */
     updateFilterCount(filterCount) {
-        const displayCount = typeof filterCount === 'number' 
-            ? filterCount.toLocaleString() 
+        const displayCount = typeof filterCount === 'number'
+            ? filterCount.toLocaleString()
             : 'N/A';
         this.elements.filterCountEl.textContent = displayCount;
     }
@@ -193,28 +193,28 @@ class PagyPopup {
      */
     updateStats(stats) {
         const { initialized, runtime, blockedRequests } = stats;
-        
+
         if (initialized) {
             if (this.elements.blockedCountEl) {
                 const blockedCount = blockedRequests || 0;
                 this.elements.blockedCountEl.textContent = blockedCount.toLocaleString();
-                
+
                 this.elements.blockedCountEl.classList.remove('bump');
                 void this.elements.blockedCountEl.offsetWidth;
                 this.elements.blockedCountEl.classList.add('bump');
             }
-            
+
             if (this.elements.runtimeDisplayEl) {
                 const runtimeSeconds = Math.floor(runtime / 1000);
-                const runtimeDisplay = runtimeSeconds < 60 ? 
-                    `${runtimeSeconds}s` : 
+                const runtimeDisplay = runtimeSeconds < 60 ?
+                    `${runtimeSeconds}s` :
                     runtimeSeconds < 3600 ?
-                    `${Math.floor(runtimeSeconds / 60)}m` :
-                    `${Math.floor(runtimeSeconds / 3600)}h`;
-                
+                        `${Math.floor(runtimeSeconds / 60)}m` :
+                        `${Math.floor(runtimeSeconds / 3600)}h`;
+
                 this.elements.runtimeDisplayEl.textContent = runtimeDisplay;
             }
-            
+
             if (this.elements.statsEl && blockedRequests > 0) {
                 this.elements.statsEl.innerHTML = `
                     <div class="detailed-info">
@@ -232,9 +232,9 @@ class PagyPopup {
      */
     async handleToggle() {
         if (!this.state.currentDomain || this.state.isUpdating) {
-            popupLogger.debug('Toggle ignored', { 
-                domain: this.state.currentDomain, 
-                isUpdating: this.state.isUpdating 
+            popupLogger.debug('Toggle ignored', {
+                domain: this.state.currentDomain,
+                isUpdating: this.state.isUpdating
             });
             return;
         }
@@ -246,7 +246,7 @@ class PagyPopup {
 
         this.state.isUpdating = true;
         const originalState = this.captureCurrentState();
-        
+
         try {
             this.setLoadingState();
 
@@ -263,24 +263,24 @@ class PagyPopup {
                 throw new Error(response.error);
             }
 
-            popupLogger.info('Domain state toggled successfully', { 
+            popupLogger.info('Domain state toggled successfully', {
                 domain: this.state.currentDomain,
                 newState: !this.elements.enableSwitch.checked ? 'disabled' : 'enabled'
             });
 
             try {
                 window.close();
-            } catch (_) {}
-            
+            } catch (_) { }
+
         } catch (error) {
-            popupLogger.error('Failed to toggle domain state', { 
+            popupLogger.error('Failed to toggle domain state', {
                 domain: this.state.currentDomain,
-                error: error.message 
+                error: error.message
             });
-            
+
             this.restoreState(originalState);
             this.showError('Error changing status');
-            
+
             setTimeout(() => {
                 if (!this.state.isUpdating) {
                     this.updateUI();
@@ -347,12 +347,12 @@ class PagyPopup {
         if (this.debouncedToggle) {
             this.debouncedToggle.cancel?.();
         }
-        
+
         this.elements.enableSwitch?.removeEventListener('change', this.debouncedToggle);
         if (this._onWindowFocus) {
             window.removeEventListener('focus', this._onWindowFocus);
         }
-        
+
         popupLogger.debug('Popup destroyed');
     }
 }

@@ -1,6 +1,6 @@
 /**
  * @file Blocker engine based on Chrome's declarativeNetRequest API.
- * @version 11.1
+ * @version 11.2
  */
 
 import { getDomainFromUrl as utilGetDomainFromUrl, isValidDomain as utilIsValidDomain } from './utilities.js';
@@ -56,7 +56,7 @@ export class BlockerEngine {
      */
     async initialize() {
         const initStart = Date.now();
-        
+
         try {
             this.filterRules = await this.loadFilterRules();
 
@@ -76,12 +76,12 @@ export class BlockerEngine {
                     // Listener is optional, no hard dependencies.
                 }
             }
-            
+
             this.isInitialized = true;
-            
+
             const initTime = Date.now() - initStart;
             engineLogger.info(`Blocker engine initialized in ${initTime.toFixed(2)}ms`);
-            
+
             return true;
         } catch (error) {
             engineLogger.error('Failed to initialize blocker engine', { error: error.message });
@@ -115,7 +115,7 @@ export class BlockerEngine {
                 blockedRequests: this._statsCache.blockedRequests
             };
         }
-        
+
         try {
             if (typeof chrome?.declarativeNetRequest?.getMatchedRules === 'function') {
                 const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });

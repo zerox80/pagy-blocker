@@ -1,6 +1,6 @@
 /**
  * @file Content script wrapper for ES module support.
- * @version 11.1
+ * @version 11.2
  */
 
 (async () => {
