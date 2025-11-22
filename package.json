@@ -1,6 +1,6 @@
 {
   "name": "pagy-blocker-devtools",
-  "version": "11.2.0",
+  "version": "11.3.0",
   "private": true,
   "description": "Build tools for Pagy Blocker",
   "type": "module",

@@ -1,6 +1,6 @@
 /**
  * @file Central configuration for Pagy Blocker.
- * @version 11.2
+ * @version 11.3
  */
 
 /**
@@ -11,7 +11,7 @@ export const EXTENSION_CONFIG = Object.freeze({
     /** The name of the extension. */
     NAME: 'Pagy Blocker',
     /** The version of the extension. */
-    VERSION: '11.2',
+    VERSION: '11.3',
     /** Storage keys used by the extension. */
     STORAGE_KEYS: {
         /** Key for storing disabled domains. */

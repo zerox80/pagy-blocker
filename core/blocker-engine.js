@@ -1,6 +1,6 @@
 /**
  * @file Blocker engine based on Chrome's declarativeNetRequest API.
- * @version 11.2
+ * @version 11.3
  */
 
 import { getDomainFromUrl as utilGetDomainFromUrl, isValidDomain as utilIsValidDomain } from './utilities.js';

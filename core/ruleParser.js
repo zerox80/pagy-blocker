@@ -1,6 +1,6 @@
 /**
  * @file Comprehensive rule parser with advanced syntax validation.
- * @version 11.2
+ * @version 11.3
  */
 
 /**

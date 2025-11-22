@@ -1,9 +1,9 @@
 # Changelog
 
-## 11.2 (2025-11-22)
+## 11.3 (2025-11-22)
 
-- Version bump to `11.2` in `manifest.json`, `package.json`, and `core/config.js`.
-- Updated `@version` headers across source files to match 11.2.
+- Version bump to `11.3` in `manifest.json`, `package.json`, and `core/config.js`.
+- Updated `@version` headers across source files to match 11.3.
 - massivly improved filters
 
 ## 11.1 (2025-10-09)
