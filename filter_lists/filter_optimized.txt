@@ -246,7 +246,6 @@
 ||gigya.com^
 ||janrain.com^
 ||loginradius.com^
-||auth0.com^
 ||okta.com^
 ||onelogin.com^
 ||pingidentity.com^
