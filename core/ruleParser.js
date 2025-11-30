@@ -282,13 +282,31 @@ export function parseRule(rule) {
 function parseNetworkRule(rule) {
     const isException = rule.startsWith('@@');
     const cleanRule = isException ? rule.slice(2) : rule;
-    const dollarIndex = cleanRule.lastIndexOf('$');
+
+    // Find the separator '$' that is NOT preceded by '\'
+    let dollarIndex = -1;
+    for (let i = cleanRule.length - 1; i >= 0; i--) {
+        if (cleanRule[i] === '$') {
+            // Check if escaped
+            if (i > 0 && cleanRule[i - 1] === '\\') {
+                continue;
+            }
+            dollarIndex = i;
+            break;
+        }
+    }
+
     let pattern = cleanRule;
     let options = '';
+
     if (dollarIndex !== -1 && dollarIndex < cleanRule.length - 1) {
         pattern = cleanRule.slice(0, dollarIndex);
         options = cleanRule.slice(dollarIndex + 1);
     }
+
+    // Unescape \$ in pattern to $
+    pattern = pattern.replace(/\\\$/g, '$');
+
     const patternValidation = validateURLPattern(pattern);
     if (!patternValidation.isValid) {
         return null;
@@ -297,6 +315,11 @@ function parseNetworkRule(rule) {
     if (options) {
         const optionsValidation = validateFilterOptions(options);
         if (!optionsValidation.isValid) {
+            // Fallback: If options are invalid, maybe the $ was part of the URL and not a separator?
+            // However, strictly speaking, if it wasn't escaped, it SHOULD be a separator.
+            // But to be user-friendly, if we found a $, treated it as separator, and options failed,
+            // we could try to treat the whole thing as a pattern if the "options" part looks like a URL path?
+            // For now, let's stick to strict parsing: if unescaped $, it's a separator.
             return null;
         }
         parsedOptions = optionsValidation.parsedOptions;

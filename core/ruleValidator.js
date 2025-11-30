@@ -132,6 +132,20 @@ export function validateRuleCondition(condition, ruleIndex) {
                 `Rule at index ${ruleIndex} has an invalid regexFilter: ${error.message}`
             );
         }
+
+        // RE2 compatibility check
+        // RE2 does not support lookaheads (?=, (?!), lookbehinds (?<=, (?<!), or backreferences \1
+        const re2Incompatible = /\(\?=| \(\?!|\(\?<=|\(\?<!|\\([1-9])/;
+        if (condition.regexFilter.includes('(?=') ||
+            condition.regexFilter.includes('(?!') ||
+            condition.regexFilter.includes('(?<=') ||
+            condition.regexFilter.includes('(?<!') ||
+            /\\([1-9])/.test(condition.regexFilter)) {
+            errors.push(
+                `Rule at index ${ruleIndex} regexFilter contains RE2-incompatible syntax (lookarounds or backreferences are not supported in Chrome DNR).`
+            );
+        }
+
         if (condition.regexFilter.length > VALIDATION_CONFIG.MAX_URL_FILTER_LENGTH) {
             errors.push(
                 `Rule at index ${ruleIndex} regexFilter is too long: ${condition.regexFilter.length} characters. Maximum: ${VALIDATION_CONFIG.MAX_URL_FILTER_LENGTH}`
