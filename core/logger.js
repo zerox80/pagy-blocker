@@ -1,6 +1,6 @@
 /**
  * @file Centralized logging system for Pagy Blocker.
- * @version 11.3
+ * @version 11.5
  */
 
 import { LOG_CONFIG as IMPORTED_LOG_CONFIG } from './config.js';

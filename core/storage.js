@@ -1,6 +1,6 @@
 /**
  * @file Storage abstraction layer for Pagy Blocker.
- * @version 11.3
+ * @version 11.5
  */
 
 import { EXTENSION_CONFIG } from './config.js';
